@@ -164,25 +164,35 @@ function Engine() {
     function openWalletAfterCreate(twoFactorCodeChk, callback) {
 
         //check two factor code
+        if (twoFactorCodeChk != '') {
+            SetupTwoFactor(twoFactorCodeChk, function (err, wallet) {
 
-        SetupTwoFactor(twoFactorCodeChk, function (err, wallet) {
+                if (err) {
 
-            if (err) {
+                    return callback(err, wallet);
 
-                return callback(err, wallet);
+                } else {
 
-            } else {
+                    m_this.m_twoFactorOnLogin = true;
 
-                m_this.m_twoFactorOnLogin = true;
+                    getSettings(function (err, result) {
 
-                getSettings(function (err, result) {
+                        callback(err, result);
 
-                    callback(err, result);
+                    });
+                }
 
-                });
-            }
+            });
 
-        });
+        } else {
+
+            getSettings(function (err, result) {
+
+                callback(err, result);
+
+            });
+
+        }
 
     }
 
