@@ -125,11 +125,11 @@ API.getMasterPublicKeyFromUpstreamServer = function (guid, callback) {
 
 //function doesUsernameExist
 //verifies that the requested username does not already exist on our database
-API.doesUsernameExist = function (username, callback) {
+API.doesAccountExist = function (username,email, callback) {
 
-    var postData = { username: username };
+    var postData = { username: username, email:email };
 
-    lpost("/api/1/u/doesusernameexist", postData, function (err, response) {
+    lpost("/api/1/u/doesaccountexist", postData, function (err, response) {
         if (err) {
             return callback(err, response);
         } else {

@@ -84,6 +84,27 @@ function UI() {
     }
 
 
+    function getLocalTime(datetime) {
+
+        var timestamp = datetime,
+        t = new Date(datetime),
+        hours = t.getHours(),
+        min = t.getMinutes() + '',
+        pm = false,
+        months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+        if (hours > 11) {
+            hours = hours - 12;
+            pm = true;
+        }
+
+        if (hours == 0) hours = 12;
+        if (min.length == 1) min = '0' + min;
+
+        return (hours + ':' + min + ' ' + (pm ? 'pm' : 'am'));
+
+    }
+
     jQuery(document).ready(function () {
 
 
@@ -136,6 +157,15 @@ function UI() {
     });
 
 
+
+    $('#frmSaveTwoFactor').keydown(function (e) {
+        if (e.keyCode == 13) {
+            e.preventDefault();
+            return false;
+        }
+    });
+
+
     $(document).on("keydown", function (e) {
         if (e.which === 8 && !$(e.target).is("input, textarea")) {
             e.preventDefault();
@@ -153,6 +183,25 @@ function UI() {
                 $('[data-toggle="popover"]').popover('hide');
             }
         });
+
+
+        //if (getCookie('guid').length == 0) {
+
+            var betafrom = 'December 12, 2009 12:00 pm GMT';
+            var betato = 'December 12, 2009 01:00 pm GMT';
+
+            betafrom = getLocalTime(betafrom);
+            betato = getLocalTime(betato);
+
+            $('#betafrom').html(betafrom);
+            $('#betato').html(betato);
+
+            $('#basicModal').modal('show');
+
+            $("#btnDeclineBeta").click(function () {
+                window.location.href = '/'
+            });
+        //}
 
 
         $("#btncreatewallet").click(function () {
@@ -284,6 +333,19 @@ function UI() {
                                     $("#btnCreate").removeClass('disabled');
                                     $("#lnkOpenWallet").show();
                                 }
+                                if (result == "ErrEmailExists") {
+
+                                    $("#createWalletStart input#emailaddress").css("border-color", "#ffaaaa");
+                                    $("#imgcreatewaiting").hide();
+
+                                    $("#createwalletalert").show();
+                                    $("#createwalletalertmessage").html("The email address is already in use");
+
+                                    $("#btnCreate").prop('disabled', false);
+                                    $("#btnCreate").removeClass('disabled');
+                                    $("#lnkOpenWallet").show();
+                                }
+
                                 if (result == "ErrCreateAccount") {
 
                                     $("#imgcreatewaiting").hide();
@@ -2108,17 +2170,6 @@ function UI() {
                 $('#Email').val(settingsObject['Email']);
                 $('#EmailNotification').prop('checked', settingsObject['EmailNotification']);
 
-                $('#TwoFactor').val(settingsObject['TwoFactor']);
-                $('#AutoEmailBackup').val(settingsObject['AutoEmailBackup']);
-                $('#EmailVerified').val(settingsObject['EmailVerified']);
-                $('#Phone').val(settingsObject['Phone']);
-                $('#PhoneVerified').val(settingsObject['PhoneVerified']);
-                $('#Language').val(settingsObject['Language']);
-                $('#LocalCurrency').val(settingsObject['LocalCurrency']);
-                $('#PhoneNotification').val(settingsObject['PhoneNotification']);
-                $('#PasswordHint').val(settingsObject['PasswordHint']);
-                $('#TwoFactorType').val(settingsObject['TwoFactorType']);
-
 
                 if (settingsObject['CoinUnit'] == 'BTC') {
                     $('#cuSelected').html('BTC');
@@ -2160,17 +2211,6 @@ function UI() {
 
         jsonPacket['Email'] = $('#Email').val();
         jsonPacket['EmailNotification'] = $('#EmailNotification').checked;
-        jsonPacket['TwoFactor'] = $('#TwoFactor').val();
-        jsonPacket['AutoEmailBackup'] = $('#AutoEmailBackup').val();
-        jsonPacket['EmailVerified'] = $('#EmailVerified').val();
-        jsonPacket['Phone'] = $('#Phone').val();
-        jsonPacket['PhoneVerified'] = $('#PhoneVerified').val();
-        jsonPacket['Language'] = $('#Language').val();
-        jsonPacket['LocalCurrency'] = $('#LocalCurrency').val();
-        jsonPacket['PhoneNotification'] = $('#PhoneNotification').val();
-        jsonPacket['PasswordHint'] = $('#PasswordHint').val();
-        jsonPacket['TwoFactorType'] = $('#TwoFactorType').val();
-
 
         Engine.updateAccountSettings(jsonPacket, $("#txtTwoFactorCodeForSettings").val(), function (err, response) {
             if (err) {

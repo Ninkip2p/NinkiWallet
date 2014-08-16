@@ -41,10 +41,13 @@ function Engine() {
         //assert(element, "Element not specified");
         element.val(uuid.v4());
     }
-
-    //function encrypt (valueToEncrypt, passphrase) {
-    //    return encrypt(valueToEncrypt, passphrase);
-    //}
+     
+    this.getguid = getguid;
+    function getguid() {
+        //assert(element, "Element not specified");
+        return uuid.v4();
+    }
+    
 
     this.encrypt = encrypt;
     function encrypt(valueToEncrypt, passphrase) {
@@ -64,14 +67,9 @@ function Engine() {
 
         var encrypted = CryptoJS.AES.encrypt(valueToEncrypt, key, { iv: ivwords });
 
-        //var test = encrypted.iv.toString();
-
         return encrypted;
     };
 
-    //function decrypt (encryptedObj, passphrase, iv) {
-    //    return decrypt(encryptedObj, passphrase, iv);
-    //}
 
     this.decrypt = decrypt;
     function decrypt(encryptedObj, passphrase, iv) {
@@ -104,16 +102,22 @@ function Engine() {
 
 
         //check if the username already exists
-        API.doesUsernameExist(username.toLowerCase(), function (err, usernameExistsOnServer) {
+        API.doesAccountExist(username.toLowerCase(), emailAddress.toLowerCase(), function (err, accExists) {
 
-            if (usernameExistsOnServer) {
+            if (accExists.UserExists) {
 
                 return callback(true, "ErrUserExists");
 
-            } else {
+            } 
+            else if (accExists.EmailExists) {
+
+                return callback(true, "ErrEmailExists");
+
+            }
+            else {
 
 
-                //stretch the password with the local guid as an IV
+                //stretch the password with the local guid as a salt
                 m_this.m_password = CryptoJS.PBKDF2(password, m_this.m_oguid, {
                     keySize: 256 / 32,
                     iterations: 1000
@@ -219,9 +223,6 @@ function Engine() {
                 keySize: 256 / 32,
                 iterations: 1000
             }).toString();
-
-            //TODO: Move this out of here
-            //if the provided password is not stretched
 
 
             try {
@@ -368,7 +369,7 @@ function Engine() {
 
 
         //save the wallet keys and user token in an encrypted packet
-        //AES256 using PBKDF2 on the password and a unique IV
+        //AES256 using PBKDF2 on the password and a unique salt
 
         var wal = {
             coldPub: coldPub,
@@ -381,10 +382,10 @@ function Engine() {
 
         m_this.m_walletinfo = wal;
 
-        var encryptedPayload = encrypt(wal, m_this.m_password, m_this.m_oguid);
+        var encryptedPayload = encrypt(wal, m_this.m_password);
 
         //save the PGP keys in an encrypted packet
-        //AES256 using PBKDF2 on the password and a unique IV
+        //AES256 using PBKDF2 on the password and a unique salt
 
         var encryptedUserPayload = encrypt({
             RSAPriv: keypair.privateKeyArmored,
@@ -397,7 +398,7 @@ function Engine() {
         //knows their password without having to hold any
         //information about their password (for future use)
         var secret = Bitcoin.Crypto.SHA256(userToken).toString();
-        var encryptedSecret = encrypt(secret, m_this.m_password, m_this.m_oguid);
+        var encryptedSecret = encrypt(secret, m_this.m_password);
 
 
         //create a packet to post to the server
@@ -1985,7 +1986,15 @@ function Engine() {
 
     this.doesUsernameExist = doesUsernameExist;
     function doesUsernameExist(username, callback) {
-        API.doesUsernameExist(username, callback);
+        API.doesAccountExist(username, '', function (err, accExists) {
+
+            if (err) {
+                callback(err, accExists);
+            } else {
+                callback(err, accExists.UserExists);           
+            }
+
+        });
     }
 
     this.sendWelcomeDetails = sendWelcomeDetails;
