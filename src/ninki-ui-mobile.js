@@ -1,10 +1,9 @@
 var Bitcoin = require('bitcoinjs-lib');
 var BIP39 = require('./bip39');
+var prettydate = require("pretty-date");
+
 
 function UI() {
-
-
-
 
     var Engine = new Ninki.Engine();
 
@@ -21,9 +20,12 @@ function UI() {
 
     var FRIENDSLIST = {};
     var COINUNIT = 'BTC';
+    var price = 0;
     var SELECTEDFRIEND = '';
     var noAlert = false;
     var norefresh = false;
+
+    var sendmode = "std";
 
     var trasactionFilterOn = false;
     var allTransactions = [];
@@ -76,7 +78,7 @@ function UI() {
         corners: 1, // Corner roundness (0..1)
         rotate: 0, // The rotation offset
         direction: 1, // 1: clockwise, -1: counterclockwise
-        color: '#000', // #rgb or #rrggbb or array of colors
+        color: '#c6d0e3', // #rgb or #rrggbb or array of colors
         speed: 1, // Rounds per second
         trail: 60, // Afterglow percentage
         shadow: false, // Whether to render a shadow
@@ -87,7 +89,27 @@ function UI() {
         left: '50%' // Left position relative to parent
     };
 
+    /* Parse bitcoin URL query keys. */
+    function parseBitcoinURL(url) {
+        var r = /^bitcoin:([a-zA-Z0-9]{27,34})(?:\?(.*))?$/;
+        var match = r.exec(url);
+        if (!match) return null;
 
+        var parsed = { url: url }
+
+        if (match[2]) {
+            var queries = match[2].split('&');
+            for (var i = 0; i < queries.length; i++) {
+                var query = queries[i].split('=');
+                if (query.length == 2) {
+                    parsed[query[0]] = decodeURIComponent(query[1].replace(/\+/g, '%20'));
+                }
+            }
+        }
+
+        parsed.address = match[1];
+        return parsed;
+    }
 
     function setCookie(cname, cvalue) {
 
@@ -203,28 +225,365 @@ function UI() {
     }
 
 
+    function loginPIN() {
+
+
+        var pin = $("#loginpinno").val();
+
+        $("#enterpinalert").hide();
+
+        if (pin.length == 4) {
+
+            getCookie("guid", function (guid) {
+
+
+                if (!Engine.m_appInitialised) {
+
+                    Engine.m_oguid = guid;
+
+                    var bytes = [];
+                    for (var i = 0; i < guid.length; ++i) {
+                        bytes.push(guid.charCodeAt(i));
+                    }
+
+                    Engine.m_guid = Bitcoin.Crypto.SHA256(Bitcoin.convert.bytesToWordArray(bytes)).toString();
+                }
+
+                Engine.getDeviceKey(pin, function (err, ekeyv) {
+
+                    //decrypt the passcode
+
+                    if (!err) {
+
+
+                        if (Engine.m_appInitialised) {
+
+                            $('.numdone').attr("style", "background-color:white");
+
+                            if (ekeyv.SessionToken) {
+                                $("#API-Token").val(ekeyv.SessionToken);
+                            }
+
+
+                            //check state and display correct headers
+
+
+
+                            //set new session key
+                            $("#paddel").hide();
+                            $('.numdone').attr("style", "background-color:white");
+                            $("#loginpin").hide();
+
+                            $("#nonlogin").show();
+                            $(".footer").show();
+                            $("#loginpinno").val('');
+
+                            //initialiseDashboard();
+                            setTimeout(updateUI(), 200);
+
+                        } else {
+
+
+                            $("#pinspinner").show();
+                            var target = document.getElementById('pinspinner');
+                            var spinner = new Spinner(spinneropts).spin(target);
+
+                            getCookie("ninki_p", function (result) {
+
+                                var enc = JSON.parse(result);
+                                result = '';
+                                Engine.setStretchPass(Engine.decryptNp(enc.ct, ekeyv.DeviceKey, enc.iv));
+
+                                getCookie("ninki_rem", function (res) {
+
+                                    if (res.length > 0) {
+                                        var enc = JSON.parse(res);
+                                        var fatoken = Engine.decryptNp(enc.ct, ekeyv.DeviceKey, enc.iv);
+
+                                        //get the two factor token
+
+                                        //do we need to open wallet ?
+
+                                        Engine.openWallet(guid, fatoken, function (err, result) {
+
+                                            if (!err) {
+
+                                                if (result.TwoFactorOnLogin) {
+
+                                                    $("#pinspinner").hide();
+                                                    $("#loginpinno").val('');
+                                                    $("#enterpinalert").show();
+                                                    $("#enterpinalertmessage").text('Token has expired');
+
+
+                                                } else {
+
+                                                    $("#pinspinner").hide();
+                                                    $('.numdone').attr("style", "background-color:white");
+                                                    $("#loginpin").hide();
+                                                    $("#loginpinno").val('');
+                                                    $("#paddel").hide();
+
+
+                                                    getCookie("currency", function (res) {
+
+                                                        if (res) {
+
+                                                            Engine.m_settings.LocalCurrency = res;
+
+                                                        } else {
+
+                                                            setCookie("currency", Engine.m_settings.LocalCurrency);
+                                                        }
+
+                                                        var t = Engine.m_settings.LocalCurrency;
+                                                        $('.sccy').filter(function () {
+                                                            return $(this).text().trim() == t;
+                                                        }).find("label").html('<i class="fa fa-check text-active"></i>');
+
+
+                                                        getCookie("coinunit", function (res) {
+
+                                                            if (res) {
+
+                                                                Engine.m_settings.CoinUnit = res;
+
+                                                            } else {
+
+                                                                setCookie("coinunit", Engine.m_settings.CoinUnit);
+                                                            }
+
+
+                                                            var tc = Engine.m_settings.CoinUnit;
+                                                            $('.scoinunit').filter(function () {
+                                                                return $(this).text().trim() == tc;
+                                                            }).find("label").html('<i class="fa fa-check text-active"></i>');
+
+                                                        });
+
+
+                                                    });
+
+                                                    initialiseDashboard();
+                                                    Engine.m_appInitialised = true;
+                                                }
+
+                                            } else {
+
+                                                $("#pinspinner").hide();
+                                                $('.numdone').attr("style", "background-color:white");
+
+                                            }
+
+                                        });
+
+                                    }
+
+                                });
+
+                            });
+
+                        }
+
+                    } else {
+
+                        $("#pinspinner").hide();
+
+                        if (ekeyv == "ErrDeviceDestroyed") {
+
+                            deleteCookie("ninki_reg");
+                            deleteCookie("ninki_p");
+                            deleteCookie("ninki_rem");
+                            deleteCookie("guid");
+                            $("#loginpin").hide();
+                            $("#mainWallet").hide();
+                            $("#pairDevice").show();
+
+                            location.reload();
+                        }
+
+                        $("#loginpinno").val('');
+                        $("#enterpinalert").show();
+                        $("#enterpinalertmessage").text(ekeyv);
+
+                        $('.numdone').attr("style", "background-color:white");
+
+                    }
+
+                });
+
+            });
+
+        } else {
+
+            $("#pinspinner").hide();
+
+        }
+
+    }
+
+
+
+    function closeSendNet() {
+
+        //$("#dashprofile").show();
+        $("#dashsend").hide();
+        $("#dashsendamt").hide();
+        $("#mainWallet").show();
+
+        if (sendmode == "net") {
+            $("#friendheader").show();
+        }
+
+        $(".footer").show();
+
+        $("#dashreceive").hide();
+        $("#dashcontact").hide();
+
+        $("#pinconfirm").hide();
+
+        $("#btnStdSndDone").hide();
+
+
+        $('#toAddress').val('');
+        $('#amount').text('');
+
+        updateStdAmount();
+
+    }
+
+
+    function closeSendStd() {
+
+        //$("#dashprofile").show();
+        $("#dashsend").hide();
+        $("#dashsendamt").hide();
+        $("#dashheader").show();
+        $("#mainWallet").show();
+        $(".footer").show();
+
+        $("#dashreceive").hide();
+        $("#dashcontact").hide();
+
+        $("#pinconfirm").hide();
+
+        $("#addrfade").hide();
+
+        $("#btnStdSndDone").hide();
+
+
+        //profilepagestate = "send";
+        //menustate = "profile"
+
+        $('#toAddress').val('');
+        $('#amount').text('');
+        updateStdAmount();
+
+    }
+
+    var stdAmountConvCoin = true;
+    var netAmountConvCoin = true;
+
+    function convertToLocalCurrency(amount) {
+
+        var conv = amount;
+        conv = conv * 1.0;
+
+        var sats = convertToSatoshis(conv, COINUNIT);
+        var btc = convertFromSatoshis(sats, "BTC");
+
+        var cbtc = btc * price;
+
+
+        var loc = "en-US";
+        var ires = cbtc;
+
+        if (Engine.m_settings.LocalCurrency == "JPY") {
+            ires = (cbtc * 1.0).toFixed(0) * 1.0;
+        } else {
+            ires = (cbtc * 1.0).toFixed(2) * 1.0;
+        }
+
+
+        var cprc = ires.toLocaleString(loc, { style: "currency", currency: Engine.m_settings.LocalCurrency });
+
+        return cprc;
+
+    }
+
+
+    function convertFromLocalCurrency(amount) {
+
+        var conv = amount;
+        conv = conv * 1.0;
+
+        //convert to bitcoin
+        if (price > 0) {
+            var cbtc = conv / price;
+
+            var sats = convertToSatoshis(cbtc, "BTC");
+            var btc = convertFromSatoshis(sats, COINUNIT);
+
+            return btc;
+        } else {
+
+            return 0;
+
+        }
+
+
+    }
+
+    function updateStdAmount() {
+
+        var asamt = $('#amount').text();
+        if (asamt == '' || asamt == '.') {
+            asamt = 0;
+        }
+
+        if (stdAmountConvCoin) {
+            $('#ccystdamt').text(convertToLocalCurrency(asamt));
+            $('#hdamount').val(asamt);
+        }
+        else {
+            var amt = convertFromLocalCurrency(asamt);
+            $('#hdamount').val(amt);
+            $('#ccystdamt').text(amt + ' ' + COINUNIT);
+        }
+
+    }
+
+
     var profilepagestate = '';
     var networkpagestate = '';
     var friendpagestate = '';
     var menustate = '';
+
     var cl = '';
 
     jQuery(document).ready(function () {
 
-
         var $body = jQuery('body');
 
-        /* bind events */
-        $(document).on('focus', 'input', function (e) {
-            $(".footer").hide();
+
+        //guid
+        //ninki_reg
+
+        //if device is paired then
+
+
+        getCookie("ninki_reg", function (reg) {
+
+            if (reg) {
+                $("#loginpin").show();
+            } else {
+                $("#pairDevice").show();
+            }
+
         });
 
 
-        $(document).on('blur', 'input', function (e) {
-            $(".footer").show();
-        });
-
-        $("#dashsend").hide();
+        $("#mainWallet").hide();
         $("#dashreceive").hide();
         $("#dashcontact").hide();
 
@@ -232,144 +591,330 @@ function UI() {
         $("#addcontactmodal").hide();
 
 
+        $('#stdselcu').click(function () {
 
-        $('.num').bind('touchstart', function () {
-            $(this).removeClass('numtapoff');
+            var amttarget = '#amount';
 
-            cl = 'b' + (Math.floor(Math.random() * 6) + 1) + '';
-            //alert(cl);
-            $(this).addClass(cl);
+            $('#stdselunit').text(COINUNIT);
+            stdAmountConvCoin = true;
+            $(amttarget).text('');
+            updateStdAmount();
 
-        })
+        });
 
-        $('.num').bind('touchend', function () {
+        $('#stdsellc').click(function () {
+
+
+            var amttarget = '#amount';
+
+            $('#stdselunit').text(Engine.m_settings.LocalCurrency);
+            stdAmountConvCoin = false;
+            $(amttarget).text('');
+            updateStdAmount();
+
+
+        });
+
+
+        //        $('.numc').bind('touchstart', function () {
+        //            $(this).removeClass('numtapoff');
+
+        //            cl = 'b' + (Math.floor(Math.random() * 6) + 1) + '';
+        //            //alert(cl);
+        //            $(this).addClass(cl);
+
+        //        });
+
+
+
+        $('.scoinunit').bind('click', function () {
+
+            $('.scoinunit').find("label").html('');
+
+            $(this).find("label").html('<i class="fa fa-check text-active"></i>');
+
+            var sel = $.trim($(this).text());
+
+            setCookie("coinunit", sel);
+
+            Engine.m_settings.CoinUnit = sel;
+
+            COINUNIT = sel;
+
+            updateUI();
+
+        });
+
+
+
+
+
+        $('.sccy').bind('click', function () {
+
+            $('.sccy').find("label").html('');
+
+            $(this).find("label").html('<i class="fa fa-check text-active"></i>');
+
+            var sel = $.trim($(this).text());
+
+            setCookie("currency", sel);
+
+            Engine.m_settings.LocalCurrency = sel;
+
+            updateUI();
+
+        });
+
+
+
+        $('.numc').bind('touchend', function () {
 
             var num = $(this);
             var text = $.trim(num.find('.txt').clone().children().remove().end().text());
-            var loginpinno = $('#loginpinno');
 
-            $(loginpinno).val(loginpinno.val() + text);
+            var amttarget = '#amount';
 
-            if ($(loginpinno).val().length == 4) {
+            var amt = $(amttarget).text();
 
-                $("#pinscreen").hide();
+            if (!(amt.indexOf(".") > -1 && text == '.')) {
 
-                $("#btnLoginPIN").click();
+                var prev = amt.substring(0, amt.length - 1);
 
+                if (text.length > 0) {
+                    $(amttarget).text($(amttarget).text() + text);
+                } else {
+                    $(amttarget).text(prev);
+                }
+
+                updateStdAmount();
+
+            }
+
+
+        });
+
+        var pintaps = 0;
+        var prevpin = '';
+        //touchend
+        $('#loginpin .num').bind('touchstart', function () {
+
+            var num = $(this);
+            var text = $.trim(num.find('.txt').clone().children().remove().end().text());
+
+            if (text.length > 0) {
+
+                pintaps++;
+
+                if (pintaps == 1) {
+
+                    $('#loginpin #pin1').attr("style", "background-color:Gray");
+
+                }
+
+                if (pintaps == 2) {
+
+                    $('#loginpin #pin2').attr("style", "background-color:Gray");
+
+                }
+
+                if (pintaps == 3) {
+
+                    $('#loginpin #pin3').attr("style", "background-color:Gray");
+
+                }
+
+                if (pintaps == 4) {
+
+                    $('#loginpin #pin4').attr("style", "background-color:Gray");
+
+                }
 
             }
 
 
 
-            var self = this;
-            setTimeout(function () {
-                //alert(cl);
-                $(self).removeClass('b1 b2 b3 b4 b5 b6');
-                $(self).addClass('numtapoff');
-            }, 100);
 
-        })
+            var loginpinno = $('#loginpinno');
+            var lpin = loginpinno.val();
+            prevpin = lpin.substring(0, lpin.length - 1)
 
+            if (text.length > 0) {
 
+                $('#paddel').show();
 
 
 
-        //        $(".num").hammer({
-        //            drag: false,
-        //            transform: false,
-        //            hold: false,
-        //            touch: false,
-        //            tap: true,
-        //            tapAlways: false,
-        //            swipe: false,
-        //            release: false,
-        //            tapMaxTime: 1000
-        //        }).bind("tap", function (ev) {
 
-        //            $(this).addClass('numtap');
+                $(loginpinno).val(loginpinno.val() + text);
 
-        //            //            var num = $(this);
-        //            //            var text = $.trim(num.find('.txt').clone().children().remove().end().text());
-        //            //            var telNumber = $('#telNumber');
-        //            //            $(telNumber).val(telNumber.val() + text);
-        //        });
+                if (pintaps == 4) {
 
-        //        $(".num").click(function () {
-
-        //            $(this).addClass('numtap');
-
-        //            //            var num = $(this);
-        //            //            var text = $.trim(num.find('.txt').clone().children().remove().end().text());
-        //            //            var telNumber = $('#telNumber');
-        //            //            $(telNumber).val(telNumber.val() + text);
-        //        });
+                    pintaps = 0;
 
 
-        $("#btnmenuprofile").hammer({
-            drag: false,
-            transform: false,
-            hold: false,
-            touch: false,
-            tap: true,
-            tapAlways: false,
-            swipe: false,
-            release: false,
-            tapMaxTime: 1000
-        }).bind("tap", function (ev) {
+                    loginPIN();
 
-            displayProfile();
+                    //only if fail
+
+                }
 
 
-        });
+            } else {
 
-        $("#btnmenuprofile").hammer({
-            drag: false,
-            transform: false,
-            hold: false,
-            touch: true,
-            tap: false,
-            tapAlways: false,
-            swipe: false,
-            release: false
-        }).bind("touch", function (ev) {
 
-            displayProfile();
+
+                if (pintaps == 1) {
+
+                    $('#loginpin #pin1').attr("style", "background-color:White");
+                    $('#loginpin #paddel').hide();
+
+                }
+
+                if (pintaps == 2) {
+
+                    $('#loginpin #pin2').attr("style", "background-color:White");
+
+                }
+
+                if (pintaps == 3) {
+
+                    $('#loginpin #pin3').attr("style", "background-color:White");
+
+                }
+
+                if (pintaps == 4) {
+
+                    $('#loginpin #pin4').attr("style", "background-color:White");
+
+                }
+
+                $(loginpinno).val(prevpin);
+
+                if (pintaps > 0) {
+                    pintaps--;
+                }
+
+            }
 
 
         });
 
 
-        $("#btnmenuprofile").hammer({
-            drag: false,
-            transform: false,
-            hold: false,
-            touch: false,
-            tap: false,
-            tapAlways: false,
-            swipe: false,
-            release: true
-        }).bind("release", function (ev) {
+        $('#pinconfirm .num').bind('touchend', function () {
 
-            displayProfile();
+            var num = $(this);
+            var text = $.trim(num.find('.txt').clone().children().remove().end().text());
+            var loginpinno = $('#sendstdpin');
+            var lpin = loginpinno.val();
+            prevpin = lpin.substring(0, lpin.length - 1)
 
+            if (text.length > 0) {
+
+                $('#paddelconf').show();
+
+                pintaps++;
+
+                if (pintaps == 1) {
+
+                    $('#pinconfirm #cpin1').attr("style", "background-color:Gray");
+
+                }
+
+                if (pintaps == 2) {
+
+                    $('#pinconfirm #cpin2').attr("style", "background-color:Gray");
+
+                }
+
+                if (pintaps == 3) {
+
+                    $('#pinconfirm #cpin3').attr("style", "background-color:Gray");
+
+                }
+
+                if (pintaps == 4) {
+
+                    $('#pinconfirm #cpin4').attr("style", "background-color:Gray");
+
+                }
+
+
+                $(loginpinno).val(loginpinno.val() + text);
+
+                if (pintaps == 4) {
+
+
+                    pintaps = 0;
+
+                    if (sendmode == 'std') {
+
+                        sendMoneyStd();
+
+                    } else if (sendmode == 'net') {
+
+                        sendMoney(SELECTEDFRIEND, 0);
+
+                    } else if (sendmode == 'inv') {
+
+                        payInvoice(selectedInvoiceUserName, selectedInvoiceAmount, selectedInvoiceId);
+
+                    }
+
+
+
+                    //only if fail
+
+                }
+
+
+            } else {
+
+
+
+                if (pintaps == 1) {
+
+                    $('#pinconfirm #cpin1').attr("style", "background-color:White");
+                    $('#pinconfirm #paddelconf').hide();
+
+                }
+
+                if (pintaps == 2) {
+
+                    $('#pinconfirm #cpin2').attr("style", "background-color:White");
+
+                }
+
+                if (pintaps == 3) {
+
+                    $('#pinconfirm #cpin3').attr("style", "background-color:White");
+
+                }
+
+                if (pintaps == 4) {
+
+                    $('#pinconfirm #cpin4').attr("style", "background-color:White");
+
+                }
+
+                $(loginpinno).val(prevpin);
+
+                if (pintaps > 0) {
+                    pintaps--;
+                }
+
+
+            }
 
         });
 
-        $("#btnmenuprofile").hammer({
-            drag: false,
-            transform: false,
-            hold: true,
-            touch: false,
-            tap: false,
-            tapAlways: false,
-            swipe: false,
-            release: false
-        }).bind("hold", function (ev) {
+
+        $("#btnmenuprofile").bind('touchstart', function () {
 
             displayProfile();
 
-
         });
+
+
 
         function displayProfile() {
 
@@ -377,10 +922,16 @@ function UI() {
             if (menustate != 'profile') {
                 menustate = 'profile';
                 $("#settings").hide();
+                $("#settingsheader").hide();
+
+
                 $("#network").hide();
+                $("#networklistheader").hide();
+                $("#friendheader").hide();
                 $("#dashboard").show();
-                $("#networklist").hide();
-                $("#invoices").hide();
+
+                $('#dashheader').show();
+                //$("#invoices").hide();
 
             } else {
                 profilehome();
@@ -393,84 +944,59 @@ function UI() {
         }
 
 
-        $("#btnmenunetwork").hammer({
-            drag: false,
-            transform: false,
-            hold: false,
-            touch: false,
-            tap: true,
-            tapAlways: false,
-            swipe: false,
-            release: false,
-            tapMaxTime: 1000
-        }).bind("tap", function (ev) {
+        var hastouched = false;
+        $("#btnmenunetwork").bind('touchstart', function () {
+
+            if (!hastouched) {
+
+                hastouched = true;
+
+                var target = document.getElementById('myfrndspin');
+                var spinner = new Spinner(spinneropts).spin(target);
+                $("#myfrndspin").show();
+                updateFriends(function (err, res) {
+
+                    $("#myfrndspin").hide();
+
+                });
+
+                loadInvoices();
+
+            }
 
             displayNetwork();
 
-        });
-
-        $("#btnmenunetwork").hammer({
-            drag: false,
-            transform: false,
-            hold: false,
-            touch: true,
-            tap: false,
-            tapAlways: false,
-            swipe: false,
-            release: false
-        }).bind("touch", function (ev) {
-
-            displayNetwork();
 
         });
 
-        $("#btnmenunetwork").hammer({
-            drag: false,
-            transform: false,
-            hold: true,
-            touch: false,
-            tap: false,
-            tapAlways: false,
-            swipe: false,
-            release: true
-        }).bind("release", function (ev) {
-
-            displayNetwork();
-
-        });
-
-
-        $("#btnmenunetwork").hammer({
-            drag: false,
-            transform: false,
-            hold: true,
-            touch: false,
-            tap: false,
-            tapAlways: false,
-            swipe: false,
-            release: false
-        }).bind("hold", function (ev) {
-
-            displayNetwork();
-
-        });
 
         function displayNetwork() {
 
             if (menustate != "network") {
+
                 menustate = "network";
                 $("#settings").hide();
-                $("#network").show();
+                $("#settingsheader").hide();
                 $("#dashboard").hide();
-                $("#networklist").show();
+                $('#dashheader').hide();
+                //$("#pnlfriend").hide();
+                $("#network").show();
 
+
+                if ($("#networklist").is(':visible')) {
+                    $("#networklistheader").show();
+                }
+
+                if ($("#pnlfriend").is(':visible')) {
+                    $("#friendheader").show();
+                }
+
+                //$("#networklist").show();
 
                 if (networkpagestate == "invoice") {
 
 
-                    $("#network").hide();
-
-                    $("#invoices").show();
+                    //$("#invoices").show();
                 }
 
             } else {
@@ -485,6 +1011,8 @@ function UI() {
 
 
         $("#invformelink").hammer(null).bind("tap", function () {
+
+            sendmode = "inv";
             $("#invformetab").show();
             $("#invbymetab").hide();
             $("#liby").removeClass('active');
@@ -500,15 +1028,24 @@ function UI() {
 
         //tapsendfriend
         //tapinvoicefriend
-        $("#tapsendfriend").hammer(null).bind("tap", function () {
-            $("#networksend").show();
+
+
+        //tapnetpayments
+
+        $("#tapnetpayments").hammer(null).bind("tap", function () {
             $("#pnlfriendinv").hide();
+            $("#networkpayments").show();
+            $("#networksend").hide();
             networkpagestate = "friend";
-            friendpagestate = "send";
+            friendpagestate = "payments";
+
         });
 
+
         $("#tapinvoicefriend").hammer(null).bind("tap", function () {
+
             $("#pnlfriendinv").show();
+            $("#networkpayments").hide();
             $("#networksend").hide();
             networkpagestate = "friend";
             friendpagestate = "invoice";
@@ -517,16 +1054,23 @@ function UI() {
 
         function networkhome() {
             if (networkpagestate == "invoice") {
+
                 $('#network').show();
+                $("#pnlfriend").show();
+                $("#friendheader").show();
                 $('#invoices').hide();
                 networkpagestate = "friend";
                 friendpagestate = "invoice";
 
 
             } else {
+
                 $("#pnlfriend").hide();
-                $("#myfriends").show();
+                $("#friendheader").hide();
+                $("#network").show();
                 $("#networklist").show();
+                $("#networklistheader").show();
+
                 networkpagestate = "";
             }
 
@@ -541,64 +1085,244 @@ function UI() {
             $("#dashcontact").hide();
             $('#invoices').hide();
             $("#dashboard").show();
+            $('#dashheader').show();
+            $("#network").hide();
             profilepagestate = "";
 
         }
 
 
-        $("#btnmenusettings").hammer({
-            drag: false,
-            transform: false,
-            hold: false,
-            touch: false,
-            tap: true,
-            tapAlways: false,
-            swipe: false,
-            release: false,
-            tapMaxTime: 1000
-        }).bind("tap", function (ev) {
+        $("#btnmenusettings").bind('touchstart', function () {
 
             menustate = "settings";
 
             $("#settings").show();
+            $("#settingsheader").show();
             $("#network").hide();
-            $("#networklist").hide();
             $("#dashboard").hide();
+            $('#dashheader').hide();
+            $('#friendheader').hide();
+            $('#networklistheader').hide();
 
             $("#btnmenusettings").attr('style', 'background-color:#eaeef1');
             $("#btnmenuprofile").attr('style', 'background-color:#ffffff');
             $("#btnmenunetwork").attr('style', 'background-color:#ffffff');
         });
 
-        $("#tapsend").hammer(null).bind("tap", function () {
+
+        $('#toAddress').change(function () {
+
+            //if a valid bitcoin address then
+            //next stage
+            var addr = $('#toAddress').val();
+
+            var paddr = parseBitcoinURL(addr);
+
+            if (addr.length > 25) {
+                if (Engine.isAddressValid(paddr.address)) {
+
+                    //next stage
+
+                    //if amount is included in the URL set the amount and go straight to the
+                    //pay screen
+                    $('#toAddress').val(paddr.address)
+
+                    $("#dashsend").hide();
+                    $("#addrfade").hide();
+                    $("#dashsendamt").show();
+
+
+                }
+            }
+        });
+
+
+        $("#btnCloseContact").bind('touchstart', function () {
+
+            //closeSendStd();
+            $("#dashcontact").hide();
+            $("#mainWallet").show();
+            $("#networklistheader").show();
+            $(".footer").show();
+
+        });
+
+
+        $("#btnAddContactDone").bind('touchstart', function () {
+
+            $("#addcontactmodal").hide();
+            $("#dashcontact").show();
+
+
+        });
+
+        $("#btnCloseStdSndAmt").bind('touchstart', function () {
+
+            closeSendNet();
+
+        });
+
+        $("#btnCloseStdSndPIN").bind('touchstart', function () {
+
+            if (sendmode == "std") {
+                closeSendStd();
+            } else {
+                closeSendNet();
+            }
+
+        });
+
+        $("#btnCloseStdSnd").bind('touchstart', function () {
+
+            closeSendStd();
+
+        });
+
+        $("#btnCloseRec").bind('touchstart', function () {
+
+            closeSendStd();
+
+        });
+
+
+
+        $("#btnStdSndDone").bind('touchstart', function () {
+
+            $('#sendprogress').hide();
+
+
+            if (sendmode == "std") {
+                closeSendStd();
+            } else {
+                closeSendNet();
+            }
+
+        });
+
+        //$("#btnStdSndDone")
+
+        $("#btnsendmoneystd").bind('touchstart', function () {
+
+            if (sendmode == 'std') {
+                $("#sendstds2add").text($('#toAddress').val());
+            } else if (sendmode == 'net') {
+                $("#sendstds2add").text(SELECTEDFRIEND);
+            }
+            $("#sendstds2amt").text($("#hdamount").val() + ' ' + COINUNIT);
+
+            $("#dashsend").hide();
+            $("#dashsendamt").hide();
+            $("#pinconfirm").show();
+
+            //sendMoneyStd();
+
+        });
+
+
+
+
+        $("#btnCloseValidate").bind('touchstart', function () {
+
+            $("#friendheader").show();
+            $("#mainWallet").show();
+            $(".footer").show();
+            $("#networkvalidate").hide();
+
+        });
+
+        $("#tapvalidatefriend").bind('touchstart', function () {
+
+            $("#friendheader").hide();
+            $("#mainWallet").hide();
+            $(".footer").hide();
+            $("#networkvalidate").show();
+
+        });
+
+        $("#tapsendfriend").bind('touchstart', function () {
+
+            sendmode = "net";
+
+            $("#sendsubheading").text("send to " + SELECTEDFRIEND);
+
+            $("#btnStdSndDone").hide();
+            $("#dashsend").hide();
+            $("#addrfade").hide();
+
+            $("#friendheader").hide();
+            $("#dashsendamt").show();
+
+
+            $("#mainWallet").hide();
+            $(".footer").hide();
+
+
+            networkpagestate = "friend";
+            friendpagestate = "send";
+
+        });
+
+        $("#tapsend").bind('touchstart', function () {
+
+            sendmode = "std"
+
+            $("#dashheader").hide();
             $("#dashprofile").hide();
             $("#dashsend").show();
+
+
+            setTimeout(function () {
+                $("#addrfade").fadeIn(500);
+
+            }, 500);
+
+
+            $("#dashsendamt").hide();
+            $("#mainWallet").hide();
+            $(".footer").hide();
+
             $("#dashreceive").hide();
             $("#dashcontact").hide();
-            //$("#toAddress").focus();
+            $("#toAddress").blur();
+            $("#qr").focus();
+            $("#btnStdSndDone").hide();
+
             profilepagestate = "send";
             menustate = "profile"
 
 
         });
 
-        $("#tapreceive").hammer(null).bind("tap", function () {
+        $("#tapreceive").bind('touchstart', function () {
+
+
+
+            //dashreceive
+            $("#dashheader").hide();
             $("#dashprofile").hide();
             $("#dashsend").hide();
+            $("#mainWallet").hide();
             $("#dashreceive").show();
+            $(".footer").hide();
             $("#dashcontact").hide();
             profilepagestate = "receive";
             menustate = "profile"
 
         });
 
-        $("#taprequest").hammer(null).bind("tap", function () {
-            $("#dashprofile").hide();
-            $("#dashsend").hide();
-            $("#dashreceive").hide();
+        $("#taprequest").bind('touchstart', function () {
+            //$("#dashprofile").hide();
+            //$("#dashsend").hide();
+            //$("#dashreceive").hide();
+            $("#mainWallet").hide();
+            $("#networklistheader").hide();
             $("#dashcontact").show();
-            profilepagestate = "contact";
-            menustate = "profile"
+            $(".footer").hide();
+
+            //checkAndValidateTimer = setInterval(function () { checkAndValidateFriendRequests() }, 2000);
+
+            //profilepagestate = "contact";
+            //menustate = "profile"
 
         });
 
@@ -611,7 +1335,7 @@ function UI() {
         $("#imgreset").hide();
 
 
-        $("#btnEditProfile").click(function () {
+        $("#btnEditProfile").bind('touchstart', function () {
 
             key = '';
 
@@ -627,7 +1351,7 @@ function UI() {
 
         });
 
-        $("#imgreset").click(function () {
+        $("#imgreset").bind('touchstart', function () {
 
             Engine.m_profileImage = "";
             imgReset = true;
@@ -637,13 +1361,13 @@ function UI() {
             document.getElementById('imgProfile').src = imageSrc;
             $('#imgProfileContainer').show();
             $('#dropzone').hide();
-            $('progressNumber').html('');
+            $('progressNumber').text('');
             $("#imgreset").hide();
 
         });
 
         var imgReset = false;
-        $("#btnSaveProfile").click(function () {
+        $("#btnSaveProfile").bind('touchstart', function () {
 
             //updateUserProfile
 
@@ -674,7 +1398,7 @@ function UI() {
                     $("#btnCancelProfile").hide();
                     $("#btnEditProfile").show();
                     $("#statusedit").hide();
-                    $("#mystatus").html(statusText);
+                    $("#mystatus").text(statusText);
                     $("#txtStatusText").val(statusText);
                     $("#profnmests").show();
                     $("#imgreset").hide();
@@ -688,7 +1412,7 @@ function UI() {
 
         });
 
-        $("#btnCancelProfile").click(function () {
+        $("#btnCancelProfile").bind('touchstart', function () {
 
             $('#imgProfileContainer').show();
             $("#dropzone").hide();
@@ -824,7 +1548,7 @@ function UI() {
             document.getElementById('imgProfile').src = 'https://ninkip2p.imgix.net/' + key + "?fit=crop&crop=faces&h=128&w=128&mask=ellipse&border=1,d0d0d0";
             $('#imgProfileContainer').show();
             $('#dropzone').hide();
-            $('progressNumber').html('');
+            $('progressNumber').text('');
             $("#imgreset").hide();
 
         }
@@ -837,133 +1561,11 @@ function UI() {
             alert("The upload has been canceled by the user or the browser dropped the connection.");
         }
 
-        var options = {};
-        options.ui = {
-            container: "#pwd-container",
-            showVerdictsInsideProgressBar: true,
-            showPopover: true,
-            showErrors: true,
-            viewports: {
-                progress: ".pwstrength_viewport_progress"
-            }
-        };
-        options.common = {
-            debug: true,
-            onLoad: function () {
-                $('#messages').text('Start typing password');
-            },
-            onKeyUp: function () {
-                $("#createwalletalert").fadeOut(100);
-            }
-        };
-
-
-        $('#createWalletStart #cpassword').pwstrength(options);
-
-
-        var optionschng = {};
-        optionschng.ui = {
-            container: "#newpwd-container",
-            showVerdictsInsideProgressBar: true,
-            showPopover: true,
-            showErrors: true,
-            viewports: {
-                progress: ".newpwstrength_viewport_progress"
-            }
-        };
-        optionschng.common = {
-            debug: true,
-            onLoad: function () {
-                $('#messages').text('Start typing password');
-            },
-            onKeyUp: function () {
-                $("#createwalletalert").fadeOut(100);
-            }
-        };
-
-        $('#newpassword1').pwstrength(optionschng);
-
     });
 
-
-
-
-    $('#btnPassphraseLogin').keydown(function (e) {
-        if (e.keyCode == 13) {
-            e.preventDefault();
-            return false;
-        }
-    });
-
-    $('#frmSaveTwoFactor').keydown(function (e) {
-        if (e.keyCode == 13) {
-            e.preventDefault();
-            return false;
-        }
-    });
-
-    $('#phrase2fa').keydown(function (e) {
-        if (e.keyCode == 13) {
-            e.preventDefault();
-            return false;
-        }
-    });
-
-
-    $(document).on("keydown", function (e) {
-        if (e.which === 8 && !$(e.target).is("input, textarea")) {
-            e.preventDefault();
-        }
-    });
 
 
     $(document).ready(function () {
-
-
-        $('body').on('click', function (e) {
-            //did not click a popover toggle or popover
-            if ($(e.target).data('toggle') !== 'popover'
-                        && $(e.target).parents('.popover.in').length === 0) {
-                $('[data-toggle="popover"]').popover('hide');
-            }
-        });
-
-
-
-        getCookie('guid', function (res) {
-            if (res.length == 0) {
-
-                var betafrom = 'December 12, 2009 12:00 pm GMT';
-                var betato = 'December 12, 2009 01:00 pm GMT';
-
-                betafrom = getLocalTime(betafrom);
-                betato = getLocalTime(betato);
-
-                $('#betafrom').html(betafrom);
-                $('#betato').html(betato);
-
-                $('#basicModal').modal('show');
-
-                $("#btnDeclineBeta").click(function () {
-                    window.location.href = '/'
-                });
-
-            }
-        });
-
-
-
-        $("#btnAcceptBeta").click(function () {
-            $("#openWalletStart #password").focus();
-        });
-
-
-
-
-
-        $("#btncreatewallet").click(function () {
-            showCreateWalletStart();
-        });
 
 
         $("#pairdeviceblob").change(function () {
@@ -978,7 +1580,7 @@ function UI() {
 
         $("#btnUnpair").click(function () {
 
-
+            //return;
             getCookie("guid", function (guid) {
 
                 Engine.m_oguid = guid;
@@ -1009,7 +1611,7 @@ function UI() {
         });
 
 
-        $("#btnPairDevice").click(function () {
+        $("#btnPairDevice").bind('click', function () {
 
             var deviceid = "DEVICE123456789";
 
@@ -1052,7 +1654,7 @@ function UI() {
 
                 if (err) {
 
-                    $('#pairdevicealertmessage').html(response);
+                    $('#pairdevicealertmessage').text(response);
 
                 } else {
 
@@ -1160,33 +1762,33 @@ function UI() {
 
                                                     $('#pairDevice').hide();
 
-                                                    initialiseUI();
+                                                    initialiseDashboard();
 
                                                 } else {
 
 
-                                                    $('#pairdevicealertmessage').html("could not pair");
+                                                    $('#pairdevicealertmessage').text("could not pair");
                                                     $('#pairdevicealert').show();
                                                 }
 
 
                                             } else {
 
-                                                $('#pairdevicealertmessage').html(result);
+                                                $('#pairdevicealertmessage').text(result);
                                                 $('#pairdevicealert').show();
                                             }
 
                                         });
                                     } else {
 
-                                        $('#pairdevicealertmessage').html("The pairing token has expired");
+                                        $('#pairdevicealertmessage').text("The pairing token has expired");
                                         $('#pairdevicealert').show();
                                     }
 
 
                                 } else {
 
-                                    $('#pairdevicealertmessage').html(result);
+                                    $('#pairdevicealertmessage').text(result);
                                     $('#pairdevicealert').show();
 
                                 }
@@ -1195,7 +1797,7 @@ function UI() {
 
                         } else {
 
-                            $('#pairdevicealertmessage').html(secvalid);
+                            $('#pairdevicealertmessage').text(secvalid);
                             $('#pairdevicealert').show();
 
                         }
@@ -1209,1148 +1811,124 @@ function UI() {
 
         });
 
-        $("#btnLoginPIN").click(function () {
 
-            var pin = $("#loginpinno").val();
-
-            $("#enterpinalert").hide();
-
-            if (pin.length == 4) {
-
-                getCookie("guid", function (guid) {
-
-                    Engine.m_oguid = guid;
-
-                    var bytes = [];
-                    for (var i = 0; i < guid.length; ++i) {
-                        bytes.push(guid.charCodeAt(i));
-                    }
-
-                    Engine.m_guid = Bitcoin.Crypto.SHA256(Bitcoin.convert.bytesToWordArray(bytes)).toString();
-
-
-                    Engine.getDeviceKey(pin, function (err, ekeyv) {
-
-                        //decrypt the passcode
-
-                        if (!err) {
-
-                            getCookie("ninki_p", function (result) {
-
-                                var enc = JSON.parse(result);
-                                result = '';
-                                Engine.setStretchPass(Engine.decryptNp(enc.ct, ekeyv.DeviceKey, enc.iv));
-
-                                getCookie("ninki_rem", function (res) {
-
-                                    if (res.length > 0) {
-                                        var enc = JSON.parse(res);
-                                        var fatoken = Engine.decryptNp(enc.ct, ekeyv.DeviceKey, enc.iv);
-
-                                        //get the two factor token
-
-                                        //do we need to open wallet ?
-                                        if (!Engine.m_appInitialised) {
-                                            Engine.openWallet(guid, fatoken, function (err, result) {
-
-                                                if (!err) {
-
-                                                    if (result.TwoFactorOnLogin) {
-
-                                                        $("#loginpinno").val('');
-                                                        $("#enterpinalert").show();
-                                                        $("#enterpinalertmessage").html('Token has expired');
-
-                                                    } else {
-
-                                                        $("#loginpin").hide();
-                                                        $("#loginpinno").val('');
-
-                                                        initialiseUI();
-                                                        Engine.m_appInitialised = true;
-                                                    }
-
-                                                } else {
-
-                                                }
-
-                                            });
-
-                                        } else {
-
-                                            if (ekeyv.SessionToken) {
-                                                $("#API-Token").val(ekeyv.SessionToken);
-                                            }
-                                            //set new session key
-
-                                            $("#loginpin").hide();
-                                            $("#loginpinno").val('');
-
-                                            initialiseUI();
-
-                                        }
-
-                                    }
-
-                                });
-
-                            });
-
-                        } else {
-
-
-                            if (ekeyv == "ErrDeviceDestroyed") {
-
-                                deleteCookie("ninki_reg");
-                                deleteCookie("ninki_p");
-                                deleteCookie("ninki_rem");
-                                deleteCookie("guid");
-
-                                location.reload();
-                            }
-
-                            $("#loginpinno").val('');
-                            $("#enterpinalert").show();
-                            $("#enterpinalertmessage").html(ekeyv);
-
-                        }
-
-                    });
-
-                });
-
-            }
-
-        });
-
-        $("#btnLogin").click(function () {
-
-            if (!ensureOpenWalletGuidAndPasswordValid()) return;
-
-            $("#imgopenwaiting").show();
-            $("#btnLogin").prop('disabled', true);
-            $("#btnLogin").addClass('disabled');
-            var target = document.getElementById('imgopenwaiting');
-            var spinner = new Spinner(spinneropts).spin(target);
-
-
-            setTimeout(function () {
-
-                var guid = $('#openWalletStart input#guid').val();
-                var password = $('#openWalletStart input#password').val();
-                var twoFactorCode = $('#openWalletStart input#twoFactorCode').val();
-
-                //decrypt the password using the key sent back from the server
-
-
-                Engine.setPass(password, guid);
-
-                getCookie("ninki_rem", function (res) {
-
-                    if (res.length > 0) {
-                        var enc = JSON.parse(res);
-                        twoFactorCode = Engine.decryptNp(enc.ct, Engine.m_password, enc.iv);
-                    }
-
-                    setCookie('guid', guid);
-
-                    Engine.openWallet(guid, twoFactorCode, function (err, result) {
-
-                        $("#imgopenwaiting").hide();
-                        $("#btnLogin").prop('disabled', false);
-                        $("#btnLogin").removeClass('disabled');
-
-                        if (!err) {
-
-                            $("#imgopenwaiting").hide();
-                            $("#openwalletalert").hide();
-
-                            if (result.TwoFactorOnLogin) {
-
-                                //delete any old 2 factor tokens
-
-                                deleteCookie("ninki_rem");
-
-                                if (!result.Beta12fa) {
-
-                                    $('#openWalletStart input#password').val('');
-
-                                    if (result.TwoFactorOnLogin) {
-                                        $("#siguid").hide();
-                                        $("#silguid").hide();
-                                        $("#sipwd").hide();
-                                        $("#si2fa").show();
-                                        $("#sib1").hide();
-                                        $("#sib2").show();
-                                        $('#openWalletStart input#twoFactorCode').focus();
-
-                                    }
-                                } else {
-
-                                    //for beta1 migrations
-                                    $("#siguid").hide();
-                                    $("#silguid").hide();
-                                    $("#sipwd").hide();
-                                    $("#si2fa").show();
-                                    $("#sib1").hide();
-                                    $("#sib2").show();
-                                    $('#openWalletStart input#twoFactorCode').focus();
-
-                                }
-
-                            } else {
-
-
-
-                                //initiate 2fa setup modal
-                                if (!m_this.m_twoFactorOnLogin) {
-                                    $("#twofactorsettings").show();
-                                    $("#2famodal").modal('show');
-
-                                    $("#twofactorsettings").show();
-                                    $("#btnSetupTwoFactor").hide();
-                                    $("#savetwofactorerror").hide();
-                                    $("#setup2faemail").hide();
-                                    $("#setup2faqr").show();
-
-                                    showSettingsTwoFactorQr();
-
-                                } else {
-
-                                    initialiseUI();
-
-                                }
-
-                            }
-
-                            $("#unlockaccount").hide();
-
-                        } else {
-                            $("#imgopenwaiting").hide();
-                            $("#openwalletalert").show();
-
-                            if (result == "ErrAccount") {
-                                $("#openwalletalertmessage").html("Incorrect password");
-                            }
-
-                            if (result == "ErrLocked") {
-                                $("#openwalletalertmessage").html("Your account has been locked.");
-                                $("#unlockaccount").show();
-                            } else {
-                                $("#unlockaccount").hide();
-                            }
-                        }
-
-                    });
-
-                });
-            }, 100);
-        });
-
-
-        $("#btn2faLogin").click(function () {
-
-
-            $("#img2faopenwaiting").show();
-            $("#btn2faLogin").prop('disabled', true);
-            $("#btn2faLogin").addClass('disabled');
-            var target = document.getElementById('img2faopenwaiting');
-            var spinner = new Spinner(spinneropts).spin(target);
-
-
-            setTimeout(function () {
-
-                var twoFactorCode = $('#openWalletStart input#twoFactorCode').val();
-                var rememberTwoFactor = $('#twofactorremember')[0].checked;
-
-                Engine.openWallet2fa(twoFactorCode, rememberTwoFactor, function (err, result) {
-
-                    if (err) {
-
-                        $("#img2faopenwaiting").hide();
-                        $("#openwalletalert").show();
-                        $("#openwalletalertmessage").html(result);
-                        $("#btn2faLogin").prop('disabled', false);
-                        $("#btn2faLogin").removeClass('disabled');
-                    } else {
-
-                        if (result.CookieToken) {
-
-                            setCookie("ninki_rem", result.CookieToken);
-                        }
-
-                        initialiseUI();
-                    }
-                });
-
-            }, 100);
-
-        });
-
-
-
-        $("#btnEmailGuid").click(function () {
-
-            var userName = $("#txtlostguidusername").val();
-
-            Engine.emailGUID(userName, function (err, response) {
-
-                showOpenWalletStart();
-            });
-
-        });
-
-        $("#btnaddfriend").click(function () {
+        $("#btnaddfriend").bind('touchstart', function () {
 
             addFriend($('input#friend').val());
 
         });
 
-        $("#btngenaddr").click(function () {
+        $("#btngenaddr").bind('touchstart', function () {
 
             generateAddressClient();
 
         });
 
 
-        $("#showopenwallet").click(function () {
-
-            showOpenWalletStart();
-
-        });
-
-        $("#btnopenwalletrec").click(function () {
-
-            showOpenWalletStart();
-
-        });
-
-
-        $("#showopenwalletcr").click(function () {
-
-            showOpenWalletStart();
-
-        });
-
-
-
-        $("#btnsendmoneystd").hammer(null).bind("tap", function () {
-
-            sendMoneyStd();
-
-        });
-
-
-        $("#btnCreate").click(function () {
-
-            if ($("#frmcreate").parsley('validate')) {
-
-                //check password strength
-                if (($(".password-verdict").html() == 'Strong' || $(".password-verdict").html() == 'Very Strong')) {
-
-                    //can we remove this check?
-                    if (ensureCreateWalletGuidNicknameAndPasswordValid()) {
-
-                        $("#imgcreatewaiting").show();
-                        $("#btnCreate").prop('disabled', true);
-                        $("#btnCreate").addClass('disabled');
-                        $("#lnkOpenWallet").hide();
-
-                        var target = document.getElementById('imgcreatewaiting');
-                        var spinner = new Spinner(spinneropts).spin(target);
-
-                        //error handling here?
-
-                        var guid = $('#createWalletStart input#guid').val();
-                        var username = $("#createWalletStart input#nickname").val();
-                        var password = $('#createWalletStart input#cpassword').val();
-                        var emailAddress = $('#createWalletStart input#emailaddress').val();
-
-
-                        Engine.createWallet(guid, password, username, emailAddress, function (err, result) {
-
-                            //move error handling and ui elements to here
-                            $("#createWalletStart input#nickname").css("border-color", "#ccc");
-                            if (err) {
-                                if (result == "ErrUserExists") {
-
-                                    $("#createWalletStart input#nickname").css("border-color", "#ffaaaa");
-                                    $("#imgcreatewaiting").hide();
-
-                                    $("#createwalletalert").show();
-                                    $("#createwalletalertmessage").html("The username already exists");
-
-                                    $("#btnCreate").prop('disabled', false);
-                                    $("#btnCreate").removeClass('disabled');
-                                    $("#lnkOpenWallet").show();
-                                }
-                                if (result == "ErrEmailExists") {
-
-                                    $("#createWalletStart input#emailaddress").css("border-color", "#ffaaaa");
-                                    $("#imgcreatewaiting").hide();
-
-                                    $("#createwalletalert").show();
-                                    $("#createwalletalertmessage").html("The email address is already in use");
-
-                                    $("#btnCreate").prop('disabled', false);
-                                    $("#btnCreate").removeClass('disabled');
-                                    $("#lnkOpenWallet").show();
-                                }
-
-                                if (result == "ErrCreateAccount") {
-
-                                    $("#imgcreatewaiting").hide();
-                                    $("#btnCreate").prop('disabled', false);
-                                    $("#btnCreate").removeClass('disabled');
-                                    $("#lnkOpenWallet").show();
-
-                                }
-
-                            } else {
-
-                                //set variables for the session
-                                $("#createWalletStart").hide();
-                                $('#createWalletStart input#cpassword').val('');
-                                $('#createWalletStart input#password1').val('');
-
-                                $("#hotWalletPhrase").text(result.hotWalletPhrase);
-                                $("#coldWalletPhrase").text(result.coldWalletPhrase);
-                                //$("#ninkiWalletPhrase").text(result.ninkiWalletPhrase);
-
-                                $("#walletGuid").text($('input#guid').val());
-                                $("#showPhrases").show();
-                                $("#securitywizard").show();
-
-                                if ($('#createWalletStart input#showQrCheckbox')[0].checked) {
-                                    //create two factor setting in databse and display qr code
-                                    $("#no2famessage").hide();
-                                    showTwoFactorQr();
-                                } else {
-                                    $("#no2famessage").show();
-                                }
-                            }
-                        });
-                    }
-
-                } else {
-
-                    //password not strong
-                    $("#createwalletalert").show();
-                    $("#createwalletalertmessage").html("Password must be Strong- ideally Very Strong");
-                }
-
-            }
-
-        });
-
-        $("#btnPassphraseLogin").click(function () {
-
-
-            var isvalid = true;
-
-            if ($('#createWalletStart input#showQrCheckbox')[0].checked) {
-                isvalid = $("#phrase2fa").parsley('validate');
-            }
-
-            if (isvalid) {
-
-                var twoFactorCodeChk = $('#twoFactorCodeCheck').val();
-
-                var target = document.getElementById('imgphrasewaiting');
-                var spinner = new Spinner(spinneropts).spin(target);
-
-                $("#imgphrasewaiting").show();
-
-                setCookie('guid', Engine.m_oguid);
-
-                Engine.openWalletAfterCreate(twoFactorCodeChk, function (err, result) {
-
-                    if (err) {
-
-                        $("#imgphrasewaiting").hide();
-                        $("#phraseloginerror").show();
-                        $("#phraseloginerrormessage").html(result);
-
-                    } else {
-
-
-                        initialiseUI();
-                        $("#imgphrasewaiting").hide();
-                        $("#phraseloginerror").hide();
-                        $("#validateemail").show();
-                        $("#step4").show();
-                        $("#step3").hide();
-                        $("#listep3").removeClass("active");
-                        $("#listep4").addClass("active");
-                        $("#prgsecwiz").width('100%');
-                        $(".next").hide();
-                        $(".previous").hide();
-                    }
-
-
-                });
-            }
-
-        });
-
-
-        $("#btnEmailValidate").click(function () {
-
-            var token = $("#txtEmailToken").val();
-
-            Engine.getEmailValidation(token, function (err, response) {
-
-                if (err) {
-
-                } else {
-
-                    if (response != "Valid") {
-                        $("#valemailerror").show();
-
-                        if (response == "Expired") {
-                            $("#valemailerrormessage").html('Your token has expired');
-                        }
-                        if (response == "Invalid") {
-                            $("#valemailerrormessage").html('Your token is not valid');
-                        }
-
-
-
-                    } else {
-
-                        if ($('#createWalletStart input#showQrCheckbox')[0].checked) {
-                            //TWOFACTORONLOGIN = true;
-                        }
-
-                        //initialiseUI();
-                        Engine.m_validate = false;
-
-                        //readAccountSettingsFromServerAndPopulateForm();
-                        $("#securitywizard").hide();
-                        $("#validateemail").hide();
-                        $("#mainWallet").show();
-                        $("#valemailerror").hide();
-                    }
-                }
-
-            });
-
-
-            //call to verify token
-
-
-        });
-
         //wallet security wizard
 
-        var step = 1;
-        $("#step1").show();
-        $("#prgsecwiz").width('25%');
-        $(".previous").hide();
-        $(".next").click(function () {
+        //$("#balance").text("... BTC");
 
-            if (step == 2) {
-                $("#step3").show();
-                $("#step2").hide();
-                $("#listep2").removeClass("active");
-                $("#listep3").addClass("active");
-                $("#prgsecwiz").width('75%');
-                $(".next").hide();
-                $(".previous").show();
-                step++;
-            }
-
-            if (step == 1) {
-                $("#step2").show();
-                $("#step1").hide();
-                $("#listep1").removeClass("active");
-                $("#listep2").addClass("active");
-                $("#prgsecwiz").width('50%');
-                $(".previous").show();
-
-                step++;
-            }
-
-        });
-
-        $(".previous").click(function () {
-
-            if (step == 2) {
-                $("#step1").show();
-                $("#step2").hide();
-                $("#listep2").removeClass("active");
-                $("#listep1").addClass("active");
-                $("#prgsecwiz").width('25%');
-                $(".previous").hide();
-                $(".next").show();
-                step--;
-            }
-
-            if (step == 3) {
-                $("#step2").show();
-                $("#step3").hide();
-                $("#listep3").removeClass("active");
-                $("#listep2").addClass("active");
-                $("#prgsecwiz").width('50%');
-                $(".previous").show();
-                $(".next").show();
-                step--;
-            }
-
-            if (step == 4) {
-                $("#step3").show();
-                $("#step4").hide();
-                $("#listep4").removeClass("active");
-                $("#listep3").addClass("active");
-                $("#prgsecwiz").width('75%');
-                $(".previous").show();
-                $(".next").hide();
-                step--;
-            }
-
-        });
-
-
-
-
-
-
-
-
-        $("#btnReset2fa").click(function () {
-
-            //stretch password
-            //download the recovery packet
-            //decrypt
-            //return shared secret
-            //no feedback apart from, please check your email
-            var fguid = $("#txtreset2faguid").val();
-            var fusername = $("#txtreset2fausername").val();
-            var fpwd = $("#txtreset2fapassword").val();
-
-            $("#reset2faerror").hide();
-            $("#reset2fasuccess").hide();
-
-            Engine.ResetTwoFactor(fguid, fusername, fpwd, function (err, results) {
-
-                if (err) {
-                    $("#reset2faerror").show();
-                    $("#reset2faerrormessage").html('There was an error');
-                } else {
-                    $("#validate2fareset").show();
-                    $("#reset2fa").hide();
-                }
-            });
-
-        });
-
-
-        $("#btnhidekeys").click(function () {
-            $("#secdisphrase").hide();
-            $("#secdisninki").hide();
-            $("#btnhidekeys").hide();
-            $("#btndisplaykeys").show();
-        });
-
-        $("#btndisplaykeys").click(function () {
-
-            //get the wallet packet
-            //secdisphrase
-
-            var ninkiPub = Engine.m_walletinfo.ninkiPubKey;
-            var phrase = Engine.m_walletinfo.hotHash;
-
-            var bip39 = new BIP39();  // 'en' is the default language
-            var hotmnem = bip39.entropyToMnemonic(phrase);
-
-            $("#secdisphrase").html(hotmnem);
-            $("#secdisninki").html(ninkiPub);
-            $("#secdisphrase").show();
-            $("#secdisninki").show();
-            $("#btnhidekeys").show();
-            $("#btndisplaykeys").hide();
-
-        });
-
-
-        //depreciated
-        $("#btn2faResetValidate").click(function () {
-
-            var vtoken = $("#txt2faResetToken").val();
-
-            Engine.EmailValidationForTwoFactor(vtoken, 0, function (err, response) {
-                if (err) {
-
-                } else {
-
-                    if (response != "Valid") {
-                        $("#val2fatokenerror").show();
-
-                        if (response == "Expired") {
-                            $("#val2fatokenerrormessage").html('Your token has expired');
-                        }
-                        if (response == "Invalid") {
-                            $("#val2fatokenerrormessage").html('Your token is not valid');
-                        }
-
-                    } else {
-                        $("#val2fatoken").hide();
-                        $("#val2fatokenerror").hide();
-                        location.reload();
-                    }
-                }
-
-            });
-
-        });
-
-
-        //transaction filters
-
-        $("#optDay").click(function () {
-            trasactionFilterOn = true;
-            currentTransactionFilter = 'Day';
-            lastNoOfTrans = -1;
-            updateTransactions();
-        });
-
-        $("#optWeek").click(function () {
-            trasactionFilterOn = true;
-            currentTransactionFilter = 'Week';
-            lastNoOfTrans = -1;
-            updateTransactions();
-        });
-
-        $("#optMonth").click(function () {
-            trasactionFilterOn = true;
-            currentTransactionFilter = 'Month';
-            lastNoOfTrans = -1;
-            updateTransactions();
-        });
-
-        $('#btntransearch').click(function () {
-            trasactionFilterOn = true;
-            currentTransactionFilter = 'Search';
-            lastNoOfTrans = -1;
-            updateTransactions();
-        });
-
-        $('#btntranclear').click(function () {
-            trasactionFilterOn = false;
-            currentTransactionFilter = '';
-            lastNoOfTrans = -1;
-            updateTransactions();
-            $("#optDay").removeClass('active');
-            $("#optWeek").removeClass('active');
-            $("#optMonth").removeClass('active');
-            $("#txttransearch").val('');
-
-        });
-
-
-        $('#thtrandate').click(function () {
-
-            //reset contact widget
-            if (currentTransactionSort == 'ContactDesc') {
-                $('#thtrancontact').toggleClass('active');
-            }
-
-            if (currentTransactionSort == 'DateDesc') {
-                currentTransactionSort = 'DateAsc';
-            } else {
-                currentTransactionSort = 'DateDesc';
-            }
-
-            trasactionSortOn = true;
-            lastNoOfTrans = -1;
-            updateTransactions();
-        });
-
-        $('#thtrancontact').click(function () {
-
-            //reset date widget
-            if (currentTransactionSort == 'DateDesc') {
-                $('#thtrandate').toggleClass('active');
-            }
-
-            if (currentTransactionSort == 'ContactAsc') {
-                currentTransactionSort = 'ContactDesc';
-            } else {
-                currentTransactionSort = 'ContactAsc';
-            }
-
-            trasactionSortOn = true;
-            lastNoOfTrans = -1;
-            updateTransactions();
-        });
-
-        $('#tpagfirst').click(function () {
-            currentPageIndex = 0;
-            lastNoOfTrans = -1;
-            updateTransactions();
-        });
-
-        $('#tpaglast').click(function () {
-            currentPageIndex = Math.floor((filteredTransactions.length / transactionsPerPage));
-            lastNoOfTrans = -1;
-            updateTransactions();
-
-        });
-
-        $('#tpagnext').click(function () {
-            if (currentPageIndex < Math.floor((filteredTransactions.length / transactionsPerPage))) {
-                currentPageIndex = currentPageIndex + 1;
-                lastNoOfTrans = -1;
-                updateTransactions();
-            }
-        });
-
-        $('#tpagprev').click(function () {
-            if (currentPageIndex > 0) {
-                currentPageIndex = currentPageIndex - 1;
-                lastNoOfTrans = -1;
-                updateTransactions();
-            }
-        });
-
-
-        //invoice filters
-        //for me
-        $("#optPending").click(function () {
-            invoiceFilterOn = true;
-            currentInvoiceFilter = 'Pending';
-            lastInvoiceToPayCount = -1;
-            showInvoiceList();
-        });
-
-        $("#optPaid").click(function () {
-            invoiceFilterOn = true;
-            currentInvoiceFilter = 'Paid';
-            lastInvoiceToPayCount = -1;
-            showInvoiceList();
-        });
-
-        $("#optRejected").click(function () {
-            invoiceFilterOn = true;
-            currentInvoiceFilter = 'Rejected';
-            lastInvoiceToPayCount = -1;
-            showInvoiceList();
-        });
-
-        $("#optClearInvoice").click(function () {
-            invoiceFilterOn = false;
-            currentInvoiceFilter = '';
-            lastInvoiceToPayCount = -1;
-            showInvoiceList();
-        });
-
-        $('#btnSearchInvForMe').click(function () {
-            currentForMeInvoicePageIndex = 0;
-            invoiceFilterOn = true;
-            currentInvoiceFilter = 'Search';
-            lastInvoiceToPayCount = -1;
-            showInvoiceList();
-        });
-
-
-
-
-
-        //by me
-        //invoice filters
-        $("#optByMePending").click(function () {
-            invoiceByMeFilterOn = true;
-            currentByMeInvoiceFilter = 'Pending';
-            lastInvoiceByUserCount = -1;
-            showInvoiceByUserList();
-        });
-
-        $("#optByMePaid").click(function () {
-            invoiceByMeFilterOn = true;
-            currentByMeInvoiceFilter = 'Paid';
-            lastInvoiceByUserCount = -1;
-            showInvoiceByUserList();
-        });
-
-        $("#optByMeRejected").click(function () {
-            invoiceByMeFilterOn = true;
-            currentByMeInvoiceFilter = 'Rejected';
-            lastInvoiceByUserCount = -1;
-            showInvoiceByUserList();
-        });
-
-        $("#optByMeClear").click(function () {
-            invoiceByMeFilterOn = false;
-            currentByMeInvoiceFilter = '';
-            lastInvoiceByUserCount = -1;
-            showInvoiceByUserList();
-        });
-
-        $('#btnSearchInvByMe').click(function () {
-            currentByMeInvoicePageIndex = 0;
-            invoiceByMeFilterOn = true;
-            currentByMeInvoiceFilter = 'Search';
-            lastInvoiceByUserCount = -1;
-            showInvoiceByUserList();
-        });
-
-        $('#ibmpagfirst').click(function () {
-            currentByMeInvoicePageIndex = 0;
-            lastInvoiceByMeNetCount = -1;
-            showInvoiceByUserList();
-        });
-
-        $('#ibmpaglast').click(function () {
-            currentByMeInvoicePageIndex = Math.floor((filteredByMeInvoices.length / invoicesByMePerPage));
-            lastInvoiceByMeNetCount = -1;
-            showInvoiceByUserList();
-        });
-
-        $('#ibmpagnext').click(function () {
-            if (currentByMeInvoicePageIndex < Math.floor((filteredByMeInvoices.length / invoicesByMePerPage))) {
-                currentByMeInvoicePageIndex = currentByMeInvoicePageIndex + 1;
-                lastInvoiceByMeNetCount = -1;
-                showInvoiceByUserList();
-            }
-        });
-
-        $('#ibmpagprev').click(function () {
-            if (currentByMeInvoicePageIndex > 0) {
-                currentByMeInvoicePageIndex = currentByMeInvoicePageIndex - 1;
-                lastInvoiceByMeNetCount = -1;
-                showInvoiceByUserList();
-            }
-        });
-
-
-        //for me
-
-        $('#ifmpagfirst').click(function () {
-            currentForMeInvoicePageIndex = 0;
-            lastInvoiceToPayCount = -1;
-            showInvoiceList();
-        });
-
-        $('#ifmpaglast').click(function () {
-            currentForMeInvoicePageIndex = Math.floor((filteredForMeInvoices.length / invoicesForMePerPage));
-            lastInvoiceToPayCount = -1;
-            showInvoiceList();
-        });
-
-        $('#ifmpagnext').click(function () {
-            if (currentForMeInvoicePageIndex < Math.floor((filteredForMeInvoices.length / invoicesForMePerPage))) {
-                currentForMeInvoicePageIndex = currentForMeInvoicePageIndex + 1;
-                lastInvoiceToPayCount = -1;
-                showInvoiceList();
-            }
-        });
-
-        $('#ifmpagprev').click(function () {
-            if (currentForMeInvoicePageIndex > 0) {
-                currentForMeInvoicePageIndex = currentForMeInvoicePageIndex - 1;
-                lastInvoiceToPayCount = -1;
-                showInvoiceList();
-            }
-        });
-
-
-
-        getCookie('ninki_reg', function (res) {
-
-            if (res.length > 0) {
-
-                showOpenWalletStart();
-
-            } else {
-
-                showCreateWalletStart();
-            }
-        })
-
-        $("#password").keypress(function (e) {
-            if (e.which == 13) {
-                $("#btnLogin").click();
-            }
-        });
-
-
-        $("#twoFactorCode").keypress(function (e) {
-            if (e.which == 13) {
-                $("#btn2faLogin").click();
-            }
-        });
-
-        $("#password1").keypress(function (e) {
-            if (e.which == 13) {
-                $("#btnCreate").click();
-            }
-        });
-
-
-        $("#cpassword").blur(function () {
-            $(".popover.fade.bottom.in").hide();
-        });
-
-        $("#cpassword").focus(function () {
-            $(".popover.fade.bottom.in").show();
-        });
-
-        $("#newpassword1").blur(function () {
-            $(".popover.fade.bottom.in").hide();
-        });
-
-        $("#newpassword1").focus(function () {
-            $(".popover.fade.bottom.in").show();
-        });
-
-        //$("#balance").html("... BTC");
-
-        $("#mainWallet").hide();
-        $('#message').hide();
-        $("#openwalletalert").hide();
-        $("#createwalletalert").hide();
-        $("#imgopenwaiting").hide();
-        $("#imgcreatewaiting").hide();
-        $("#showPhrases").hide();
-        $("#twoFactorQr").hide();
-        $("#2factor1").hide();
-        $("#securitywizard").hide();
-        $("#secdisphrase").hide();
-        $("#secdisninki").hide();
-        $("#btnhidekeys").hide();
-
-        $("#btnSendToFriend").hammer(null).bind("tap", function () {
+        $("#btnSendToFriend").bind('touchstart', function () {
 
 
             sendMoney(SELECTEDFRIEND, 0);
 
 
         });
+
         $("#sendfriendprog").hide();
 
-        $("#hforgotguid").click(function () {
 
-            $("#createWalletStart").hide();
-            $("#openWalletStart").hide();
-            $("#lostguid").show();
-            $("#reset2fa").hide();
-        });
+        $("#hdvalcontact").change(function () {
 
+            console.log('caught event...');
 
-        $("#hlost2fa").click(function () {
-
-            $("#createWalletStart").hide();
-            $("#openWalletStart").hide();
-            $("#lostguid").hide();
-            $("#reset2fa").show();
-
-        });
+            var res = $("#hdvalcontact").val();
+            var sres = res.split(',');
+            var phrase = sres[0];
+            var username = sres[1];
 
 
-        $("#emailresend").click(function () {
+            $("#netvalidprognum").text('30%');
+            $("#netvalidprogmess").text('Validating contact...');
+            $("#netvalidprog").width('30%');
 
-            Engine.sendWelcomeDetails(function (err, result) {
+            setTimeout(function () {
+                var bip39 = new BIP39();
+                code = bip39.mnemonicToHex(phrase);
 
-                if (!err) {
+                console.log(code);
 
-                    $("#emailresendmessage").show();
-                    $("#emailresend").hide();
-                    //email has been resent, please check your email
+
+                if (code.length != 40) {
+
+                    return;
                 }
 
-            });
-
-        });
 
 
-        $("#cpassword").on('change keyup', function () {
+                //console.log(SELECTEDFRIEND);
+                //console.log(username);
 
-            $("#password1").parsley("validate");
+                if (SELECTEDFRIEND == username) {
 
-        });
+                    $("#netvalidp2").show();
+                    $("#netvalidp1").hide();
 
+                    $("#netvalidprognum").text('50%');
+                    $("#netvalidprogmess").text('Validating contact...');
+                    $("#netvalidprog").width('50%');
 
-        $("#twoFactorCodeCheck").on('change keyup', function () {
+                    setTimeout(function () {
 
-            $("#phraseloginerror").fadeOut(100);
-
-        });
-
-
-        $("#btnChangePassword").click(function () {
-
-            $("#chngpwssuc").hide();
-            $("#chngpwerr").hide();
-            $("#chngpwdprog").hide();
-            $("#chngpwdprogbar").width('0%');
-
-            var newpassword = $("#newpassword1").val();
-            var oldpassword = $("#oldpwd").val();
-            var twoFactorCode = $("#txtTwoFactorCodeForChangePwd").val();
-
-            if ($("#frmpwdchange").parsley('validate')) {
-
-                $("#chngpwdprog").show();
-                $("#chngpwdprogmess").show();
-                $("#chngpwdprogbar").width('10%');
-                $("#chngpwdprogmess").html('Getting packet...');
+                        Engine.verifyFriendData(SELECTEDFRIEND, code, function (err, result) {
 
 
-                if (oldpassword != newpassword) {
+                            console.log(result);
 
-                    //check password strength
-                    if (($(".newpwstrength_viewport_progress .password-verdict").html() == 'Strong' || $(".newpwstrength_viewport_progress .password-verdict").html() == 'Very Strong')) {
+                            if (result) {
 
-                        //stretch old password
-                        //verify that it matches the current one
-                        $("#chngpwdprogbar").width('20%');
-                        $("#chngpwdprogmess").html('Getting details...');
+                                $("#netvalidprognum").text('100%');
+                                $("#netvalidprogmess").text('Contact validated');
+                                $("#netvalidprog").width('100%');
 
-                        setTimeout(function () {
+                                //$("#validateform").hide();
+                                //$("#validatesuccess").show();
+                                $("#txtCode").val('');
+                                selectedFriend.validated = true;
+                                FRIENDSLIST[selectedFriend.userName].validated = true;
+                                updateSelectedFriend();
+                                $("#networkvalidate").hide();
+                                $("#friendheader").show();
+                                $("#mainWallet").show();
+                                $(".footer").show();
 
-                            Engine.ChangePassword(twoFactorCode, oldpassword, newpassword, "#chngpwdprogbar", "#chngpwdprogmess", function (err, results) {
+                                $("#netvalidp2").hide();
+                                $("#netvalidp1").show();
+                                //update list also
 
-                                if (err) {
-                                    $("#chngpwerr").show();
-                                    $("#chngpwerrmess").html(results);
-                                    $("#chngpwdprogmess").hide();
-                                    $("#chngpwdprog").hide();
-
-                                } else {
-
-                                    password = results;
-                                    $("#chngpwerr").hide();
-                                    $("#chngpwdprogbar").width('100%');
-                                    $("#chngpwdprog").hide();
-                                    $("#chngpwdprogmess").hide();
-                                    $("#chngpwdprogbar").hide();
-                                    $("#chngpwssuc").show();
-
-                                    $("#newpassword1").val('');
-                                    $("#newpassword2").val('');
-                                    $("#oldpwd").val('');
-                                    $("#txtTwoFactorCodeForChangePwd").val('');
-
-                                }
-
-                            });
+                                //find friend in list and update the validated icon
+                                $("#myfriends #seltarget" + selectedFriend.userName).html('<div class="pull-right text-success m-t-sm"><i class="fa fa-check-square" style="font-size:1.5em"></i></div>');
 
 
-                        }, 500);
-                    }
+                            } else {
 
-                } else {
-                    $("#chngpwerr").show();
-                    $("#chngpwerrmess").html("Passwords are the same. Password not updated");
-                    $("#chngpwdprogmess").hide();
-                    $("#chngpwdprog").hide();
+                                $("#netvalidp2").hide();
+                                $("#netvalidp1").show();
+                                $("#validatefail").show();
+                            }
+
+                        });
+
+                    }, 100);
                 }
 
-            }
+            }, 100);
+
         });
 
-
-        $("#btnVerify").click(function () {
+        $("#btnVerify").bind('touchstart', function () {
 
             var code = $("#txtCode").val();
 
@@ -2373,13 +1951,15 @@ function UI() {
             Engine.verifyFriendData(SELECTEDFRIEND, code, function (err, result) {
 
                 if (result) {
-                    $("#validateform").hide();
-                    $("#validatesuccess").show();
+
                     $("#txtCode").val('');
                     selectedFriend.validated = true;
                     FRIENDSLIST[selectedFriend.userName].validated = true;
                     updateSelectedFriend();
-
+                    $("#networkvalidate").hide();
+                    $("#friendheader").show();
+                    $("#mainWallet").show();
+                    $(".footer").show();
                     //update list also
 
                     //find friend in list and update the validated icon
@@ -2394,135 +1974,57 @@ function UI() {
         });
 
 
-        $("#btnSetupTwoFactor").click(function () {
-
-            $("#twofactorsettings").show();
-            $("#btnSetupTwoFactor").hide();
-            $("#savetwofactorerror").hide();
-            $("#setup2faemail").hide();
-            $("#setup2faqr").show();
-            showSettingsTwoFactorQr();
-
-        });
-
-
-        $("#btnSaveTwoFactor").click(function () {
-
-            //validate authenticator code
-            //switch on two factor on login
-            //setting changes always require two factor
-
-            if ($("#frmSaveTwoFactor").parsley('validate')) {
-
-                var twoFactorCode = $("#txtsettings2fa").val();
-                var verifyToken = $("#txt2faVerifyToken").val();
-
-                Engine.SaveTwoFactor(twoFactorCode, verifyToken, function (err, result) {
-
-                    if (!err) {
-                        //ok
-                        $("#setup2faemail").show();
-                        $("#setup2faqr").hide();
-                        readAccountSettingsFromServerAndPopulateForm();
-                    } else {
-                        //error
-                        $("#savetwofactorerror").show();
-                        $("#savetwofactorerrormessage").show();
-                        $("#savetwofactorerrormessage").html(result);
-                    }
-                });
-
-            }
-        });
-
-        $("#btn2faVerifyEmail").click(function () {
-
-
-            var vtoken = $("#txt2faVerifyToken").val();
-
-            Engine.EmailValidationForTwoFactor(vtoken, 1, function (err, response) {
-
-                if (!err) {
-
-
-                    //TWOFACTORONLOGIN = true;
-                    //refresh settings panel
-
-                    readAccountSettingsFromServerAndPopulateForm();
-
-                    $("#twofactorsettings").hide();
-                    $("#btnSetupTwoFactor").hide();
-                    $("#savetwofactorerror").hide();
-                    $("#savetwofactorerrormessage").hide();
-                    $("#setup2faemail").hide();
-                    $("#setup2faqr").hide();
-
-
-                } else {
-
-                    //TO DO:
-                    //report error here
-
-                }
-
-
-            });
-
-
-        });
-
-
-        $("#hsettings").click(function () {
-            readAccountSettingsFromServerAndPopulateForm();
-        });
-
-        $("#savesettingsbutton").click(function () {
-            if ($("#frmsettings").parsley('validate')) {
-                saveAccountSettingsToServer();
-
-            }
-        });
-
-        Engine.fillElementWithGuid($("#createWalletStart input#guid"));
-
-
         //INVOICE STUFF START------------------------------------------
 
         $("#friendselector").hide();
         $("#invoice").hide();
         $("#invoicedisplay").hide();
 
-        $("#btnpayinvoice").hammer(null).bind("tap", function () {
+        $("#btnpayinvoice").bind('touchstart', function () {
 
-            payInvoice(selectedInvoiceUserName, selectedInvoiceAmount, selectedInvoiceId);
+
+            $(".footer").hide();
+
+            $("#sendstds2add").text(SELECTEDFRIEND);
+
+            $("#sendstds2amt").text(convertFromSatoshis(selectedInvoiceAmount, COINUNIT) + ' ' + COINUNIT);
+
+            sendmode = 'inv';
+
+            $("#mainWallet").hide();
+            $("#pinconfirm").show();
+
 
         });
 
-        $("#btnrejectinvoice").hammer(null).bind("tap", function () {
+        $("#btnrejectinvoice").bind('touchstart', function () {
 
             Engine.updateInvoice(selectedInvoiceUserName, selectedInvoiceId, '', 2, function (err, result) {
 
-                lastInvoiceToPayCount = 0;
-                showInvoiceList();
-                showInvoiceListNetwork();
+                loadInvoices(function (err, res) {
 
-                $("#invoicedisplay").hide();
-                $("#invoicestopay").show();
-                $("#createinv").show();
+                    lastInvoiceToPayCount = 0;
 
-                if (uiInvoiceReturnToNetwork) {
+                    showInvoiceListNetwork();
+
+                    $("#invoicedisplay").hide();
+                    $("#invoicestopay").show();
+                    $("#createinv").show();
+
                     updateSelectedFriend();
-                }
+
+                });
             });
 
         });
 
-        $("#payinvoicecancel").hammer(null).bind("tap", function () {
+        $("#payinvoicecancel").bind('touchstart', function () {
 
 
             $("#invoices").hide();
             $("#network").show();
-
+            $("#pnlfriend").show();
+            $("#friendheader").show();
             //if (uiInvoiceReturnToNetwork) {
             //$("#hnetwork").click();
             //uiInvoiceReturnToNetwork = false;
@@ -2531,476 +2033,15 @@ function UI() {
 
         });
 
-
-        $("#invoicecancel").click(function () {
-            $("#invoicestopay").show();
-            $("#createinv").show();
-        });
-
-        $("#sendinvoicecancel").click(function () {
-
-            $("#invoicedisplay").hide();
-            $("#invoice").hide();
-            $("#invoicestopay").show();
-            $("#hnetwork").click();
-        });
-
-
-        $("#sendinvoice").click(function () {
-
-            calcInvoiceTotals();
-
-            var subtotal = $("#tblinvoice tfoot th #subtotal").html();
-            var tax = $("#tblinvoice tfoot th #tax").html();
-            var total = $("#tblinvoice tfoot th #total").html();
-
-            if (subtotal > 0) {
-
-                if (validateInvoice()) {
-                    //parse the table and generate objects
-                    var invoicelines = [];
-                    $("#tblinvoice tbody tr").each(function () {
-                        var tmpVals = [];
-                        $(this).find('input').each(function () {
-                            tmpVals.push($(this).val());
-
-                        });
-                        if (tmpVals[0] != null) {
-                            invoicelines.push({
-                                description: tmpVals[0],
-                                quantity: tmpVals[1],
-                                amount: convertToSatoshis(tmpVals[2], COINUNIT)
-                            });
-                        }
-                    });
-
-
-                    var summary = {
-                        subtotal: convertToSatoshis(subtotal, COINUNIT),
-                        tax: convertToSatoshis(tax, COINUNIT),
-                        total: convertToSatoshis(total, COINUNIT)
-                    };
-                    var invoice = {
-                        summary: summary,
-                        invoicelines: invoicelines
-                    };
-
-                    createNewInvoice(invoiceSelectedUser, invoice, function (err, invoices) {
-
-                        $("#invoicestopay").show();
-                        $("#createinv").show();
-                        $("#invoice").hide();
-
-
-                        $("#hnetwork").click();
-                        lastInvoiceByUserCount = -1;
-                        lastInvoiceByMeNetCount = -1;
-
-                        showInvoiceByUserList(function (err, result) {
-
-                            showInvoiceByMeListNetwork(function (err, result) {
-
-
-                            });
-
-                        });
-
-
-                        //updateSelectedFriend();
-
-                    });
-                }
-            }
-
-        });
-
-
-        $("#btnCreateInvFriend").click(function () {
-
-            $("#invoicestopay").hide();
-            $("#invoicedisplay").hide();
-            uiInvoiceReturnToNetwork = true;
-            invoiceSelectedUser = SELECTEDFRIEND;
-            lineCount = 0
-            $("#createinvoiceforlabel").html('Create an Invoice for ' + SELECTEDFRIEND);
-            $("#tblinvoice tbody").empty();
-
-            $("#friendselector").hide();
-            $("#invoice").show();
-            //write a new one
-            $("#addline").click();
-            $("#hinvoices").click();
-
-        });
-
-
-
-        $("#lineAmount").keypress(function (e) {
-            if (e.which == 13) {
-
-                $("#addline").click();
-
-            }
-        });
-
-        $("#addline").click(function () {
-
-            if (validateInvoice()) {
-
-                //recalc everything
-                lineCount++;
-
-                $('#tblinvoice tbody').append(getRowTempate());
-                $('#line' + lineCount + 'desc').focus();
-
-                $('#addline' + lineCount).click({
-                    line: lineCount
-                }, function (event) {
-                    $('#tblinvoice #row' + event.data.line).remove();
-                    validateInvoice();
-                });
-
-                $('#line' + lineCount + 'Amount').blur({
-                    line: lineCount
-                }, function (event) {
-                    if (validateInvoice()) {
-                        $('#lineTotal' + (event.data.line)).html(($('#line' + (event.data.line) + 'Amount').val() * $('#line' + (event.data.line) + 'Quantity').val()).toFixed(4));
-                        calcInvoiceTotals();
-                    } else {
-                        //$('#line' + (event.data.line) + 'Amount').
-                    }
-                });
-
-
-                $('#line' + lineCount + 'Quantity').blur({
-                    line: lineCount
-                }, function (event) {
-                    if (validateInvoice()) {
-                        $('#lineTotal' + (event.data.line)).html(($('#line' + (event.data.line) + 'Amount').val() * $('#line' + (event.data.line) + 'Quantity').val()).toFixed(4));
-                        calcInvoiceTotals();
-                    } else {
-                        //$('#line' + (event.data.line) + 'Amount').
-                    }
-                });
-
-
-                $('#line' + lineCount + 'desc').blur(function (event) {
-                    validateInvoice();
-                });
-
-                $('#line' + lineCount + 'Amount').keypress({
-                    line: lineCount
-                }, function (e) {
-                    if (e.which == 13) {
-                        $('#line' + lineCount + 'Amount').blur();
-                        $("#addline").click();
-
-                    }
-                });
-
-                $('#line' + lineCount + 'desc').keydown({
-                    line: lineCount
-                }, function (e) {
-                    if (e.which == 8) {
-                        if ($('#line' + lineCount + 'desc').val() == '' && $('#line' + lineCount + 'Amount').val() == '' && $('#line' + lineCount + 'Quantity').val() == '') {
-                            $('#tblinvoice #row' + e.data.line).remove();
-                        }
-                    }
-                });
-
-            }
-            //write a new one
-
-        });
-
-
-        //openWallet();
-        $("#openWalletStart #password").focus();
     });
-
-
-    function calcInvoiceTotals() {
-        var subTotal = 0;
-        $('#tblinvoice .lineTotal').each(function () {
-
-            subTotal += ($(this).html() * 1);
-
-        });
-
-        $("#subtotal").html(subTotal.toFixed(4));
-        $("#tax").html((subTotal * 0.10).toFixed(4));
-        $("#total").html((subTotal + (subTotal * 0.10)).toFixed(4));
-
-    };
-
-    function validateInvoice() {
-        var subTotal = 0;
-
-        var isValid = true;
-
-        $('#tblinvoice .amount').each(function () {
-
-            var vval = $(this).val();
-            var visValid = true;
-            if ($.isNumeric(vval)) {
-
-                if ((vval * 1) <= 0) {
-                    //not valid
-                    //highlight
-                    isValid = false;
-                    visValid = false;
-                }
-
-            } else {
-
-                isValid = false;
-                visValid = false;
-            }
-
-            if (!visValid) {
-                $(this).css("border-color", "#ff0000");
-            } else {
-                $(this).css("border-color", "#cbd5dd");
-            }
-
-        });
-
-        $('#tblinvoice .quantity').each(function () {
-
-            var vval = $(this).val();
-            var visValid = true;
-            if ($.isNumeric(vval)) {
-
-                if ((vval * 1) <= 0) {
-                    //not valid
-                    //highlight
-                    isValid = false;
-                    visValid = false;
-                }
-
-            } else {
-
-                isValid = false;
-                visValid = false;
-            }
-
-            if (!visValid) {
-                $(this).css("border-color", "#ff0000");
-            } else {
-                $(this).css("border-color", "#cbd5dd");
-            }
-
-
-        });
-
-        $('#tblinvoice .desc').each(function () {
-
-
-            var vval = $(this).val();
-            var visValid = true;
-
-            if (vval.length == 0) {
-                visValid = false;
-                isValid = false;
-            }
-
-            if (!visValid) {
-                $(this).css("border-color", "#ff0000");
-            } else {
-                $(this).css("border-color", "#cbd5dd");
-            }
-
-        });
-
-        if (isValid) {
-
-            calcInvoiceTotals();
-
-            //if (subTotal > 0) {
-            //$("#subtotal").html(subTotal.toFixed(4));
-            //$("#tax").html((subTotal * 0.10).toFixed(4));
-            //$("#total").html((subTotal + (subTotal * 0.10)).toFixed(4));
-            //} else {
-            //    isValid = false;
-            //}
-        }
-
-        return isValid;
-
-    };
-
-
-
-    var lineCount = 0;
-    function getRowTempate() {
-        var template = '<tr id=\"row' + lineCount + '\">' +
-                        '<td>' +
-                        '<input id=\"line' + lineCount + 'desc\" class="form-control desc" />' +
-                        '</td>' +
-                        '<td>' +
-                        '<input id=\"line' + lineCount + 'Quantity\" data-type="digits" class="form-control quantity" />' +
-                        '</td>' +
-                        '<td>' +
-                        '<input id=\"line' + lineCount + 'Amount\" data-type="number" class="form-control amount" placeholder="' + COINUNIT + '" />' +
-                        '</td><td><span class=\"lineTotal\" id="lineTotal' + lineCount + '"></span></td>' +
-                        '<td  id=\"addline' + lineCount + '\">' +
-		                '<a href="#" class="btn btn-sm btn-icon btn-info">' +
-		                '<i class="fa fa-minus"></i>' +
-		                '</a>' +
-                        '</td>' +
-                        '</tr>';
-
-
-
-
-        return template;
-    }
-
-
-    var cachedInvoices = [];
-    var lastInvoiceToPayCount = 0;
-    function showInvoiceList(callback) {
-        //get back the list of invoices to pay
-
-        Engine.getInvoiceList(function (err, invoices) {
-
-
-            if (lastInvoiceToPayCount < invoices.length) {
-
-            } else {
-
-                return callback(false, "done");
-
-            }
-
-            for (var i = 0; i < invoices.length; i++) {
-                var d1 = new Date(invoices[i].InvoiceDate);
-                invoices[i].JsDate = d1;
-            }
-
-            invoices = _.sortBy(invoices, function (inv) { return -inv.JsDate; });
-
-            filteredForMeInvoices = invoices;
-
-            //perform all filters then set back to invoices
-
-            if (currentInvoiceFilter == "Pending") {
-
-                filteredForMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 0; });
-            }
-
-            if (currentInvoiceFilter == "Paid") {
-
-                filteredForMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 1; });
-            }
-
-            if (currentInvoiceFilter == "Rejected") {
-
-                filteredForMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 2; });
-            }
-
-
-            if (currentInvoiceFilter == "Search") {
-                var search = $('#txtSearchInvForMe').val();
-                filteredForMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceFrom.search(search) > -1; });
-            }
-
-
-            var noofpages = Math.floor((filteredForMeInvoices.length / invoicesForMePerPage));
-
-            var indexFrom = currentForMeInvoicePageIndex * invoicesForMePerPage;
-            var indexTo = indexFrom + invoicesForMePerPage;
-
-            if (indexTo > filteredForMeInvoices.length) {
-                indexTo = filteredForMeInvoices.length;
-            }
-
-            $('#invbmpaglabel').html('Showing ' + (indexFrom + 1) + ' to ' + (indexTo) + ' of ' + filteredForMeInvoices.length);
-
-
-            invoices = filteredForMeInvoices;
-
-            if (lastInvoiceToPayCount < invoices.length) {
-
-
-                pagedForMeInvoices = filteredForMeInvoices.slice(indexFrom, indexTo);
-
-                invoices = pagedForMeInvoices;
-
-                cachedInvoices = [];
-
-                lastInvoiceToPayCount = invoices.length;
-
-                var s = '';
-                $('#tblinvoicepay tbody').empty();
-                for (var i = 0; i < invoices.length; i++) {
-
-                    var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1).toLocaleString();
-
-                    var invpaydate = '';
-                    if (invoices[i].InvoicePaidDate) {
-                        invpaydate = new Date(invoices[i].InvoicePaidDate.match(/\d+/)[0] * 1).toLocaleString();
-                    }
-
-                    cachedInvoices.push(invoices[i]);
-
-                    var statusbox = '';
-                    if (invoices[i].InvoiceStatus == 0) {
-                        statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
-                    }
-                    else if (invoices[i].InvoiceStatus == 1) {
-                        statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
-                    }
-                    else if (invoices[i].InvoiceStatus == 2) {
-                        statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
-                    }
-
-
-                    var length = invoices[i].InvoiceFrom.length;
-                    if (length > 20) {
-                        length = 20;
-                    }
-
-                    var imageSrcSmall = "images/avatar/64px/Avatar-" + pad(length) + ".png";
-
-
-                    if (FRIENDSLIST[invoices[i].InvoiceFrom].profileImage != '') {
-                        imageSrcSmall = "https://ninkip2p.imgix.net/" + FRIENDSLIST[invoices[i].InvoiceFrom].profileImage + "?crop=faces&fit=crop&h=64&w=64&mask=ellipse&border=1,d0d0d0";
-                    }
-
-                    s += "<tr><td><label class=\"checkbox m-n i-checks\"><input type=\"checkbox\" name=\"post[]\"><i></i></label></td><td>" + invdate + "</td>";
-
-                    s += "<td><span class=\"thumb-sm\"><img src=\"" + imageSrcSmall + "\" alt=\"\" class=\"img-circle\"></span><span class=\"m-s\"> ";
-
-                    s += invoices[i].InvoiceFrom + "</span></td>";
-                    s += "<td><a href=\"#\" class=\"active\">" + statusbox + "</a></td><td>" + invpaydate + "</td><td><button type=\"button\" class=\"btn btn-sm btn-default\" id=\"viewinvoice" + i + "\">View</button></td></tr>";
-                }
-
-                $('#tblinvoicepay tbody').append(s);
-
-                for (var i = 0; i < invoices.length; i++) {
-
-                    $("#tblinvoicepay #viewinvoice" + i).click({
-                        index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
-                    }, function (event) {
-                        displayInvoice(event.data.index, event.data.username, 'forme', function (err, res) {
-                            uiInvoiceReturnToNetwork = false;
-                            //$('#hinvoices').click();
-                        });
-                    });
-                }
-
-            }
-
-            callback();
-
-        });
-    }
-
 
 
     var lastInvoiceToPayNetCount = 0;
     var uiInvoiceReturnToNetwork = false;
+
+    var cachedInvoices = [];
+    var cachedInvoicesByUser = [];
+
     function showInvoiceListNetwork() {
 
         var invoices = _.filter(cachedInvoices, function (inv) { return inv.InvoiceFrom == SELECTEDFRIEND; });
@@ -3012,62 +2053,65 @@ function UI() {
         }
 
 
-        if (lastInvoiceToPayNetCount < invoices.length) {
+        //if (lastInvoiceToPayNetCount < invoices.length) {
 
-            lastInvoiceToPayNetCount = invoices.length;
+        lastInvoiceToPayNetCount = invoices.length;
 
-            var s = '';
-            $('#invfornet').empty();
+        var s = '';
+        $('#invfornet').empty();
 
-            for (var i = 0; i < invoices.length; i++) {
+        for (var i = 0; i < invoices.length; i++) {
 
-                var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1).toLocaleString();
+            var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1);
 
-                var statusbox = '';
-                if (invoices[i].InvoiceStatus == 0) {
-                    statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
-                }
-                else if (invoices[i].InvoiceStatus == 1) {
-                    statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
-                }
-                else if (invoices[i].InvoiceStatus == 2) {
-                    statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
-                }
+            var timeLabel = prettydate.format(invdate);
 
-                s += "<a id=\"viewinvoicenetfrom" + invoices[i].InvoiceFrom + invoices[i].InvoiceId + "\" class=\"media list-group-item\"><div class=\"pull-left\">" + invdate + "</div>" +
+            var statusbox = '';
+            if (invoices[i].InvoiceStatus == 0) {
+                statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
+            }
+            else if (invoices[i].InvoiceStatus == 1) {
+                statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
+            }
+            else if (invoices[i].InvoiceStatus == 2) {
+                statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
+            }
+
+            s += "<a id=\"viewinvoicenetfrom" + _.escape(invoices[i].InvoiceFrom) + _.escape(invoices[i].InvoiceId) + "\" class=\"media list-group-item\"><div class=\"pull-left\">" + _.escape(timeLabel) + "</div>" +
                                  "<div class=\"pull-right m-t-xs\">" + statusbox + "</div></a>";
-            }
-
-            $('#invfornet').append(s);
-
-            for (var i = 0; i < invoices.length; i++) {
-
-                $("#invfornet #viewinvoicenetfrom" + invoices[i].InvoiceFrom + invoices[i].InvoiceId).hammer(null).bind("tap", {
-                    index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
-                }, function (event) {
-
-                    $("#invtapspinner").show();
-                    var target = document.getElementById('invtapspinner');
-                    var spinner = new Spinner(spinneropts).spin(target);
-
-                    displayInvoice(event.data.index, event.data.username, 'forme', function (err, res) {
-                        uiInvoiceReturnToNetwork = true;
-
-                        networkpagestate = "invoice";
-                        friendpagestate = "invoice";
-
-                        $("#invtapspinner").hide();
-                        $('#network').hide();
-                        $('#invoices').show();
-
-                    });
-                });
-            }
-
-            $('#invfornet').show();
-
-
         }
+
+        $('#invfornet').append(s);
+
+        for (var i = 0; i < invoices.length; i++) {
+
+            $("#invfornet #viewinvoicenetfrom" + invoices[i].InvoiceFrom + invoices[i].InvoiceId).hammer(null).bind("tap", {
+                index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
+            }, function (event) {
+
+                $("#invtapspinner").show();
+                var target = document.getElementById('invtapspinner');
+                var spinner = new Spinner(spinneropts).spin(target);
+
+                displayInvoice(event.data.index, event.data.username, 'forme', function (err, res) {
+                    uiInvoiceReturnToNetwork = true;
+
+                    networkpagestate = "invoice";
+                    friendpagestate = "invoice";
+
+                    $("#invtapspinner").hide();
+                    $('#pnlfriend').hide();
+                    $("#friendheader").hide();
+                    $('#invoices').show();
+
+                });
+            });
+        }
+
+        $('#invfornet').show();
+
+
+        //}
 
         // $('#pnlfriendinv').show();
 
@@ -3078,8 +2122,6 @@ function UI() {
     function showInvoiceByMeListNetwork() {
 
         var invoices = _.filter(cachedInvoicesByUser, function (inv) { return inv.InvoiceFrom == SELECTEDFRIEND; });
-
-
 
         if (invoices.length == 0) {
             $('#invbynet').empty();
@@ -3096,7 +2138,10 @@ function UI() {
 
             for (var i = 0; i < invoices.length; i++) {
 
-                var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1).toLocaleString();
+                var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1);
+
+                var timeLabel = prettydate.format(invdate);
+
 
                 var statusbox = '';
                 if (invoices[i].InvoiceStatus == 0) {
@@ -3109,7 +2154,7 @@ function UI() {
                     statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
                 }
 
-                s += "<a id=\"viewinvoicenetby" + invoices[i].InvoiceFrom + invoices[i].InvoiceId + "\" class=\"media list-group-item\"><div class=\"pull-left\">" + invdate + "</div>" +
+                s += "<a id=\"viewinvoicenetby" + invoices[i].InvoiceFrom + invoices[i].InvoiceId + "\" class=\"media list-group-item\"><div class=\"pull-left\">" + _.escape(timeLabel) + "</div>" +
                                  "<div class=\"pull-right m-t-xs\">" + statusbox + "</div></a>";
             }
 
@@ -3132,7 +2177,8 @@ function UI() {
                         friendpagestate = "invoice";
 
                         $("#invtapspinner").hide();
-                        $('#network').hide();
+                        $('#pnlfriend').hide();
+                        $("#friendheader").hide();
                         $('#invoices').show();
 
                     });
@@ -3147,166 +2193,6 @@ function UI() {
         // $('#pnlfriendinv').show();
 
 
-    }
-
-    var cachedInvoicesByUser = [];
-    var lastInvoiceByUserCount = 0;
-    function showInvoiceByUserList(callback) {
-        //get back the list of invoices to pay
-
-
-        Engine.getInvoiceByUserList(function (err, invoices) {
-
-            for (var i = 0; i < invoices.length; i++) {
-                var d1 = new Date(invoices[i].InvoiceDate);
-                invoices[i].JsDate = d1;
-            }
-
-            invoices = _.sortBy(invoices, function (inv) { return -inv.JsDate; });
-
-            filteredByMeInvoices = invoices;
-
-            //perform all filters then set back to invoices
-
-            if (currentByMeInvoiceFilter == "Pending") {
-
-                filteredByMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 0; });
-            }
-
-            if (currentByMeInvoiceFilter == "Paid") {
-
-                filteredByMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 1; });
-            }
-
-            if (currentByMeInvoiceFilter == "Rejected") {
-
-                filteredByMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 2; });
-            }
-
-            if (currentByMeInvoiceFilter == "Search") {
-                var search = $('#txtSearchInvByMe').val();
-                filteredByMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceFrom.search(search) > -1; });
-            }
-
-            var noofpages = Math.floor((filteredByMeInvoices.length / invoicesByMePerPage));
-
-            var indexFrom = currentByMeInvoicePageIndex * invoicesByMePerPage;
-            var indexTo = indexFrom + invoicesByMePerPage;
-
-            if (indexTo > filteredByMeInvoices.length) {
-                indexTo = filteredByMeInvoices.length;
-            }
-
-            $('#invbmpaglabel').html('Showing ' + (indexFrom + 1) + ' to ' + (indexTo) + ' of ' + filteredByMeInvoices.length);
-
-            invoices = filteredByMeInvoices;
-
-
-            if (lastInvoiceByUserCount < invoices.length) {
-
-
-                pagedByMeInvoices = filteredByMeInvoices.slice(indexFrom, indexTo);
-
-                invoices = pagedByMeInvoices;
-
-                cachedInvoicesByUser = [];
-
-                lastInvoiceByUserCount = invoices.length;
-
-                var s = '';
-                $('#tblinvoicebyme tbody').empty();
-                for (var i = 0; i < invoices.length; i++) {
-
-
-                    var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1).toLocaleString();
-                    var invpaydate = '';
-                    if (invoices[i].InvoicePaidDate) {
-                        invpaydate = new Date(invoices[i].InvoicePaidDate.match(/\d+/)[0] * 1).toLocaleString();
-                    }
-
-                    cachedInvoicesByUser.push(invoices[i]);
-
-                    var statusbox = '';
-                    if (invoices[i].InvoiceStatus == 0) {
-                        statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
-                    }
-                    else if (invoices[i].InvoiceStatus == 1) {
-                        statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
-                    }
-                    else if (invoices[i].InvoiceStatus == 2) {
-                        statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
-                    }
-
-
-                    var length = invoices[i].InvoiceFrom.length;
-                    if (length > 20) {
-                        length = 20;
-                    }
-
-                    s += "<tr><td><label class=\"checkbox m-n i-checks\"><input type=\"checkbox\" name=\"post[]\"><i></i></label></td><td>" + invdate + "</td><td><span class=\"thumb-sm\"><img src=\"images/avatar/64px/Avatar-" + pad(length) + ".png\" alt=\"\" class=\"img-circle\"></span><span class=\"m-s\"> " +
-                                 invoices[i].InvoiceFrom + "</span></td><td><a href=\"#\" class=\"active\">" + statusbox + "</a></td><td><span class=\"paid\">" + invpaydate + "</span></td><td><button type=\"button\" class=\"btn btn-sm btn-default\" id=\"viewinvoicebyuser" + i + "\">View</button></td></tr>";
-                }
-
-                $('#tblinvoicebyme tbody').append(s);
-
-                for (var i = 0; i < invoices.length; i++) {
-
-                    $("#tblinvoicebyme #viewinvoicebyuser" + i).click({
-                        index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
-                    }, function (event) {
-                        displayInvoiceByUser(event.data.index, event.data.username, 'byme', function (err, res) {
-
-
-                        });
-                    });
-                }
-
-                if (callback) {
-                    callback(false, "ok");
-                }
-
-            } else {
-
-                //no new invoices, but lets check for invoices with changed status
-                cachedInvoicesByUser = invoices;
-
-                $('#tblinvoicebyme tbody tr .active').each(function (index, elem) {
-                    var statusbox = '';
-                    if (cachedInvoicesByUser[index].InvoiceStatus == 0) {
-                        statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
-                    }
-                    else if (cachedInvoicesByUser[index].InvoiceStatus == 1) {
-                        statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
-                    }
-                    else if (cachedInvoicesByUser[index].InvoiceStatus == 2) {
-                        statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
-                    }
-                    //$(elem).html('');
-                    $(elem).html(statusbox);
-                });
-
-                $('#tblinvoicebyme tbody tr .paid').each(function (index, elem) {
-
-                    if (cachedInvoicesByUser[index].InvoiceStatus == 1 || cachedInvoicesByUser[index].InvoiceStatus == 1) {
-
-                        var invpaydate = '';
-                        if (cachedInvoicesByUser[index].InvoicePaidDate) {
-                            invpaydate = new Date(cachedInvoicesByUser[index].InvoicePaidDate.match(/\d+/)[0] * 1).toLocaleString();
-                        }
-
-
-                        $(elem).html(invpaydate);
-                    }
-
-                });
-
-            }
-
-            if (callback) {
-                callback(false, "ok");
-            }
-
-        });
     }
 
 
@@ -3327,22 +2213,22 @@ function UI() {
         $('#tblinvdisplay tbody').empty();
         var s = '';
         for (var i = 0; i < json.invoicelines.length; i++) {
-            s += "<tr><td>" + json.invoicelines[i].description + "</td><td>" + json.invoicelines[i].quantity + "</td><td>" + convertFromSatoshis(json.invoicelines[i].amount, COINUNIT) + "</td><td>" + (convertFromSatoshis(json.invoicelines[i].amount, COINUNIT) * json.invoicelines[i].quantity) + "</td></tr>";
+            s += "<tr><td>" + _.escape(json.invoicelines[i].description) + "</td><td>" + _.escape(json.invoicelines[i].quantity) + "</td><td>" + _.escape(convertFromSatoshis(json.invoicelines[i].amount, COINUNIT)) + "</td><td>" + _.escape(convertFromSatoshis(json.invoicelines[i].amount, COINUNIT) * json.invoicelines[i].quantity) + "</td></tr>";
         }
 
         $('#tblinvdisplay tbody').append(s);
 
         if (invtype == 'forme') {
-            $("#dinvusername").html('Invoice from ' + invoice.InvoiceFrom);
+            $("#dinvusername").text('Invoice from ' + invoice.InvoiceFrom);
         } else {
-            $("#dinvusername").html('Invoice to ' + invoice.InvoiceFrom);
+            $("#dinvusername").text('Invoice to ' + invoice.InvoiceFrom);
         }
 
-        $("#dinvdate").html(invdate);
+        $("#dinvdate").text(invdate);
 
-        $("#tblinvdisplay tfoot th #dsubtotal").html(convertFromSatoshis(json.summary.subtotal, COINUNIT));
-        $("#tblinvdisplay tfoot th #dtax").html(convertFromSatoshis(json.summary.tax, COINUNIT));
-        $("#tblinvdisplay tfoot th #dtotal").html(convertFromSatoshis(json.summary.total, COINUNIT));
+        $("#tblinvdisplay tfoot th #dsubtotal").text(convertFromSatoshis(json.summary.subtotal, COINUNIT));
+        $("#tblinvdisplay tfoot th #dtax").text(convertFromSatoshis(json.summary.tax, COINUNIT));
+        $("#tblinvdisplay tfoot th #dtotal").text(convertFromSatoshis(json.summary.total, COINUNIT));
 
         selectedInvoiceAmount = convertFromSatoshis(json.summary.total);
         selectedInvoiceId = invoice.InvoiceId;
@@ -3361,7 +2247,7 @@ function UI() {
 
                 if (!FRIENDSLIST[invoice.InvoiceFrom].validated) {
                     $("#btnpayinvoice").addClass("disabled");
-                    $("#invvalt").html(invoice.InvoiceFrom);
+                    $("#invvalt").text(invoice.InvoiceFrom);
                     $("#invvalmess").show();
                 } else {
                     $("#btnpayinvoice").removeClass("disabled");
@@ -3395,7 +2281,7 @@ function UI() {
         }
 
         $("#invdisstatus").html(statusbox);
-        $("#invdisid").html(invoice.InvoiceFrom.toUpperCase() + invoice.InvoiceId);
+        $("#invdisid").text(invoice.InvoiceFrom.toUpperCase() + invoice.InvoiceId);
 
 
         $("#invoicedisplay").show();
@@ -3448,33 +2334,30 @@ function UI() {
 
     }
 
-    function createNewInvoice(userName, invoice, callback) {
-
-        Engine.createInvoice(userName, invoice, function (err, invoiceNo) {
-
-            return callback(err, invoiceNo);
-
-        });
-
-    }
-
-
     function payInvoice(friend, amount, invoiceNumber) {
 
-        $('#textMessageSendInv').removeClass('alert alert-danger');
-        $('#textMessageSendInv').html('Creating transaction...');
-        $('#textMessageSendInv').show();
-        $('#sendinvprogstatus').width('3%')
-        $('#sendinvprog').show();
-        $('#sendinvprogstatus').width('10%');
 
-        var pin = $('#sendinvpin').val();
+        var pin = $('#sendstdpin').val();
 
         Engine.getDeviceKey(pin, function (err, ekey) {
 
             if (!err) {
 
-                Engine.sendTransaction('invoice', friend, '', amount, ekey, function (err, transactionid) {
+
+                $('#sendprogress').show();
+                $('#pinconfirm').hide();
+
+
+                $('#textMessageSendStd').text('Creating transaction...');
+                $('#textMessageSendStd').show();
+                $('#sendstdprogstatus').width('3%')
+                $('#sendstdprog').show();
+                $('#sendstdprogstatus').width('10%');
+
+                $('#sendstdprognum').text('10%');
+
+
+                Engine.sendTransaction('invoice', friend, '', amount, ekey.DeviceKey, function (err, transactionid) {
 
                     if (!err) {
 
@@ -3482,17 +2365,21 @@ function UI() {
 
                             if (!err) {
 
-                                $('#textMessageSendInv').html('You paid invoice: ' + friend.toUpperCase() + invoiceNumber);
-                                $('#textMessageSendInv').fadeOut(5000);
-                                $('#sendinvprog').fadeOut(5000);
+                                $('#textMessageSend').text('You paid invoice: ' + friend.toUpperCase() + invoiceNumber);
+                                $('input#amount').text('');
 
-                                //$("#invoicedisplay").hide();
-                                //$("#invoicestopay").show();
-                                //$("#createinv").show();
+                                updateStdAmount();
+
+                                setTimeout(function () {
+                                    $("#btnStdSndDone").show();
+                                }, 100);
+
+                                $("#sendstdpin").val('');
+                                $('.numdone').attr("style", "background-color:white");
+
 
                                 updateBalance();
-                                lastInvoiceToPayCount = 0;
-                                showInvoiceList();
+
 
                                 //change status
                                 var statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
@@ -3503,13 +2390,6 @@ function UI() {
                                 $("#payinvoicecancel").hide();
                                 $("#btnpayinvoice").hide();
                                 $("#btnrejectinvoice").hide();
-
-                                //show ok
-                                $("#btnokinvoice").show();
-
-                                if (uiInvoiceReturnToNetwork) {
-                                    updateSelectedFriend();
-                                }
                             }
 
                         });
@@ -3517,11 +2397,11 @@ function UI() {
 
                     } else {
 
-                        $('#textMessageSendInv').addClass('alert alert-danger');
-                        $('#sendinvprogstatus').width('0%')
+                        $('#textMessageSend').addClass('alert alert-danger');
+                        $('#sendstdprogstatus').width('0%')
 
                         if (transactionid == "ErrInsufficientFunds") {
-                            $('#textMessageSendInv').html('Transaction Failed: Waiting for funds to clear');
+                            $('#textMessageSend').text('Transaction Failed: Waiting for funds to clear');
                         }
 
                     }
@@ -3530,9 +2410,11 @@ function UI() {
 
             } else {
 
-                $('#textMessageSendInv').addClass('alert alert-danger');
-                $('#sendinvprogstatus').width('0%')
-                $('#textMessageSendInv').html(ekey);
+                //display pin error
+                $('.numdone').attr("style", "background-color:white");
+                $("#sendstdpin").val('');
+                $('#confpinalert').show();
+                $('#confpinalertmess').text(ekey);
 
             }
 
@@ -3544,60 +2426,18 @@ function UI() {
     //INVOICE FUNCTIONS END------------------------------------------
 
 
-    //OPEN/CREATE WALLET FUNCTIONS---------------------------------------------
 
-    //event handlers
+    function initialiseDashboard() {
 
-
-
-    //wrapper functions
-
-    function openWallet(guid, password, twoFactorCode, callback) {
-
-        setCookie('guid', guid);
-
-        Engine.openWallet(guid, twoFactorCode, function (err, result) {
-
-            if (err) {
-
-                return callback(err, result);
-
-            } else {
-
-                if (result.Beta12fa) {
-
-
-                    //if we are migrating a beta1 account that uses 2fa
-                    //request the 2fa code
-
-                    $("#si2fa").show();
-                    return callback(err, result);
-
-                } else {
-
-                    if (result.TwoFactorOnLogin) {
-                        return callback(err, result);
-                    } else {
-                        initialiseUI();
-                    }
-                }
-
-            }
-        });
-
-    }
-
-    function initialiseUI() {
-
-
-        $("#dashprofile").show();
         $("#dashsend").hide();
         $("#dashreceive").hide();
         $("#dashcontact").hide();
         $('#invoices').hide();
         $('#network').hide();
         $('#networklist').hide();
+        $("#networklistheader").hide();
         $('#settings').hide();
+        $("#settingsheader").hide();
 
         var length = Engine.m_nickname.length;
         if (length > 20) {
@@ -3606,9 +2446,9 @@ function UI() {
 
         COINUNIT = Engine.m_settings.CoinUnit;
 
-        $("#mynickname").html(Engine.m_nickname);
-        $("#usernameProfile").html(Engine.m_nickname);
-        $("#mystatus").html(Engine.m_statusText);
+        $("#mynickname").text(Engine.m_nickname);
+        $("#usernameProfile").text(Engine.m_nickname);
+        $("#mystatus").text(Engine.m_statusText);
 
 
         var imageSrc = "images/avatar/128px/Avatar-" + pad(length) + ".png";
@@ -3623,48 +2463,36 @@ function UI() {
         $("#imgProfile").attr("src", imageSrc);
         $("#imgtoprightprofile").attr("src", imageSrcSmall);
 
-        //$("#codeForFriend").html(Engine.m_fingerprint);
+        $("#codeForFriend").text(Engine.m_fingerprint);
 
 
-        var data = Engine.m_fingerprint + ',' + Engine.m_nickname;
-        var options = { text: data, width: 172, height: 172 };
+        Engine.getUserNetwork(function (err, friends) {
 
-        $('#fingerprintqr').html('');
-        $('#fingerprintqr').qrcode(options);
+            FRIENDSLIST = {};
 
-
-        Engine.getusernetworkcategory(function (err, categories) {
-
-            var catOptions = '<select id="nselnetcat" class="form-control">';
-
-            for (var i = 0; i < categories.length; i++) {
-
-                catOptions += '<option>' + categories[i].Category + '</option>';
-
+            for (var i = 0; i < friends.length; i++) {
+                FRIENDSLIST[friends[i].userName] = friends[i];
             }
 
-            catOptions += '</select>';
+            //prep the network tab
+            $("#networklist").show();
+            //$("#networklistheader").show();
 
-            $("#netcatoptions").html(catOptions);
-            $("#nselnetcat").change(function () {
+            showTransactionFeed(function (err, res) {
 
-                $("#nselnetcat option:selected").each(function () {
-                    //update selected friend category
-                    Engine.updateusernetworkcategory(SELECTEDFRIEND, $(this).text(), function (err, result) {
+                $('#dashboard').show();
+                $('#dashheader').show();
 
-                        //refresh friend list
-                        if (!err) {
-                            lastNoOfFriends = 0;
-                            updateFriends();
-                        }
+                $("#mainWallet").show();
+                $(".footer").show();
 
-                    });
+                updateUI();
 
-                });
-            });
+                var data = Engine.m_fingerprint + ',' + Engine.m_nickname;
+                var options = { text: data, width: 172, height: 172 };
 
-
-            if (!err) {
+                $('#fingerprintqr').text('');
+                $('#fingerprintqr').qrcode(options);
 
 
                 setInterval(function () {
@@ -3674,45 +2502,76 @@ function UI() {
                 }, 10000);
 
 
-                updateUI();
+            });
+
+        });
 
 
-                $('#showPhrases').hide();
-                $("#openWalletStart").hide();
-                $("#createWalletStart").hide();
+    }
 
-                if (Engine.m_validate) {
 
-                    $("#securitywizard").show();
-                    $("#step4").show();
-                    $("#step1").hide();
-                    $("#step2").hide();
-                    $("#step3").hide();
-                    $("#listep1").removeClass("active");
-                    $("#listep2").removeClass("active");
-                    $("#listep3").removeClass("active");
-                    $("#listep4").addClass("active");
-                    $("#prgsecwiz").width('100%');
-                    $(".next").hide();
-                    $(".previous").hide();
-                    $("#validateemail").show();
-                    $("#mainWallet").hide();
+    function loadInvoices(callback) {
 
-                } else {
+        //load the invoices into the cache
+        cachedInvoices = [];
 
-                    $("#securitywizard").hide();
-                    $("#mainWallet").show();
-                    $("#validateemail").hide();
-                }
 
-                setAwayTimeout(600000);
+        Engine.getInvoiceList(function (err, invoices) {
+
+            for (var i = 0; i < invoices.length; i++) {
+                var d1 = new Date(invoices[i].InvoiceDate);
+                invoices[i].JsDate = d1;
+            }
+
+            invoices = _.sortBy(invoices, function (inv) { return -inv.JsDate; });
+            for (var i = 0; i < invoices.length; i++) {
+
+                cachedInvoices.push(invoices[i]);
 
             }
 
+            cachedInvoicesByUser = [];
+
+            Engine.getInvoiceByUserList(function (err, invoices) {
+
+                for (var i = 0; i < invoices.length; i++) {
+                    var d1 = new Date(invoices[i].InvoiceDate);
+                    invoices[i].JsDate = d1;
+                }
+
+                invoices = _.sortBy(invoices, function (inv) { return -inv.JsDate; });
+
+                for (var i = 0; i < invoices.length; i++) {
+                    cachedInvoicesByUser.push(invoices[i]);
+                }
+
+                if (callback) {
+                    return callback(false, "ok");
+                }
+
+            });
 
         });
 
     }
+
+
+    function initialiseUI() {
+
+
+        //updateFriends(function (err, res) {
+
+
+
+        //});
+
+    }
+
+
+
+
+
+
 
     //OPEN/CREATE WALLET FUNCTIONS END---------------------------------------------
 
@@ -3728,222 +2587,123 @@ function UI() {
         updateUI();
     }
 
-    function updateUI() {
 
-        $(".coinunit").html(COINUNIT);
-        $("#stdsendcunit").html(COINUNIT);
-        $("#amount").attr("placeholder", "Enter amount in units of " + COINUNIT);
-        $("#friendAmount").attr("placeholder", "Enter amount in units of " + COINUNIT);
-        $("#fndsendcunit").html(COINUNIT);
+    var prevBlock = 0;
 
-        updateBalance(function (err, res) {
+    function updateUI(callback) {
 
-            updateFriends(function (err, res) {
 
-                showTransactionFeed(function (err, res) {
+        //All background UI activity controlled from here
+        //The focus is on minimizing any activity
+
+
+        //get version
+        //checks all infra
+        //if error we have a problem
+
+        var newBlock = false;
+
+        Engine.getVersion(function (err, res) {
+
+            if (!err) {
+
+                var stats = JSON.parse(res);
+
+                if (prevBlock != stats.BlockNumber) {
+                    newBlock = true;
+                }
+
+                prevBlock = stats.BlockNumber;
+
+                //Always
+
+                updateBalance(function (err, hasChanged) {
+
+
+                    //do we need to update transactions
+                    //1. is our balance different from the last request?
+                    //if it is immediately update transactions
+
+                    //2. do we have a new block?
+                    //if so then call updatetransactions
+
+                    //if (hasChanged || newBlock) {
+
+                    //update transactions?
+
+                    showTransactionFeed(function (err, result) {
+
+                        loadInvoices(function (err, result) {
+
+                            updateSelectedFriend();
+
+                        });
+
+
+
+                    });
+
 
                     updateFriendRequests(function (err, res) {
 
 
 
-                        updateTransactions(function (err, res) {
-
-                            showInvoiceList(function (err, res) {
-
-                                showInvoiceByUserList(function (err, res) {
-
-                                    if (!norefresh) {
-                                        refreshSelectedFriend(function (err, res) {
-
-                                            console.log('completed refresh');
-
-                                        });
-                                    }
-                                });
-
-                            });
-
-                        });
                     });
+
+
+                    updateFriends(function (err, res) {
+
+
+
+                    });
+
+
+
+                    //update selected friend transactions also
+                    //}
+
                 });
-            });
-        });
-    }
-
-    function showCreateWalletStart() {
-        $("#createWalletStart").hide();
-        $("#openWalletStart").hide();
-        $("#lostguid").hide();
-        $("#reset2fa").hide();
-        $("#validateemail").hide();
-        $("#pairDevice").show();
-
-    }
-
-    function showOpenWalletStart() {
-        $("#openWalletStart").hide();
-        $("#createWalletStart").hide();
-        $("#lostguid").hide();
-        $("#reset2fa").hide();
-        $("#validateemail").hide();
-        $("#loginpin").show();
-
-    }
-
-    function showTwoFactorQr() {
-
-        $("#twoFactorQr").show();
-        $("#2factor1").show();
-
-        Engine.getTwoFactorImg(function (err, twoFASecret) {
-
-            var nickname = $("#createWalletStart input#nickname").val();
-            var data = "otpauth://totp/Ninki:" + nickname + "?secret=" + twoFASecret + "&issuer=Ninki";
-            var options = { text: data, width: 172, height: 172 };
-
-            $('#twoFactorQrImg').html('');
-            $('#twoFactorQrImg').qrcode(options);
-
-            $("#twoFactorQrImg").attr("src", twoFactorQrImgUrl);
-        });
-
-    }
-
-    function showSettingsTwoFactorQr() {
-
-        $("#setup2faqr").show();
-        $("#setting2fa").show();
-        $("#settings2fa").show();
-        $("#btnSetupTwoFactor").hide();
 
 
 
-        Engine.getTwoFactorImg(function (err, twoFASecret) {
 
-            var data = "otpauth://totp/Ninki:" + Engine.m_nickname + "?secret=" + twoFASecret + "&issuer=Ninki";
-            var options = { text: data, width: 172, height: 172 };
-
-            $('#imgsettings2fa').html('');
-            $('#imgsettings2fa').qrcode(options);
-        });
+                //Always
+                Ninki.API.getPrice(Engine.m_guid, Engine.m_settings.LocalCurrency, function (err, result) {
 
 
-    }
+                    result = _.escape(result);
+                    price = result * 1.0;
 
-    //Download settings from server and populate input boxes
-    function readAccountSettingsFromServerAndPopulateForm() {
-
-        $("#savesettingserror").hide();
-        $("#savesettingssuccess").hide();
-
-        if (Engine.m_twoFactorOnLogin) {
-            $("#settings2faok").show();
-            $("#TwoFactorCodeForSettings").show();
-            $("#TwoFactorCodeForChangePwd").show();
-            $("#DailyTransactionLimit").prop('disabled', false);
-            $("#SingleTransactionLimit").prop('disabled', false);
-            $("#NoOfTransactionsPerDay").prop('disabled', false);
-            $("#NoOfTransactionsPerHour").prop('disabled', false);
-            $("#btnSetupTwoFactor").hide();
-
-        } else {
-            $("#settings2faok").hide();
-            $("#TwoFactorCodeForSettings").hide();
-            $("#TwoFactorCodeForChangePwd").hide();
-            $("#DailyTransactionLimit").prop('disabled', true);
-            $("#SingleTransactionLimit").prop('disabled', true);
-            $("#NoOfTransactionsPerDay").prop('disabled', true);
-            $("#NoOfTransactionsPerHour").prop('disabled', true);
-        }
-
-        Engine.getAccountSettings(function (err, response) {
-            if (err) {
-
-            } else {
-
-                var settingsObject = JSON.parse(response);
-
-                $('#DailyTransactionLimit').val(convertFromSatoshis(settingsObject['DailyTransactionLimit'], COINUNIT));
-                $('#SingleTransactionLimit').val(convertFromSatoshis(settingsObject['SingleTransactionLimit'], COINUNIT));
-                $('#NoOfTransactionsPerDay').val(settingsObject['NoOfTransactionsPerDay']);
-                $('#NoOfTransactionsPerHour').val(settingsObject['NoOfTransactionsPerHour']);
-                $('#Inactivity').val(settingsObject['Inactivity']);
-                $('#MinersFee').val(convertFromSatoshis(settingsObject['MinersFee'], COINUNIT));
-                $('#CoinUnit').val(settingsObject['CoinUnit']);
-                $('#Email').val(settingsObject['Email']);
-                $('#EmailNotification').prop('checked', settingsObject['EmailNotification']);
+                    var loc = "en-US";
+                    var cprc = "";
+                    if (Engine.m_settings.LocalCurrency == "JPY" || Engine.m_settings.LocalCurrency == "CNY") {
+                        cprc = accounting.formatMoney(result, "&yen;", 0);
+                    } else if (Engine.m_settings.LocalCurrency == "GBP") {
+                        cprc = accounting.formatMoney(result, "&pound;", 2);
+                    } else if (Engine.m_settings.LocalCurrency == "EUR") {
+                        cprc = accounting.formatMoney(result, "&euro;", 2);
+                    } else if (Engine.m_settings.LocalCurrency == "USD") {
+                        cprc = accounting.formatMoney(result, "&dollar;", 2);
+                    } else if (Engine.m_settings.LocalCurrency == "CNY") {
+                        cprc = accounting.formatMoney(result, "&yen;", 2);
+                    }
 
 
-                if (settingsObject['CoinUnit'] == 'BTC') {
-                    $('#cuSelected').html('BTC');
-                    $('#cuBTC').prop('checked', true);
-                }
-                if (settingsObject['CoinUnit'] == 'mBTC') {
-                    $('#cuSelected').html('mBTC');
-                    $('#cumBTC').prop('checked', true);
-                }
-                if (settingsObject['CoinUnit'] == 'uBTC') {
-                    $('#cuSelected').html('&mu;BTC');
-                    $('#cuuBTC').prop('checked', true);
-                }
-                if (settingsObject['CoinUnit'] == 'Bits') {
-                    $('#cuSelected').html('Bits');
-                    $('#cuuBits').prop('checked', true);
-                }
 
+
+                    $('#homeprice').html(cprc);
+
+                    // + ' / BTC'
+
+                });
 
             }
+
         });
-    }
 
 
-    function saveAccountSettingsToServer() {
-        var jsonPacket = {
-            guid: Engine.m_guid
-        };
-
-        jsonPacket['DailyTransactionLimit'] = convertToSatoshis($('#DailyTransactionLimit').val(), COINUNIT);
-        jsonPacket['SingleTransactionLimit'] = convertToSatoshis($('#SingleTransactionLimit').val(), COINUNIT);
-        jsonPacket['NoOfTransactionsPerDay'] = $('#NoOfTransactionsPerDay').val();
-        jsonPacket['NoOfTransactionsPerHour'] = $('#NoOfTransactionsPerHour').val();
-        jsonPacket['Inactivity'] = $('#Inactivity').val();
-        jsonPacket['MinersFee'] = convertToSatoshis($('#MinersFee').val(), COINUNIT);
-
-        if ($('#cuSelected').html() == 'BTC') {
-            jsonPacket['CoinUnit'] = 'BTC';
-        } else if ($('#cuSelected').html() == 'mBTC') {
-            jsonPacket['CoinUnit'] = 'mBTC';
-        } else if ($('#cuSelected').html() == 'Bits') {
-            jsonPacket['CoinUnit'] = 'Bits';
-        } else {
-            jsonPacket['CoinUnit'] = 'uBTC';
-        }
-
-        jsonPacket['Email'] = $('#Email').val();
-        jsonPacket['EmailNotification'] = $('#EmailNotification')[0].checked;
-
-        Engine.updateAccountSettings(jsonPacket, $("#txtTwoFactorCodeForSettings").val(), function (err, response) {
-            if (err) {
-                $("#savesettingserror").show();
-                $("#savesettingssuccess").hide();
-                $("#savesettingserrormessage").html(response);
-            } else {
 
 
-                if (jsonPacket['CoinUnit'] != COINUNIT) {
-                    COINUNIT = jsonPacket['CoinUnit'];
-                    lastNoOfTrans = -1;
-                    updateUI();
-                    readAccountSettingsFromServerAndPopulateForm();
-                }
-
-                $("#savesettingssuccess").show();
-                $("#savesettingserror").hide();
-                $("#savesettingssuccessmessage").html("Settings saved successfully");
-
-                //alert(response.body);
-            }
-        });
     }
 
     function convertFromSatoshis(amount, toUnit) {
@@ -3967,7 +2727,7 @@ function UI() {
 
         return amount;
     }
-
+   
     function convertToSatoshis(amount, fromUnit) {
 
         if (fromUnit == 'BTC') {
@@ -3990,44 +2750,73 @@ function UI() {
         return amount;
     }
 
+
+    var previousBalance = 0;
+
     function updateBalance(callback) {
 
         Engine.getBalance(function (err, result) {
 
-            //get in BTC units
-            var balance = convertFromSatoshis(result.TotalBalance, COINUNIT);
+            if (!err) {
 
-            //            var xhr = new XMLHttpRequest();
-            //            xhr.open('GET', "https://api.bitcoinaverage.com/ticker/global/USD/last", false);
-            //            xhr.send();
+                //get in BTC units
+                var balance = convertFromSatoshis(result.TotalBalance, COINUNIT);
 
-            //            var xccy = xhr.responseText / 100000000;
-            //            var xccy = (result.TotalBalance * xccy).toFixed(2);
+                $("#homebalance").text(balance);
+                $("#homecoinunit").text(COINUNIT);
+
+                $("#calcbalance").text(balance);
+                $("#calccoinunit").text(COINUNIT);
+
+                var template = '';
+                if (result.UnconfirmedBalance > 0) {
+                    template += '<i class="i i-hexagon2 i-xs-base text-warning-lt hover-rotate"></i><i class="i i-clock i-sm text-white"></i>';
+                } else {
+                    template += '<i class="i i-hexagon2 i-xs-base text-success-lt hover-rotate"></i><i class="i i-checkmark i-sm text-white"></i>';
+                }
+
+                var templatecalc = '';
+                if (result.UnconfirmedBalance > 0) {
+                    templatecalc += '<i class="i i-hexagon2 i-xs-base text-warning-lt hover-rotate" style="font-size:1.5em"></i><i class="i i-clock i-sm text-white"></i>';
+                } else {
+                    templatecalc += '<i class="i i-hexagon2 i-xs-base text-success-lt hover-rotate" style="font-size:1.5em"></i><i class="i i-checkmark i-sm text-white"></i>';
+                }
+
+                $("#hometimer").html(template);
+                $("#calctimer").html(templatecalc);
 
 
-            //$("#balance").html(balance);
-            $("#balanceTop").html(balance + " " + COINUNIT);
-            //$("#balanceTop").html(balance + " " + COINUNIT + " ($" + (xccy) + ")");
-            //$("#dashcoinunit").html(COINUNIT);
-            var template = '';
-            if (result.UnconfirmedBalance > 0) {
-                template += '<i class="fa fa-clock-o text-warning" style="font-size:1.5em"></i>';
+                if (previousBalance != result.TotalBalance || result.UnconfirmedBalance > 0) {
+
+                    previousBalance = result.TotalBalance;
+
+                    if (callback) {
+                        callback(err, true);
+                    }
+
+                } else {
+
+                    if (result.UnconfirmedBalance == 0) {
+                        if (callback) {
+                            callback(err, false);
+                        }
+                    } else {
+                        if (callback) {
+                            callback(err, true);
+                        }
+                    }
+
+                }
+
             } else {
-                template += '<i class="fa fa-check-square text-success" style="font-size:1.5em"></i>';
+
+                callback(true, "Error");
+
             }
-
-            $("#balancetimer").html(template);
-
-            if (callback) {
-                callback();
-            }
-
-
 
         });
 
-        //$("#balance").html(Math.floor((Math.random() * 100) + 1) + " BTC");
-        //$("#message").fadeToggle(3000);
+
 
     }
 
@@ -4049,7 +2838,7 @@ function UI() {
 
             if (friends.length != previousReqByMe) {
                 previousReqByMe = friends.length;
-                $("#requestssent").html('');
+                $("#requestssent").text('');
                 for (var i = 0; i < friends.length; i++) {
 
                     var length = friends[i].userName.length;
@@ -4106,7 +2895,7 @@ function UI() {
 
             Engine.getUserNetwork(function (err, friends) {
 
-                //$("#nfriends").html(friends.length);
+                //$("#nfriends").text(friends.length);
 
                 if (friends.length > lastNoOfFriends) {
 
@@ -4121,25 +2910,25 @@ function UI() {
                     //if selected friend is not isend and isreceive
                     //then find in list and update
 
-                    if (selectedFriend != null) {
+                    //                    if (selectedFriend != null) {
 
-                        if (!selectedFriend.ICanSend || !selectedFriend.ICanReceive) {
-                            selectedFriend = FRIENDSLIST[selectedFriend.userName];
-                            updateSelectedFriend();
-                        }
+                    //                        if (!selectedFriend.ICanSend || !selectedFriend.ICanReceive) {
+                    //                            selectedFriend = FRIENDSLIST[selectedFriend.userName];
+                    //                            updateSelectedFriend();
+                    //                        }
 
-                    }
+                    //                    }
 
 
-                    $("#nfriends").html(friends.length);
-                    $("#myfriends").html('');
+                    $("#nfriends").text(friends.length);
+                    $("#myfriends").text('');
 
 
                     var grouptemplate = '';
 
                     var friendsgroup = _.groupBy(friends, function (item) { return item.category; })
 
-                    grouptemplate += '<div class="panel-group m-b" id="accordion2">';
+                    grouptemplate += '<div class="panel-group" id="accordion2">';
 
                     var k = 0;
                     var g = 1;
@@ -4148,9 +2937,9 @@ function UI() {
                         friends = friendsgroup[key];
 
                         grouptemplate += '<div class="panel panel-default">';
-                        grouptemplate += '<div class="panel-heading">';
-                        grouptemplate += '<a class="accordion-toggle" data-toggle="collapse" data-parent="#accordion2" href="#collapse' + g + '">';
-                        grouptemplate += key;
+                        grouptemplate += '<div class="panel-heading" data-toggle="collapse" data-parent="#accordion2" href="#collapse' + g + '">';
+                        grouptemplate += '<a class="accordion-toggle font-bold">';
+                        grouptemplate += _.escape(key);
                         grouptemplate += '</a>';
                         grouptemplate += '</div>';
                         grouptemplate += '<div id="collapse' + g + '" class="panel-collapse in">';
@@ -4169,13 +2958,13 @@ function UI() {
                             var imageSrc = "images/avatar/64px/Avatar-" + pad(length) + ".png";
 
                             if (frnd.profileImage != '') {
-                                imageSrc = "https://ninkip2p.imgix.net/" + frnd.profileImage + "?crop=faces&fit=crop&h=256&w=256&mask=ellipse&border=1,d0d0d0";
-                                imageSrcSmall = "https://ninkip2p.imgix.net/" + frnd.profileImage + "?crop=faces&fit=crop&h=128&w=128&mask=ellipse&border=1,d0d0d0";
+                                imageSrc = "https://ninkip2p.imgix.net/" + _.escape(frnd.profileImage) + "?crop=faces&fit=crop&h=256&w=256&mask=ellipse&border=1,d0d0d0";
+                                imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(frnd.profileImage) + "?crop=faces&fit=crop&h=128&w=128&mask=ellipse&border=1,d0d0d0";
                             }
 
 
                             var template = '<a href="#" class="media list-group-item" id="friend' + k + '"><div class="media">' +
-                                '<span class="pull-left thumb-sm"><img src="' + imageSrc + '" alt="" class="img-circle"></span><div id="seltarget' + friends[i].userName + '">';
+                                '<span class="pull-left thumb-sm"><img src="' + _.escape(imageSrc) + '" alt="" class="img-circle"></span><div id="seltarget' + _.escape(friends[i].userName) + '">';
 
                             if (frnd.validated) {
                                 template += '<div class="pull-right text-success m-t-sm">' +
@@ -4184,8 +2973,8 @@ function UI() {
                             }
 
                             template += '</div><div class="media-body">' +
-                                '<div>' + friends[i].userName + '</div>' +
-                                '<small class="text-muted">' + frnd.status + '</small>' +
+                                '<div>' + _.escape(friends[i].userName) + '</div>' +
+                                '<small class="text-muted">' + _.escape(frnd.status) + '</small>' +
                                 '</div>' +
                                 '</div></a>';
 
@@ -4208,6 +2997,20 @@ function UI() {
                     $("#myfriends").html(grouptemplate);
 
 
+
+                    $('#myfriends #accordion2').on('touchstart.collapse.data-api', '[data-toggle=collapse]', function (e) {
+                        var $this = $(this);
+
+                        $this.click();
+
+                        //href, target = $this.attr('data-target') || e.preventDefault() || (href = $this.attr('href')) //strip for ie7
+                        //,
+                        //option = $(target).data('collapse') ? 'show' : $this.data()
+                        //$(target).collapse(option)
+                    });
+
+
+
                     var k = 0;
                     var g = 1;
                     for (var key in friendsgroup) {
@@ -4225,24 +3028,27 @@ function UI() {
 
                                 SELECTEDFRIEND = ev.data.userName;
                                 selectedFriend = FRIENDSLIST[ev.data.userName];
-
+                                prevNetworkTransCount = 0;
 
                                 networkpagestate = "friend";
                                 friendpagestate = "send"
+                                $("#networklistheader").hide();
+                                $("#friendheader").show();
+                                $("#pnlfriend").show();
 
-                                $('#myfriends').hide();
+                                $('#netpayfeed').html('');
+                                $("#networkpayments").show();
                                 $("#networklist").hide();
+
                                 $("#pnlfriendinv").hide();
 
                                 window.scrollTo(0, 0);
 
-                                //depreciate
-
-
                                 updateSelectedFriend();
+
                             });
 
-                            console.log("added click " + k + " for " + friends[i].userName);
+                            //console.log("added click " + k + " for " + friends[i].userName);
 
                             k++;
                         }
@@ -4250,8 +3056,9 @@ function UI() {
                     }
 
                 }
-
-                return callback(false, "done");
+                if (callback) {
+                    return callback(false, "done");
+                }
             });
         }
 
@@ -4291,28 +3098,13 @@ function UI() {
                             imageSrc = "https://ninkip2p.imgix.net/" + selectedFriend.profileImage + "?crop=faces&fit=crop&h=256&w=256&mask=ellipse&border=1,d0d0d0";
                         }
                         if (selectedFriend.status != '') {
-                            $("#friendSelectedStatus").html(selectedFriend.status);
+                            $("#friendSelectedStatus").text(selectedFriend.status);
                         }
 
                         $("#imgSelectedFriend").attr("src", imageSrc);
 
 
-                        if (selectedFriend.validated) {
-                            $("#validateform").hide();
-                            $("#isvalidated").show();
-                            $("#networkvalidate").hide();
-                            $("#btnSendToFriend").prop('disabled', false);
-                            $("#btnSendToFriend").removeClass('disabled');
-                            $("#friendvalreq").hide();
 
-                        } else {
-                            $("#validateform").show();
-                            $("#isvalidated").hide();
-                            $("#networkvalidate").show();
-                            $("#btnSendToFriend").prop('disabled', true);
-                            $("#btnSendToFriend").addClass('disabled');
-                            $("#friendvalreq").show();
-                        }
 
                         callback(err, friend);
 
@@ -4346,81 +3138,69 @@ function UI() {
                 length = 20;
             }
 
-            $("#nselnetcat").val(selectedFriend.category);
+            //$("#nselnetcat").val(selectedFriend.category);
 
             $('#friendempty').hide();
 
-            $('#textMessageSend').removeClass('alert alert-danger');
+            //$('#textMessageSend').removeClass('alert alert-danger');
 
 
 
             $('#textMessageSend').hide();
             $('#sendfriendprog').hide();
 
-            $("#networkvalidate").show();
-            $("#friendSelectedName").html(selectedFriend.userName);
-            $("#friendSelectedNameTo").html(selectedFriend.userName);
-            $("#validateusername2").html(selectedFriend.userName);
-            $("#validateusername3").html(selectedFriend.userName);
-            $("#validateusername4").html(selectedFriend.userName);
-            $("#validateusername5").html(selectedFriend.userName);
+
+            $("#friendSelectedName").text(selectedFriend.userName);
+            $("#friendSelectedNameTo").text(selectedFriend.userName);
+            $("#validateusername2").text(selectedFriend.userName);
+            $("#validateusername3").text(selectedFriend.userName);
+            $("#validateusername4").text(selectedFriend.userName);
+            $("#validateusername5").text(selectedFriend.userName);
             $("#validatesuccess").hide();
             $("#validatefail").hide();
 
-            if (selectedFriend.ICanSend) {
-                $("#issend").show();
-                $("#networksend").show();
-            } else {
-                $("#issend").hide();
-                $("#networksend").hide();
-            }
-            if (selectedFriend.ICanReceive) {
-                $("#isreceive").show();
-            } else {
-                $("#isreceive").hide();
-            }
 
             var imageSrc = "images/avatar/256px/Avatar-" + pad(length) + ".png";
 
             if (selectedFriend.profileImage != '') {
                 imageSrc = "https://ninkip2p.imgix.net/" + selectedFriend.profileImage + "?crop=faces&fit=crop&h=256&w=256&mask=ellipse&border=1,d0d0d0";
             }
-            $("#friendSelectedStatus").html('');
+            $("#friendSelectedStatus").text('');
             if (selectedFriend.status != '') {
-                $("#friendSelectedStatus").html(selectedFriend.status);
+                $("#friendSelectedStatus").text(selectedFriend.status);
             }
 
             $("#imgSelectedFriend").attr("src", imageSrc);
 
 
             if (selectedFriend.validated) {
-                $("#validateform").hide();
-                $("#isvalidated").show();
-                $("#networkvalidate").hide();
-                $("#btnSendToFriend").prop('disabled', false);
-                $("#btnSendToFriend").removeClass('disabled');
-                $("#friendvalreq").hide();
+
+                $("#tapvalidatefriend").hide();
+                $("#tapsendfriend").show();
 
             } else {
-                $("#validateform").show();
-                $("#isvalidated").hide();
-                $("#networkvalidate").show();
-                $("#btnSendToFriend").prop('disabled', true);
-                $("#btnSendToFriend").addClass('disabled');
-                $("#friendvalreq").show();
+
+                $("#tapvalidatefriend").show();
+                $("#tapsendfriend").hide();
             }
-
-
 
             $('#tblnetinvbyme tbody').empty();
             $('#tblnetinvforme tbody').empty();
 
+
+
+
             lastInvoiceToPayNetCount = 0;
             lastInvoiceByMeNetCount = 0;
+
             showInvoiceListNetwork();
             showInvoiceByMeListNetwork();
 
-            $("#pnlfriend").show();
+            showTransactionNetwork();
+
+            //$("#pnlfriend").show();
+            //$("#friendheader").show();
+
 
         }
 
@@ -4436,7 +3216,13 @@ function UI() {
     }
 
 
+
+
+
+
+
     var lastNoOfFriendsReq = 0;
+    var selectedFriendRequest = '';
 
     function updateFriendRequests(callback) {
 
@@ -4457,7 +3243,7 @@ function UI() {
             for (var i = 0; i < ofriends.length; i++) {
 
                 if (contactPhraseCache[ofriends[i].userName]) {
-                    acceptAndValidateFriend(ofriends[i].userName);
+                    //acceptAndValidateFriend(ofriends[i].userName);
                 } else {
                     friends.push(ofriends[i]);
                 }
@@ -4472,9 +3258,9 @@ function UI() {
                 $("#dashrequests").hide();
             }
 
-            $("#notifications").html(friends.length);
-            $("#notificationsright").html(friends.length);
-            //$("#nfriendreq").html(friends.length);
+            //$("#notifications").text(friends.length);
+            //$("#notificationsright").text(friends.length);
+            //$("#nfriendreq").text(friends.length);
 
 
 
@@ -4488,8 +3274,8 @@ function UI() {
                 } else {
                     $("#notifications").attr("class", "badge pull-right");
                 }
-                $("#nfriendreq").html(friends.length);
-                $("#friendreq").html('');
+                $("#nfriendreq").text(friends.length);
+                $("#friendreq").text('');
                 for (var i = 0; i < friends.length; i++) {
 
                     var length = friends[i].userName.length;
@@ -4497,38 +3283,35 @@ function UI() {
                         length = 20;
                     }
 
-                    var template = '<li class="media list-group-item"><a href="#" class="thumb-sm pull-right m-t-xs avatar">' +
+                    var template = '<li id="tapfriendreq' + i + '" class="media list-group-item"><a href="#" class="thumb-sm pull-right m-t-xs avatar">' +
                                 '<img src="images/avatar/64px/Avatar-' + pad(length) + '.png" alt="John said">' +
                                 '</a>' +
                                 '<div class="clear">' +
-                                '<a href="#" class="text-info">' + friends[i].userName + '<i class="icon-twitter"></i></a>' +
-                                '<div id="imgrequestwaiting"></div><a href="#" id=\"btnaccept' + i + '\" class="btn btn-xs btn-success m-t-xs">Accept</a> <a href="#" class="btn btn-xs btn-success m-t-xs" onclick=\"rejectFriend(\'' + friends[i].userName + '\')\">Reject</a>' +
+                                '<a href="#" class="text-info">' + _.escape(friends[i].userName) + '<i class="icon-twitter"></i></a>' +
                                 '</div></li>';
 
                     $("#friendreq").append(template);
-                    $("#btnaccept" + i).button();
-
-
 
                 }
 
                 for (var i = 0; i < friends.length; i++) {
 
+                    $("#friendreq #tapfriendreq" + i).hammer(null).bind("tap", { userName: friends[i].userName }, function (ev) {
 
-                    $("#friendreq #btnaccept" + i).click({
-                        userName: friends[i].userName
-                    }, function (event) {
-                        acceptAndValidateFriend(event.data.userName, function (err, result) {
+                        selectedFriendRequest = ev.data.userName;
+
+                        $("#friendrequestusername").text(selectedFriendRequest);
 
 
+                        $("#mainWallet").hide();
+                        $("#networklistheader").hide();
+                        $(".footer").hide();
+                        $("#contactrequest").show();
 
-                        });
+
                     });
 
-
                 }
-
-
 
             }
             if (callback) {
@@ -4538,10 +3321,60 @@ function UI() {
 
     }
 
-    function acceptAndValidateFriend(username, callback) {
 
 
-        acceptFriend(username, function (err, res) {
+
+    $('#btnContactRequestClose').bind('touchstart', function () {
+
+        $("#contactrequest").hide();
+        $("#mainWallet").show();
+        $("#networklistheader").show();
+        $(".footer").show();
+        $("friendrequestp1").show();
+        $("friendrequestp2").hide();
+
+    });
+
+
+    $('#btnAcceptContactDone').bind('touchstart', function () {
+
+        $("#contactrequest").hide();
+        $("#mainWallet").show();
+        $("#networklistheader").show();
+        $(".footer").show();
+        $("friendrequestp1").show();
+        $("friendrequestp2").hide();
+
+    });
+
+
+    $('#btnContactReject').bind('touchstart', function () {
+
+        rejectFriend(event.data.userName, function (err, res) {
+
+            if (!err) {
+
+                selectedFriendRequest = '';
+                updateFriendRequests();
+
+                $("#friendrequestusername").text('');
+                $("#contactrequest").hide();
+                $("#mainWallet").show();
+                $("#networklistheader").show();
+                $(".footer").show();
+            }
+
+        });
+
+    });
+
+    function acceptAndValidateFriend(username, message, callback) {
+
+        if ($(message)) {
+            $(message).text('Accepting friend request...');
+        }
+
+        acceptFriend(username, message, function (err, res) {
 
             //handle here instead
 
@@ -4553,12 +3386,20 @@ function UI() {
             if (!err) {
 
 
+                console.log('accepted request');
+
                 lastNoOfFriendsReq = 0;
                 updateFriendRequests();
 
-                $("#imgrequestwaiting").hide();
+                //$("#imgrequestwaiting").hide();
 
                 if (contactPhraseCache[username]) {
+
+                    if ($(message)) {
+                        $(message).text('Validating contact...');
+                    }
+
+                    console.log('found phrase');
 
                     console.log('found phrase');
                     console.log(contactPhraseCache[username])
@@ -4573,18 +3414,29 @@ function UI() {
 
                             if (result) {
 
+                                if ($(message)) {
+                                    $(message).text('Validated...');
+                                }
+
                                 console.log('verified');
                                 console.log(result);
 
                                 lastNoOfFriends = 0;
                                 updateFriends();
 
+
+                                if (callback) {
+
+                                    callback(false, "ok");
+
+                                }
+
                                 //updateSelectedFriend();
 
                                 //update list also
 
                                 //find friend in list and update the validated icon
-                                //$("#myfriends #seltarget" + selectedFriend.userName).html('<div class="pull-right text-success m-t-sm"><i class="fa fa-check-square" style="font-size:1.5em"></i></div>');
+                                //$("#myfriends #seltarget" + selectedFriend.userName).text('<div class="pull-right text-success m-t-sm"><i class="fa fa-check-square" style="font-size:1.5em"></i></div>');
 
                             }
 
@@ -4597,6 +3449,14 @@ function UI() {
                     //i orginally packaged for him
 
 
+                } else {
+
+                    if (callback) {
+
+                        callback(false, "ok");
+
+                    }
+
                 }
 
             }
@@ -4606,38 +3466,34 @@ function UI() {
     }
 
     var prevtransfeed = -1;
+    var transactionCache = [];
+
     function showTransactionFeed(callback) {
 
         Engine.getTransactionRecords(function (err, transactions) {
 
 
+            allTransactions = transactions;
+            transactionCache = transactions;
+
             if (transactions.length != prevtransfeed) {
+
+
+                for (var i = 0; i < allTransactions.length; i++) {
+                    var d1 = new Date(allTransactions[i].TransDateTime);
+                    allTransactions[i].JsDate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
+                    transactionIndex[allTransactions[i].TransactionId] = i;
+                }
+
 
 
                 prevtransfeed = transactions.length;
 
-                var template = '';
                 $('#transfeed').empty();
 
-                for (var i = 0; i < transactions.length && i < 5; i++) {
+                var template = '';
 
-
-                    var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1).toLocaleString();
-
-                    var dirTemplate = "";
-                    if (transactions[i].TransType == 'S') {
-                        dirTemplate = convertFromSatoshis(transactions[i].Amount, COINUNIT) + ' ' + COINUNIT + '<br />    Sent<br />';
-                    }
-                    if (transactions[i].TransType == 'R') {
-                        dirTemplate = convertFromSatoshis(transactions[i].Amount, COINUNIT) + ' ' + COINUNIT + '<br />Received<br />';
-                    }
-
-                    if (transactions[i].Confirmations < 6) {
-                        dirTemplate += '<i class="fa fa-clock-o text-warning" style="font-size:1.5em"></i>';
-                    } else {
-                        dirTemplate += '<i class="fa fa-check-square text-success" style="font-size:1.5em"></i>';
-                    }
-                    dirTemplate += "";
+                for (var i = 0; i < transactions.length && i < 11; i++) {
 
                     var length = transactions[i].UserName.length;
                     if (length > 20) {
@@ -4647,20 +3503,61 @@ function UI() {
                     var imageSrcSmall = "images/avatar/32px/Avatar-" + pad(length) + ".png";
 
                     if (transactions[i].UserName != 'External') {
-                        if (FRIENDSLIST[transactions[i].UserName].profileImage != '') {
-                            imageSrcSmall = "https://ninkip2p.imgix.net/" + FRIENDSLIST[transactions[i].UserName].profileImage + "?crop=faces&fit=crop&h=32&w=32&mask=ellipse&border=1,d0d0d0";
+                        if (FRIENDSLIST[transactions[i].UserName]) {
+                            if (FRIENDSLIST[transactions[i].UserName].profileImage != '') {
+                                imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(FRIENDSLIST[transactions[i].UserName].profileImage) + "?crop=faces&fit=crop&h=128&w=128&mask=ellipse&border=1,d0d0d0";
+                            }
                         }
                     }
 
-                    var tref = transactions[i].UserName;
+                    var amountLabel = "";
+                    var friendLabel = "";
 
-                    if (transactions[i].UserName == 'External') {
-                        tref = transactions[i].Address.substring(0, 7) + '...';
+                    if (transactions[i].TransType == 'S') {
+                        amountLabel = "sent " + convertFromSatoshis(transactions[i].Amount, COINUNIT) + " " + _.escape(COINUNIT);
+                        friendLabel = "to " + _.escape(transactions[i].UserName);
                     }
 
-                    template += '<a href="#" class="media list-group-item"><div style="width:30%" class="pull-right">' +
-                                dirTemplate + '</div><div>' + trdate + '</div><div><img src="' + imageSrcSmall + '" alt="John said" class="img-circle" />&nbsp;' +
-                                 tref + '</div></a>';
+                    if (transactions[i].TransType == 'R') {
+                        amountLabel = "received " + convertFromSatoshis(transactions[i].Amount, COINUNIT) + " " + _.escape(COINUNIT);
+                        friendLabel = "from " + _.escape(transactions[i].UserName);
+                    }
+
+
+                    var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
+                    var timeLabel = prettydate.format(trdate);
+
+                    template += '<a href="#" class="list-group-item clearfix">';
+                    template += '<span class="pull-left thumb-sm avatar m-r">';
+                    template += '<img src="';
+                    template += imageSrcSmall;
+                    template += '" alt="...">';
+
+                    template += '</span>';
+                    template += '<span class="clear">';
+                    template += '<span>';
+                    template += amountLabel;
+                    template += '</span>';
+
+                    template += '<span class="pull-right">';
+                    template += '<div class="trntime">'
+                    template += timeLabel;
+                    template += '</div>';
+                    template += '</span>';
+
+                    template += '<span class="clear">';
+                    template += '<span><div class="conf">';
+                    if (transactions[i].Confirmations < 6) {
+                        template += '<span class="badge bg-warning pull-right">';
+                        template += transactions[i].Confirmations;
+                        template += '</span>';
+                    }
+                    template += '</div>';
+                    template += '<small class="text-muted clear text-ellipsis">';
+                    template += friendLabel;
+                    template += '</small>';
+                    template += '</span>';
+                    template += '</a>';
 
                 }
 
@@ -4668,28 +3565,35 @@ function UI() {
 
             } else {
 
-                $('#transfeed .pull-right').each(function (index, elem) {
+                //optimise
+
+                $('#transfeed .conf').each(function (index, elem) {
 
                     var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
 
-                    var dirTemplate = "";
-                    if (tran.TransType == 'S') {
-                        dirTemplate = convertFromSatoshis(tran.Amount, COINUNIT) + ' ' + COINUNIT + '<br />    Sent<br />';
-                    }
-                    if (tran.TransType == 'R') {
-                        dirTemplate = convertFromSatoshis(tran.Amount, COINUNIT) + ' ' + COINUNIT + '<br />Received<br />';
-                    }
-
+                    var template = ''
                     if (tran.Confirmations < 6) {
-                        dirTemplate += '<i class="fa fa-clock-o text-warning" style="font-size:1.5em"> ' + tran.Confirmations + '</i>';
-                    } else {
-                        dirTemplate += '<i class="fa fa-check-square text-success" style="font-size:1.5em"></i>';
+                        template += '<span class="badge bg-warning pull-right">';
+                        template += _.escape(tran.Confirmations);
+                        template += '</span>';
                     }
 
-                    $(elem).html(dirTemplate);
-
+                    $(elem).html(template);
 
                 });
+
+                $('#transfeed .trntime').each(function (index, elem) {
+
+                    var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
+
+                    var trdate = new Date(tran.TransDateTime.match(/\d+/)[0] * 1);
+
+                    var timeLabel = prettydate.format(trdate);
+
+                    $(elem).html(timeLabel);
+
+                });
+
             }
 
             return callback(err, "ok");
@@ -4700,218 +3604,110 @@ function UI() {
 
 
 
-    var lastNoOfTrans = 0;
+    //
 
-    function updateTransactions(callback) {
+    var prevNetworkTransCount = 0;
 
-        //if there are any new friends
-        //fade in the button
+    function showTransactionNetwork(callback) {
 
+        var transactions = _.filter(transactionCache, function (tran) { return tran.UserName == SELECTEDFRIEND; });
 
-        Engine.getTransactionRecords(function (err, transactions) {
+        if (prevNetworkTransCount < transactions.length) {
 
-            allTransactions = transactions;
+            prevNetworkTransCount = transactions.length;
 
-            if (allTransactions.length != lastNoOfTrans) {
+            var template = '';
 
-            } else {
+            for (var i = 0; i < transactions.length; i++) {
 
-                transactions = pagedTransactions;
+                var amountLabel = "";
+                var friendLabel = "";
 
-                //we ony need to update the confirmations
-
-                $('#tbltran tbody tr .bcconf').each(function (index, elem) {
-
-                    var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
-
-                    if (tran.Confirmations < 6) {
-                        $(elem).html('<div class="btn btn-warning btn-icon btn-rounded"><i class="fa fa-clock-o">' + tran.Confirmations + '</i></div>');
-                    } else {
-                        $(elem).html('<div class="btn btn-success btn-icon btn-rounded"><i class="fa fa-check"></i></div>');
-                    }
-
-                });
-
-                return callback(false, "ok");
-            }
-
-
-            for (var i = 0; i < allTransactions.length; i++) {
-                var d1 = new Date(allTransactions[i].TransDateTime);
-                allTransactions[i].JsDate = d1;
-                transactionIndex[allTransactions[i].TransactionId] = i;
-            }
-            //first convert to javascript dates
-
-            filteredTransactions = allTransactions;
-            //apply current filter currentTransactionFilter
-
-            if (currentTransactionFilter == "Day") {
-                var lastDay = new Date();
-                lastDay = lastDay.setDate(lastDay.getDate() - 1);
-                filteredTransactions = _.filter(allTransactions, function (trans) { return trans.JsDate > lastDay; });
-            }
-
-            if (currentTransactionFilter == "Week") {
-                var lastWeek = new Date();
-                lastWeek = lastWeek.setDate(lastWeek.getDate() - 7);
-                filteredTransactions = _.filter(allTransactions, function (trans) { return trans.JsDate > lastWeek; });
-            }
-
-            if (currentTransactionFilter == "Month") {
-                var lastMonth = new Date();
-                lastMonth = lastMonth.setDate(lastMonth.getDate() - 31);
-                filteredTransactions = _.filter(allTransactions, function (trans) { return trans.JsDate > lastMonth; });
-            }
-
-            if (currentTransactionFilter == "Search") {
-                var search = $('#txttransearch').val();
-                filteredTransactions = _.filter(allTransactions, function (trans) { return trans.UserName.search(search) > -1; });
-            }
-
-            if (currentTransactionSort == 'DateDesc') {
-                filteredTransactions = _.sortBy(filteredTransactions, function (trans) { return -trans.JsDate; });
-            }
-
-            if (currentTransactionSort == 'DateAsc') {
-                filteredTransactions = _.sortBy(filteredTransactions, function (trans) { return trans.JsDate; });
-            }
-
-            if (currentTransactionSort == 'ContactAsc') {
-                filteredTransactions = _.sortBy(filteredTransactions, function (trans) { return trans.UserName; });
-            }
-
-            if (currentTransactionSort == 'ContactDesc') {
-                filteredTransactions = _.sortBy(filteredTransactions, function (trans) { return trans.UserName; });
-                filteredTransactions.reverse();
-            }
-
-            var noofpages = Math.floor((filteredTransactions.length / transactionsPerPage));
-
-            var indexFrom = currentPageIndex * transactionsPerPage;
-            var indexTo = indexFrom + transactionsPerPage;
-
-            if (indexTo > filteredTransactions.length) {
-                indexTo = filteredTransactions.length;
-            }
-
-            $('#tranpaglabel').html('Showing ' + (indexFrom + 1) + ' to ' + (indexTo) + ' of ' + filteredTransactions.length);
-
-            transactions = filteredTransactions;
-
-            if (allTransactions.length != lastNoOfTrans) {
-
-                pagedTransactions = filteredTransactions.slice(indexFrom, indexTo);
-
-                transactions = pagedTransactions;
-
-                lastNoOfTrans = allTransactions.length;
-
-                var template = '';
-                $('#tbltran tbody').empty();
-                for (var i = 0; i < transactions.length; i++) {
-
-                    var dirTemplate = "";
-                    if (transactions[i].TransType == 'S') {
-                        dirTemplate = '<td><span class="m-s">' + convertFromSatoshis(transactions[i].Amount, COINUNIT) + ' ' + COINUNIT + '</span></td><td></td>';
-                    }
-                    if (transactions[i].TransType == 'R') {
-                        dirTemplate = '<td></td><td><span class="m-s">' + convertFromSatoshis(transactions[i].Amount, COINUNIT) + ' ' + COINUNIT + '</span></td>';
-                    }
-
-                    var length = transactions[i].UserName.length;
-                    if (length > 20) {
-                        length = 20;
-                    }
-
-
-
-                    var imageSrcSmall = "images/avatar/64px/Avatar-" + pad(length) + ".png";
-
-                    if (transactions[i].UserName != 'External') {
-                        if (FRIENDSLIST[transactions[i].UserName].profileImage != '') {
-                            imageSrcSmall = "https://ninkip2p.imgix.net/" + FRIENDSLIST[transactions[i].UserName].profileImage + "?crop=faces&fit=crop&h=64&w=64&mask=ellipse&border=1,d0d0d0";
-                        }
-                    }
-
-                    var tref = transactions[i].UserName;
-
-                    if (transactions[i].UserName == 'External') {
-                        tref = transactions[i].Address.substring(0, 7) + '...';
-                    }
-
-
-                    var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1).toLocaleString();
-
-
-                    template += '<tr>' +
-                                '<td><label class="checkbox m-n i-checks"><input type="checkbox" name="post[]"><i></i></label></td>' +
-                                '<td><span class="m-s">' + trdate + '</span></td>' +
-                                '<td colspan="2">' +
-                                '<span class="thumb-sm"><img src="' + imageSrcSmall + '" alt="John said" class="img-circle"></span><span class="m-s"> ' +
-                                 tref + '</span></td>' +
-                                dirTemplate +
-                                '<td>';
-
-                    if (transactions[i].Confirmations < 6) {
-                        template += '<div class="bcconf"><div class="btn btn-warning btn-icon btn-rounded"><i class="fa fa-clock-o">' + transactions[i].Confirmations + '</i></div></div>';
-                    } else {
-                        template += '<div class="bcconf"><div class="btn btn-success btn-icon btn-rounded"><i class="fa fa-check"></i></div></div>';
-                    }
-                    template += '</td><td>';
-                    template += '<div id ="btnpop' + i + '"><div class="btn btn-info btn-icon btn-rounded"><i class="fa fa-info-circle"></i></div></div>';
-
-                    template += '</td></tr>';
-
+                if (transactions[i].TransType == 'S') {
+                    amountLabel = "sent " + convertFromSatoshis(transactions[i].Amount, COINUNIT) + " " + _.escape(COINUNIT);
+                    friendLabel = "to " + _.escape(transactions[i].UserName);
                 }
 
-                $('#tbltran tbody').append(template);
-
-                for (var i = 0; i < transactions.length; i++) {
-
-
-                    var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1).toLocaleString();
-
-                    var popcontent = '';
-
-                    popcontent += '<p><strong>Date:</strong> ';
-                    popcontent += trdate;
-                    popcontent += '</p>';
-
-                    popcontent += '<p><strong>TransactionId</strong></p>';
-                    popcontent += '<p><a target="_new" href="http://btc.blockr.io/tx/info/' + transactions[i].TransactionId + '">';
-                    popcontent += transactions[i].TransactionId;
-                    popcontent += '</a></p>';
-
-                    popcontent += '<p><strong>Address:</strong> ';
-                    popcontent += transactions[i].Address;
-                    popcontent += '</p>';
-
-                    popcontent += '<p><strong>Amount:</strong> ';
-                    popcontent += convertFromSatoshis(transactions[i].Amount, COINUNIT) + ' ';
-                    popcontent += COINUNIT + '</p>';
-
-                    popcontent += '<p><strong>Send/Receive:</strong> ';
-                    popcontent += transactions[i].TransType;
-                    popcontent += '</p>';
-
-                    $("#btnpop" + i).popover({
-                        placement: 'left', // top, bottom, left or right
-                        title: 'Transaction Details<button type="button" class="close pull-right" data-dismiss="popover"><i class="i i-cross2"></i></button>',
-                        html: 'true',
-                        content: '<div>' + popcontent + '</div>'
-                    });
+                if (transactions[i].TransType == 'R') {
+                    amountLabel = "received " + convertFromSatoshis(transactions[i].Amount, COINUNIT) + " " + _.escape(COINUNIT);
+                    friendLabel = "from " + _.escape(transactions[i].UserName);
                 }
+
+
+                var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
+                var timeLabel = prettydate.format(trdate);
+
+                template += '<a href="#" class="list-group-item clearfix">';
+                template += '<span class="clear">';
+
+                template += '<span>';
+                template += amountLabel;
+                template += '</span>';
+
+                template += '<span class="pull-right">';
+                template += '<div class="trntime">'
+                template += timeLabel;
+                template += '</div>';
+                template += '</span>';
+
+                template += '<span class="clear">';
+                template += '<span><div class="conf">';
+                if (transactions[i].Confirmations < 6) {
+                    template += '<span class="badge bg-warning pull-right">';
+                    template += transactions[i].Confirmations;
+                    template += '</span>';
+                }
+                template += '</div>';
+                template += '<small class="text-muted clear text-ellipsis">';
+                template += friendLabel;
+                template += '</small>';
+                template += '</span>';
+                template += '</a>';
 
             }
 
-            callback();
+            $('#netpayfeed').html(template);
 
-        });
+        } else {
+
+
+            $('#netpayfeed .conf').each(function (index, elem) {
+
+                var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
+
+                var template = ''
+                if (tran.Confirmations < 6) {
+                    template += '<span class="badge bg-warning pull-right">';
+                    template += _.escape(tran.Confirmations);
+                    template += '</span>';
+                }
+
+                $(elem).html(template);
+
+                console.log('updating 1');
+
+            });
+
+            $('#netpayfeed .trntime').each(function (index, elem) {
+
+                var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
+
+                var trdate = new Date(tran.TransDateTime.match(/\d+/)[0] * 1);
+
+                var timeLabel = prettydate.format(trdate);
+
+                $(elem).html(timeLabel);
+
+                console.log('updating 2');
+
+            });
+
+        }
+
+
+
 
     }
-
-
 
 
     function generateAddressClient() {
@@ -4924,12 +3720,12 @@ function UI() {
 
             var options = { text: newAddress, width: 172, height: 172 };
 
-            $('#requestaddressqr').html('');
+            $('#requestaddressqr').text('');
             $('#requestaddressqr').qrcode(options);
 
-            $('#requestaddresstxt').html(newAddress);
+            $('#requestaddresstxt').text(newAddress);
 
-            //$('#requestaddress').html(tempate);
+            //$('#requestaddress').text(tempate);
             $("#newaddrspinner").hide();
             $('#requestaddress').show();
 
@@ -4942,45 +3738,60 @@ function UI() {
     function sendMoney(friend, index) {
 
         $('#textMessageSend').removeClass('alert alert-danger');
+
         if (friend == null) {
             return;
         }
 
-        var amount = $('input#friendAmount').val();
+        var pin = $('#sendstdpin').val();
+        var amount = $('#amount').text();
         amount = convertToSatoshis(amount, COINUNIT);
 
-
-        var pin = $('#sendfriendpin').val();
-
         if (amount > 0) {
-
-            $('input#friendAmount').css("border-color", "#ccc");
-            $('#textMessageSend').html('Creating transaction...');
-            $('#textMessageSend').show();
-            $('#sendfriendprogstatus').width('3%')
-            $('#sendfriendprog').show();
-            $('#sendfriendprogstatus').width('10%');
-
 
 
             Engine.getDeviceKey(pin, function (err, ekey) {
 
                 if (!err) {
 
-                    Engine.sendTransaction('friend', friend, "", amount, ekey, function (err, transactionid) {
+
+                    $('#sendprogress').show();
+                    $('#pinconfirm').hide();
+
+
+                    $('#textMessageSendStd').text('Creating transaction...');
+                    $('#textMessageSendStd').show();
+                    $('#sendstdprogstatus').width('3%')
+                    $('#sendstdprog').show();
+                    $('#sendstdprogstatus').width('10%');
+
+                    $('#sendstdprognum').text('10%');
+
+
+
+                    Engine.sendTransaction('friend', friend, "", amount, ekey.DeviceKey, function (err, transactionid) {
 
                         if (!err) {
-                            updateBalance();
-                            $('#textMessageSend').html('You sent ' + convertFromSatoshis(amount, COINUNIT) + ' ' + COINUNIT + ' to ' + friend);
-                            $('input#friendAmount').val('');
-                            $('#textMessageSend').fadeOut(5000);
-                            $('#sendfriendprog').fadeOut(5000);
+
+                            $('#textMessageSend').text('You sent ' + convertFromSatoshis(amount, COINUNIT) + ' ' + COINUNIT + ' to ' + friend);
+                            $('input#amount').text('');
+
+                            updateUI();
+                            updateStdAmount();
+
+                            setTimeout(function () {
+                                $("#btnStdSndDone").show();
+                            }, 100);
+
+                            $("#sendstdpin").val('');
+                            $('.numdone').attr("style", "background-color:white");
+
                         } else {
                             $('#textMessageSend').addClass('alert alert-danger');
                             $('#sendfriendprogstatus').width('0%')
 
                             if (transactionid == "ErrInsufficientFunds") {
-                                $('#textMessageSend').html('Transaction Failed: Waiting for funds to clear');
+                                $('#textMessageSend').text('Transaction Failed: Waiting for funds to clear');
                             }
 
                         }
@@ -4989,9 +3800,10 @@ function UI() {
 
                 } else {
 
-                    $('#textMessageSend').addClass('alert alert-danger');
-                    $('#sendfriendprogstatus').width('0%')
-                    $('#textMessageSend').html(ekey);
+                    $('.numdone').attr("style", "background-color:white");
+                    $("#sendstdpin").val('');
+                    $('#confpinalert').show();
+                    $('#confpinalertmess').text(ekey)
 
                 }
 
@@ -5012,7 +3824,7 @@ function UI() {
         //get device key
         //pass the device key as the 2fa code
 
-        var amount = $('input#amount').val();
+        var amount = $('#amount').text();
         amount = convertToSatoshis(amount, COINUNIT);
 
         var address = $('input#toAddress').val();
@@ -5028,9 +3840,9 @@ function UI() {
             allok = false;
         }
         if (amount > 0) {
-            $('input#amount').css("border-color", "#ccc");
+            $('#amount').css("border-color", "#ccc");
         } else {
-            $('input#amount').css("border-color", "#ffaaaa");
+            $('#amount').css("border-color", "#ffaaaa");
             allok = false;
         }
 
@@ -5042,30 +3854,47 @@ function UI() {
 
                 if (!err) {
 
-                    $('#textMessageSendStd').html('Creating transaction...');
+
+
+                    $('#sendprogress').show();
+                    $('#pinconfirm').hide();
+
+
+                    $('#textMessageSendStd').text('Creating transaction...');
                     $('#textMessageSendStd').show();
                     $('#sendstdprogstatus').width('3%')
                     $('#sendstdprog').show();
                     $('#sendstdprogstatus').width('10%');
 
+                    $('#sendstdprognum').text('10%');
 
-                    Engine.sendTransaction('standard', '', address, amount, ekey, function (err, transactionid) {
+
+                    Engine.sendTransaction('standard', '', address, amount, ekey.DeviceKey, function (err, transactionid) {
 
                         if (!err) {
 
-                            $('#textMessageSendStd').html('You sent ' + convertFromSatoshis(amount, COINUNIT) + ' ' + COINUNIT + ' to <span style="word-wrap:break-word;">' + address + '</span>');
-                            $('input#amount').val('');
-                            $('#textMessageSendStd').fadeOut(5000);
-                            $('#sendstdprog').fadeOut(5000);
+                            $('#textMessageSendStd').html('You sent ' + _.escape(convertFromSatoshis(amount, COINUNIT)) + ' ' + _.escape(COINUNIT) + ' to <span style="word-wrap:break-word;">' + address + '</span>');
+                            $('input#amount').text('');
+
+                            updateUI();
+                            updateStdAmount();
+
+                            setTimeout(function () {
+                                $("#btnStdSndDone").show();
+                            }, 100);
+
+                            $("#sendstdpin").val('');
+                            $('.numdone').attr("style", "background-color:white");
 
                         } else {
 
                             if (transactionid == "ErrInsufficientFunds") {
-                                $('#textMessageSendStd').html('Transaction Failed: Waiting for funds to clear');
+                                $('#textMessageSendStd').text('Transaction Failed: Waiting for funds to clear');
                             }
 
                             $('#sendstdprogstatus').width('0%')
                             $('#textMessageSendStd').addClass('alert alert-danger');
+                            $("#sendstdpin").val('');
                         }
                     });
 
@@ -5073,9 +3902,12 @@ function UI() {
 
                 } else {
 
-                    $('#sendstdprogstatus').width('0%')
-                    $('#textMessageSendStd').addClass('alert alert-danger');
-                    $('#textMessageSendStd').html(ekey);
+
+                    //display pin error
+                    $('.numdone').attr("style", "background-color:white");
+                    $("#sendstdpin").val('');
+                    $('#confpinalert').show();
+                    $('#confpinalertmess').text(ekey);
                 }
 
 
@@ -5085,6 +3917,86 @@ function UI() {
 
     }
 
+
+    var checkAndValidateTimer = null;
+
+
+    function clearCheckAndValidateTimer() {
+        clearInterval(checkAndValidateTimer);
+    }
+
+
+    function checkAndValidateFriendRequests() {
+        Engine.getFriendRequests(function (err, ofriends) {
+
+            var friends = [];
+            for (var i = 0; i < ofriends.length; i++) {
+
+                if (contactPhraseCache[ofriends[i].userName]) {
+
+                    clearCheckAndValidateTimer();
+
+                    console.log('found request...accepting and validating');
+                    acceptAndValidateFriend(ofriends[i].userName);
+
+                    return;
+                }
+            }
+        });
+    }
+
+
+    $('#btnContactAccept').bind('touchstart', function () {
+
+        $("#btnAcceptContactDone").hide();
+        $("#friendrequestp1").hide();
+        $("#friendrequestp2").show();
+        $("#acceptcontactprognum").text('10%');
+        $("#acceptcontactprog").width('10%');
+
+
+        acceptAndValidateFriend(selectedFriendRequest, "#acceptcontactprogmess", function (err, result) {
+
+            if (!err) {
+
+
+
+                $("#acceptcontactprognum").text('70%');
+                $("#acceptcontactprog").width('70%');
+
+                updateFriendRequests(function (err, result) {
+
+                    $("#acceptcontactprognum").text('80%');
+                    $("#acceptcontactprog").width('80%');
+
+                    updateFriends(function (err, result) {
+
+                        $("#friendrequestusername").text('');
+                        $("#btnAcceptContactDone").show();
+                        $("#acceptcontactprogmess").text("You accepted the contact request from " + selectedFriendRequest);
+                        $("#acceptcontactprognum").text('100%');
+                        $("#acceptcontactprog").width('100%');
+
+                        selectedFriendRequest = '';
+
+                    });
+
+
+                });
+
+            } else {
+
+                $("#friendrequestp1").show();
+                $("#friendrequestp2").hide();
+
+            }
+
+        });
+
+    });
+
+
+    //function when connecting from main add contact screen
     $("#hdqrcontact").change(function () {
 
         console.log('event triggered');
@@ -5101,15 +4013,25 @@ function UI() {
         contactPhraseCache[username] = phrase;
 
         $("#addcontactmodal").show();
-
-        $("#imgaddcontactwaiting").show();
-        var target = document.getElementById('imgaddcontactwaiting');
-        var spinner = new Spinner(spinneropts).spin(target);
+        $("#dashcontact").hide();
 
 
+        //$("#imgaddcontactwaiting").show();
 
-        $("#qrcontactupd").show();
-        $("#qrcontactmess").html('Verifying user...');
+        //var target = document.getElementById('imgaddcontactwaiting');
+        //var spinner = new Spinner(spinneropts).spin(target);
+
+
+
+        //$("#qrcontactupd").show();
+
+        $("#textAddContact").text('Verifying user...');
+
+
+        $("#addcontactprog").show();
+
+        $("#addcontactprognum").text("10%");
+        $("#addcontactprogstatus").width("10%");
 
 
         Engine.doesUsernameExist(username, function (err, usernameExistsOnServer) {
@@ -5118,76 +4040,166 @@ function UI() {
 
             if (usernameExistsOnServer) {
 
-                $("#qrcontactmess").html('Verifying network...');
 
-                Engine.isNetworkExist(username, function (err, result) {
+                console.log('username exists');
 
-                    if (!result) {
+                $("#addcontactprognum").text("30%");
+                $("#addcontactprogstatus").width("30%");
 
-                        $("#qrcontactmess").html('Deriving addresses...');
+                $("#textAddContact").text('Verifying network...');
 
-                        Engine.createFriend(username, "#qrcontactmess", function (err, result) {
-                            if (err) {
+                //if no friendrequest- create one and wait
+                //if it exists, then accept and validate
+                //if alread accepted then just validate
 
-                                $("#addcontactmodal").hide();
-                                $("#imgaddcontactwaiting").hide();
-                                $("#qrcontactalert").show();
-                                $("#qrcontactalertmessage").html("Error adding contact");
+                Engine.getFriendRequests(function (err, ofriends) {
 
+                    var friends = _.filter(ofriends, function (frn) { return frn.UserName == username; });
 
-                            } else {
-                                $("#imgaddcontactwaiting").hide();
-                                $("#addcontactmodal").hide();
-                                $("#qrcontactsuccess").show();
-                                $("#qrcontactsuccessmessage").html("Successfully added " + username + " as a contact");
-                                $("#qrcontactsuccess").fadeOut(5000);
+                    if (friends.length == 0) {
 
-                            }
-                        });
-
-                    } else {
+                        console.log('network not exists');
 
 
-                        //validate using the fingerprint
 
-                        if (contactPhraseCache[username]) {
+                        //if network doesnt exist create friend
 
-                            console.log('found phrase');
-                            console.log(contactPhraseCache[username])
+                        Engine.isNetworkExist(username, function (err, result) {
 
-                            var code = contactPhraseCache[username];
-                            var bip39 = new BIP39();
-                            code = bip39.mnemonicToHex(code);
+                            if (!err) {
 
-                            if (code.length == 40) {
-                                $("#qrcontactmess").html('Verifying user...');
-                                Engine.verifyFriendData(username, code, function (err, result) {
+                                if (!result) {
 
-                                    if (result) {
-                                        $("#qrcontactmess").html('Verfied...');
-                                        console.log('verified');
-                                        console.log(result);
-                                        $("#imgaddcontactwaiting").hide();
-                                        $("#addcontactmodal").hide();
-                                        $("#qrcontactsuccess").show();
-                                        $("#qrcontactsuccessmessage").html("You verfied " + username + " as a contact");
-                                        $("#qrcontactsuccess").fadeOut(5000);
 
-                                        lastNoOfFriends = 0;
-                                        updateFriends();
+                                    $("#textAddContact").text('Deriving addresses...');
+
+                                    $("#addcontactprognum").text("60%");
+                                    $("#addcontactprogstatus").width("60%");
+
+
+                                    Engine.createFriend(username, "#qrcontactmess", function (err, result) {
+
+
+                                        console.log('create friend ' + result);
+
+                                        if (err) {
+
+                                            //$("#addcontactmodal").hide();
+                                            //$("#imgaddcontactwaiting").hide();
+                                            //$("#qrcontactalert").show();
+                                            $("#textAddContact").text("Error adding contact");
+
+
+                                        } else {
+
+                                            console.log('added timer for check and validate');
+                                            //here we go to - now you friend should scan this code
+                                            checkAndValidateTimer = setInterval(function () { checkAndValidateFriendRequests() }, 2000);
+
+                                            //listen for 2 minutes
+                                            setTimeout(clearCheckAndValidateTimer(), 120000);
+
+                                            $("#addcontactprognum").text("100%");
+                                            $("#addcontactprogstatus").width("100%");
+
+                                            //$("#imgaddcontactwaiting").hide();
+                                            //$("#addcontactmodal").hide();
+                                            $("#textAddContact").text("Successfully added " + username + " as a contact");
+                                        }
+                                    });
+                                } else {
+
+
+                                    $("#textAddContact").text('validating...');
+
+                                    $("#addcontactprognum").text("80%");
+                                    $("#addcontactprogstatus").width("80%");
+
+
+                                    //if already accepted validate only
+
+                                    var needToAccept = false;
+                                    if (FRIENDSLIST[username]) {
+
+                                        if (!FRIENDSLIST[username].ICanSend) {
+                                            needToAccept = true;
+                                        }
+
+                                    } else {
+                                        needToAccept = true;
+                                    }
+
+
+                                    if (needToAccept) {
+
+                                        acceptAndValidateFriend(username, "", function (err, result) {
+
+
+                                            if (!err) {
+
+                                                $("#addcontactprognum").text("100%");
+                                                $("#addcontactprogstatus").width("100%");
+
+                                                $("#textAddContact").text("Successfully added " + username + " as a contact");
+                                            }
+
+
+                                        });
+
+
+                                    } else {
+
+                                        console.log('caught event...');
+
+                                        var bip39 = new BIP39();
+                                        code = bip39.mnemonicToHex(phrase);
+
+                                        console.log(code);
+
+
+                                        if (code.length != 40) {
+
+                                            return;
+                                        }
+
+                                        Engine.verifyFriendData(username, code, function (err, result) {
+
+
+                                            $("#addcontactprognum").text("100%");
+                                            $("#addcontactprogstatus").width("100%");
+
+                                            $("#textAddContact").text("Successfully verified " + username + " as a contact");
+
+                                            //update contact list
+                                            updateFriends();
+
+                                        });
+
 
                                     }
 
-                                });
+                                }
 
                             }
 
-                            //get the hash to validate against
-                            //this will confirm that my friend has the same keys
-                            //i orginally packaged for him
+                        });
+
+                    } else if (friends.length == 1) {
 
 
-                        }
+                        //validate using the fingerprint
+                        acceptAndValidateFriend(username, "#textAddContact", function (err, result) {
+
+                            if (!err) {
+
+                                $("#addcontactprognum").text("100%");
+                                $("#addcontactprogstatus").width("100%");
+
+                                $("#textAddContact").text("Successfully added " + username + " as a contact");
+                            }
+
+
+                        });
 
 
                     }
@@ -5217,19 +4229,7 @@ function UI() {
             return;
         }
 
-        $("#addcontactmodal").show();
 
-        $("#imgaddcontactwaiting").show();
-        var target = document.getElementById('imgaddcontactwaiting');
-        var spinner = new Spinner(spinneropts).spin(target);
-
-
-        //verify input and if username exists
-        $("#addcontactalert").hide();
-
-
-        $("#qrcontactupd").show();
-        $("#qrcontactmess").html('Verifying user...');
 
         //merge these functions
 
@@ -5239,32 +4239,62 @@ function UI() {
 
             if (usernameExistsOnServer) {
 
-                $("#qrcontactmess").html('Verifying network...');
+
+                $("#addcontactprognum").text("20%");
+                $("#addcontactprogstatus").width("20%");
+                $("#textAddContact").text('Verifying network...');
+
+
 
                 Engine.isNetworkExist(username, function (err, result) {
 
                     if (!result) {
 
+                        $("#addcontactmodal").show();
+                        $("#dashcontact").hide();
+
+
+                        //$("#imgaddcontactwaiting").show();
+                        //var target = document.getElementById('imgaddcontactwaiting');
+                        //var spinner = new Spinner(spinneropts).spin(target);
+
+
+                        //verify input and if username exists
+                        $("#addcontactalert").hide();
+
+
+                        //$("#qrcontactupd").show();
+                        $("#textAddContact").text('Verifying user...');
+
+                        $("#addcontactprognum").text("20%");
+                        $("#addcontactprogstatus").width("20%");
+
                         $("#friend").css("border-color", "#ccc");
 
-                        $("#qrcontactmess").html('Deriving addresses...');
+                        $("#textAddContact").text('Deriving addresses...');
 
-                        Engine.createFriend(username, "#qrcontactmess", function (err, result) {
+
+                        Engine.createFriend(username, "#textAddContact", function (err, result) {
                             if (err) {
 
-                                $("#friend").css("border-color", "#ffaaaa");
-                                $("#addcontactalert").show();
-                                $("#addcontactalertmessage").html("Error adding contact");
-                                $("#imgaddcontactwaiting").hide();
+                                //$("#friend").css("border-color", "#ffaaaa");
+
+                                //$("#addcontactalert").show();
+                                //$("#addcontactalertmessage").text("Error adding contact");
+                                //$("#imgaddcontactwaiting").hide();
 
                             } else {
 
-                                $("#addcontactmodal").hide();
+
+                                $("#addcontactprognum").text("100%");
+                                $("#addcontactprogstatus").width("100%");
+
+                                //$("#addcontactmodal").hide();
                                 $("#friend").val('');
-                                $("#imgaddcontactwaiting").hide();
-                                $("#addcontactsuccess").show();
-                                $("#addcontactsuccessmessage").html("You requested " + username + " as a contact");
-                                $("#addcontactsuccess").fadeOut(5000);
+                                //$("#imgaddcontactwaiting").hide();
+                                //$("#addcontactsuccess").show();
+                                $("#textAddContact").text("You requested " + username + " as a contact");
+                                //$("#addcontactsuccess").fadeOut(5000);
 
                                 //updateRequestsMadeByMe();
                             }
@@ -5274,8 +4304,8 @@ function UI() {
 
                         $("#friend").css("border-color", "#ffaaaa");
                         $("#addcontactalert").show();
-                        $("#addcontactalertmessage").html("You have already requested " + username + " as a contact");
-                        $("#imgaddcontactwaiting").hide();
+                        $("#textAddContact").text("You have already requested " + username + " as a contact");
+                        //$("#imgaddcontactwaiting").hide();
 
                     }
                 });
@@ -5284,8 +4314,8 @@ function UI() {
 
                 $("#friend").css("border-color", "#ffaaaa");
                 $("#addcontactalert").show();
-                $("#addcontactalertmessage").html("The username could not be found");
-                $("#imgaddcontactwaiting").hide();
+                $("#addcontactalertmessage").text("The username could not be found");
+                //$("#imgaddcontactwaiting").hide();
 
             }
         });
@@ -5303,14 +4333,14 @@ function UI() {
         });
     }
 
-    function acceptFriend(username, callback) {
+    function acceptFriend(username, message, callback) {
 
 
         console.log('calling accept acceptFriend');
 
-        $("#imgrequestwaiting").show();
-        var target = document.getElementById('imgrequestwaiting');
-        var spinner = new Spinner(spinneropts).spin(target);
+        // $("#imgrequestwaiting").show();
+        //var target = document.getElementById('imgrequestwaiting');
+        // var spinner = new Spinner(spinneropts).spin(target);
 
         //$('#friendreq').fadeOut(1000);
         Engine.acceptFriendRequest(username, function (err, secret) {
@@ -5322,7 +4352,7 @@ function UI() {
 
                     if (!result) {
 
-                        Engine.createFriend(username, "", function (err, result) {
+                        Engine.createFriend(username, message, function (err, result) {
 
                             if (err) {
 
@@ -5347,73 +4377,5 @@ function UI() {
     }
 
 
-    function ensureOpenWalletGuidAndPasswordValid() {
-
-        if (Engine.isRealGuid($("#openWalletStart input#guid").val())) {
-            $("#openWalletStart input#guid").css("border-color", "#ccc");
-        } else {
-            $("#openWalletStart input#guid").css("border-color", "#ffaaaa");
-        }
-
-        if ($("#openWalletStart input#password").val().length == 0) {
-            $("#openWalletStart input#password").css("border-color", "#ffaaaa");
-        } else {
-            $("#openWalletStart input#password").css("border-color", "#ccc");
-        }
-
-        if (!Engine.isRealGuid($("#openWalletStart input#guid").val()) ||
-                    $("#openWalletStart input#password").val().length == 0) {
-
-            return false;
-        }
-
-        return true;
-    }
-
-    function ensureCreateWalletGuidNicknameAndPasswordValid() {
-
-        if (Engine.isRealGuid($("#createWalletStart input#guid").val())) {
-            $("#createWalletStart input#guid").css("border-color", "#ccc");
-        } else {
-            $("#createWalletStart input#guid").css("border-color", "#ffaaaa");
-        }
-
-        //TODO Check nickname does not already exist
-        if ($("#createWalletStart input#nickname").val().length == 0 || $("#createWalletStart input#nickname").val().length > 20) {
-            $("#createWalletStart input#nickname").css("border-color", "#ffaaaa");
-        } else {
-            $("#createWalletStart input#nickname").css("border-color", "#ccc");
-        }
-
-        if (!Engine.isRealGuid($("#createWalletStart input#guid").val()) ||
-                    $("#createWalletStart input#cpassword").val().length == 0 ||
-                    $("#createWalletStart input#nickname").val().length == 0 ||
-                    $("#createWalletStart input#nickname").val().length > 20) {
-
-            return false;
-        } else {
-            return true;
-        }
-
-    }
-
-    function validate() {
-
-        if (Engine.isRealGuid($("input#guid").val())) {
-            $("input#guid").css("background-color", "#ffffff");
-        } else {
-            $("input#guid").css("background-color", "#ffaaaa");
-        }
-
-        if (!Engine.isRealGuid($("input#guid").val()) ||
-                    $("input#password").val().length == 0) {
-
-            return false;
-        }
-
-        return true;
-    }
-
 }
-
 module.exports = UI;

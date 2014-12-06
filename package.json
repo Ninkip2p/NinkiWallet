@@ -29,6 +29,9 @@
     "jquery-browserify": "*",
     "crypto-js": "3.1.2-3",
     "bitcoinjs-lib": "0.2.0",
-    "openpgp": "0.6.1"
+    "openpgp": "0.6.1",
+    "sjcl": "1.0.1",
+    "sanitizer" : "0.1.2",
+    "pretty-date" : "0.2.0"
   }
 }

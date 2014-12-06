@@ -86,7 +86,7 @@ function UI() {
 
 
 
-    function setCookie(cname, cvalue, exdays) {
+    function setCookie(cname, cvalue) {
 
 
         if (isChromeApp()) {
@@ -197,8 +197,50 @@ function UI() {
 
     }
 
+
+    function backupHotKey(errtarget) {
+
+        Engine.getEncHotHash(function (err, data) {
+
+            if (!err) {
+
+                var d = new Date();
+                var fdate = "" + (d.getDate()) + (d.getMonth() + 1) + (d.getFullYear());
+                var sugName = "ninki_backup_" + _.escape(Engine.m_nickname) + "_" + fdate + ".json";
+
+                chrome.fileSystem.chooseEntry({ type: 'saveFile', suggestedName: sugName }, function (writableFileEntry) {
+                    writableFileEntry.createWriter(function (writer) {
+                        writer.onerror = function (e) {
+                            //console.log('write complete');
+                            $(errtarget).text('Error');
+                        };
+                        writer.onwriteend = function (e) {
+                            //console.log('write complete');
+                            //$(errtarget).text('Success');
+                        };
+                        writer.write(new Blob([data], { type: 'text/plain' }));
+                    });
+                });
+
+            }
+
+        });
+
+    }
+
+
+
     jQuery(document).ready(function () {
 
+
+        $("#btnBackupBeta").click(function () {
+
+            backupHotKey('#errbackupbeta');
+
+        });
+
+
+        $('#openWalletStart input#password').focus();
 
         var fatokk = getCookie("ninki_rem", function (res) {
 
@@ -207,6 +249,99 @@ function UI() {
             }
 
         });
+
+        var tmpContent = {};
+        $("#btnBrowseRestore").click(function () {
+
+            chrome.fileSystem.chooseEntry({ type: 'openFile', accepts: [{ extensions: ['json']}] }, function (readOnlyEntry) {
+
+                readOnlyEntry.file(function (file) {
+                    var reader = new FileReader();
+
+                    //reader.onerror = errorHandler;
+                    reader.onloadend = function (e) {
+
+                        try {
+
+                            if (e.target.result) {
+                                var json = JSON.parse(e.target.result);
+                                tmpContent = json;
+                                restoreFromFile(m_this.m_password, json);
+                            } else {
+                                $("#restoreerror").text('The file was empty');
+                            }
+
+                        } catch (error) {
+                            $("#restoreerror").text('Invalid file');
+                        }
+
+                    };
+
+                    reader.readAsText(file);
+                });
+            });
+
+        });
+
+
+        $("#btnRestore").click(function () {
+
+            $("#restorepwd").hide();
+
+            var respwd = $("#restorePassword").val();
+            respwd = Engine.pbkdf2(respwd, Engine.m_oguid);
+
+            restoreFromFile(respwd, tmpContent);
+
+        });
+
+
+        function restoreFromFile(pwd, data) {
+
+            var json = data;
+
+            var hothash = '';
+            var iserror = false;
+            try {
+                hothash = Engine.decryptNp(json.enc, pwd, json.iv);
+            } catch (error) {
+                iserror = true;
+            }
+
+            if (!iserror) {
+
+                Engine.restoreHotHash(hothash, function (err, result) {
+
+                    //login
+                    if (!err) {
+
+                        tmpContent = {};
+                        $("#hotkeymodal").modal('hide');
+                        $("#hotkeyenter").hide();
+
+                    } else {
+
+                        if (result == "ErrSeedInvalid") {
+                            $('#restorepwd').show();
+                        } else {
+
+                            $('#hotkeyentererror').show();
+                            $('#hotkeyentererrormessage').text(result);
+                        }
+
+                    }
+
+                });
+
+            } else {
+
+                $('#hotkeyentererror').show();
+                $('#hotkeyentererrormessage').text("Invalid file");
+
+            }
+
+        }
+
 
 
         $("#btnSaveHotKey").click(function () {
@@ -237,8 +372,11 @@ function UI() {
 
         $("#btnWatchOnly").click(function () {
 
+            Engine.m_watchOnly = true;
             $("#hotkeymodal").modal('hide');
             $("#hotkeyenter").hide();
+            $("#btnSaveBackup").prop('disabled', true);
+            $("#btnSaveBackupP").prop('disabled', true);
 
         });
 
@@ -256,6 +394,7 @@ function UI() {
 
 
         });
+
 
         $("#logout").click(function () {
 
@@ -490,27 +629,31 @@ function UI() {
 
                 Engine.createS3Policy(function (err, result) {
 
-                    var policy = JSON.parse(result);
 
-                    fd.append('key', key);
-                    fd.append('acl', 'public-read');
-                    fd.append('Content-Type', file.type);
-                    fd.append('bucket', 'ninkip2pimgstore');
-                    fd.append('AWSAccessKeyId', 'AKIAINOU56ATQFS3CLFQ');
-                    fd.append('policy', policy.s3Policy);
-                    fd.append('signature', policy.s3Signature);
-                    fd.append("file", file);
+                    if (!err) {
 
-                    var xhr = new XMLHttpRequest();
+                        var policy = JSON.parse(result);
 
-                    xhr.upload.addEventListener("progress", uploadProgress, false);
-                    xhr.addEventListener("load", uploadComplete, false);
-                    xhr.addEventListener("error", uploadFailed, false);
-                    xhr.addEventListener("abort", uploadCanceled, false);
+                        fd.append('key', key);
+                        fd.append('acl', 'public-read');
+                        fd.append('Content-Type', file.type);
+                        fd.append('bucket', 'ninkip2pimgstore');
+                        fd.append('AWSAccessKeyId', 'AKIAINOU56ATQFS3CLFQ');
+                        fd.append('policy', policy.s3Policy);
+                        fd.append('signature', policy.s3Signature);
+                        fd.append("file", file);
 
-                    xhr.open('POST', 'https://ninkip2pimgstore.s3-us-west-1.amazonaws.com/', true); //MUST BE LAST LINE BEFORE YOU SEND 
+                        var xhr = new XMLHttpRequest();
 
-                    xhr.send(fd);
+                        xhr.upload.addEventListener("progress", uploadProgress, false);
+                        xhr.addEventListener("load", uploadComplete, false);
+                        xhr.addEventListener("error", uploadFailed, false);
+                        xhr.addEventListener("abort", uploadCanceled, false);
+
+                        xhr.open('POST', 'https://ninkip2pimgstore.s3-us-west-1.amazonaws.com/', true); //MUST BE LAST LINE BEFORE YOU SEND 
+
+                        xhr.send(fd);
+                    } 
 
                 });
             }
@@ -800,42 +943,9 @@ function UI() {
         });
 
 
-
-        getCookie('guid', function (res) {
-            if (res.length == 0) {
-
-                var betafrom = 'December 12, 2009 12:00 pm GMT';
-                var betato = 'December 12, 2009 01:00 pm GMT';
-
-                betafrom = getLocalTime(betafrom);
-                betato = getLocalTime(betato);
-
-                $('#betafrom').text(betafrom);
-                $('#betato').text(betato);
-
-                $('#basicModal').modal('show');
-
-                $("#btnDeclineBeta").click(function () {
-                    window.location.href = '/'
-                });
-
-            }
-        });
-
-
-
-        $("#btnAcceptBeta").click(function () {
-            $("#openWalletStart #password").focus();
-        });
-
-
         $("#btncreatewallet").click(function () {
             showCreateWalletStart();
         });
-
-
-
-
 
         $("#btnAddDevice").click(function () {
 
@@ -898,6 +1008,9 @@ function UI() {
 
             var twoFactorCode = $("#pairTwoFactorCode").val();
 
+            $('#pairerror').hide();
+            $('#pairerrormess').text('');
+
 
             if (twoFactorCode.length == 6) {
 
@@ -927,7 +1040,7 @@ function UI() {
 
                                     var options = { text: data, width: 256, height: 256 };
 
-                                    //$('#qrdevice').text(data);
+                                    $('#qrdevice').text(data);
                                     $('#qrdevice').qrcode(options);
 
                                     $('#pairqr2fa').hide();
@@ -975,6 +1088,11 @@ function UI() {
 
                 }
 
+            } else {
+
+                $('#pairerror').show();
+                $('#pairerrormess').text("Invalid two factor code");
+
             }
 
 
@@ -1020,18 +1138,22 @@ function UI() {
                         twoFactorCode = Engine.decryptNp(enc.ct, Engine.m_password, enc.iv);
                     }
 
-                    setCookie('guid', guid, 30);
+                    setCookie('guid', guid);
+
+
 
                     Engine.openWallet(guid, twoFactorCode, function (err, result) {
 
-                        $("#imgopenwaiting").hide();
-                        $("#btnLogin").prop('disabled', false);
-                        $("#btnLogin").removeClass('disabled');
+                        //$("#imgopenwaiting").hide();
+
 
                         if (!err) {
 
-                            $("#imgopenwaiting").hide();
+                            //$("#imgopenwaiting").hide();
+
                             $("#openwalletalert").hide();
+
+
 
                             if (result.TwoFactorOnLogin) {
 
@@ -1044,15 +1166,24 @@ function UI() {
                                     $('#openWalletStart input#password').val('');
 
                                     if (result.TwoFactorOnLogin) {
+
                                         $("#siguid").hide();
                                         $("#silguid").hide();
                                         $("#sipwd").hide();
                                         $("#si2fa").show();
                                         $("#sib1").hide();
                                         $("#sib2").show();
+                                        $("#signdiff").hide();
+                                        $("#crwallet").hide();
+
+
                                         $('#openWalletStart input#twoFactorCode').focus();
 
+                                        $("#btnLogin").prop('disabled', false);
+                                        $("#btnLogin").removeClass('disabled');
+                                        $("#imgopenwaiting").hide();
                                     }
+
                                 } else {
 
                                     //for beta1 migrations
@@ -1063,7 +1194,9 @@ function UI() {
                                     $("#sib1").hide();
                                     $("#sib2").show();
                                     $('#openWalletStart input#twoFactorCode').focus();
-
+                                    $("#btnLogin").prop('disabled', false);
+                                    $("#btnLogin").removeClass('disabled');
+                                    $("#imgopenwaiting").hide();
                                 }
 
                             } else {
@@ -1072,6 +1205,7 @@ function UI() {
 
                                 //initiate 2fa setup modal
                                 if (!m_this.m_twoFactorOnLogin) {
+
                                     $("#twofactorsettings").show();
                                     $("#2famodal").modal('show');
 
@@ -1080,12 +1214,57 @@ function UI() {
                                     $("#savetwofactorerror").hide();
                                     $("#setup2faemail").hide();
                                     $("#setup2faqr").show();
+                                    $("#btnLogin").prop('disabled', false);
+                                    $("#btnLogin").removeClass('disabled');
+                                    $("#imgopenwaiting").hide();
 
                                     showSettingsTwoFactorQr();
 
                                 } else {
 
-                                    initialiseUI();
+
+                                    if (Engine.m_walletinfo.hotHash == '') {
+
+                                        initialiseUI(function (err, result) {
+
+                                            setCookie("user", Engine.m_nickname);
+                                            setCookie("userimg", Engine.m_profileImage);
+
+                                            $("#btnLogin").prop('disabled', false);
+                                            $("#btnLogin").removeClass('disabled');
+                                            $("#imgopenwaiting").hide();
+
+
+                                        });
+
+
+                                    } else {
+
+                                        //display a screen advising the user to write down their hot key
+                                        //checkbox->ok
+                                        //then migrate the packet
+                                        //initialise ui
+
+                                        $("#btnLogin").prop('disabled', false);
+                                        $("#btnLogin").removeClass('disabled');
+                                        $("#imgopenwaiting").hide();
+
+
+
+                                        if (Engine.m_walletinfo.hotHash != '') {
+                                            Engine.saveHotHash(Engine.m_walletinfo.hotHash, function (err, result) {
+
+                                                $("#mighotdisp").text(Engine.encodeKey(Engine.m_walletinfo.hotHash));
+
+                                                $("#openWalletStart").hide();
+                                                $("#hotmigmodal").modal('show');
+                                                $("#hotmigenter").show();
+
+                                            });
+                                        }
+
+
+                                    }
 
                                 }
 
@@ -1094,7 +1273,11 @@ function UI() {
                             $("#unlockaccount").hide();
 
                         } else {
+
+                            $("#btnLogin").prop('disabled', false);
+                            $("#btnLogin").removeClass('disabled');
                             $("#imgopenwaiting").hide();
+
                             $("#openwalletalert").show();
 
                             if (result == "ErrAccount") {
@@ -1116,12 +1299,50 @@ function UI() {
         });
 
 
+
+
+        $("#btnMigHotKey").click(function () {
+
+            $("#mighoterr").hide();
+
+            var twoFactorCode = $('#hotmig2fa').val();
+
+            if (twoFactorCode.length == 6) {
+
+                Engine.migrateHotKeyFromPacket(twoFactorCode, function (err, result) {
+
+                    if (err) {
+
+                        $("#mighoterrmess").text(result);
+                        $("#mighoterr").show();
+
+                    } else {
+
+                        $("#hotmigmodal").modal('hide');
+                        $("#hotmigenter").hide();
+                        initialiseUI();
+
+                    }
+
+                });
+
+            } else {
+
+                $("#mighoterrmess").text("Invalid two factor code");
+                $("#mighoterr").show();
+
+            }
+
+        });
+
         $("#btn2faLogin").click(function () {
+
 
 
             $("#img2faopenwaiting").show();
             $("#btn2faLogin").prop('disabled', true);
             $("#btn2faLogin").addClass('disabled');
+
             var target = document.getElementById('img2faopenwaiting');
             var spinner = new Spinner(spinneropts).spin(target);
 
@@ -1131,25 +1352,59 @@ function UI() {
                 var twoFactorCode = $('#openWalletStart input#twoFactorCode').val();
                 var rememberTwoFactor = $('#twofactorremember')[0].checked;
 
-                Engine.openWallet2fa(twoFactorCode, rememberTwoFactor, function (err, result) {
 
-                    if (err) {
+                if (twoFactorCode.length == 6) {
 
-                        $("#img2faopenwaiting").hide();
-                        $("#openwalletalert").show();
-                        $("#openwalletalertmessage").text(result);
-                        $("#btn2faLogin").prop('disabled', false);
-                        $("#btn2faLogin").removeClass('disabled');
-                    } else {
+                    Engine.openWallet2fa(twoFactorCode, rememberTwoFactor, function (err, result) {
 
-                        if (result.CookieToken) {
+                        if (err) {
 
-                            setCookie("ninki_rem", result.CookieToken);
+                            $("#img2faopenwaiting").hide();
+                            $("#openwalletalert").show();
+                            $("#openwalletalertmessage").text(result);
+                            $("#btn2faLogin").prop('disabled', false);
+                            $("#btn2faLogin").removeClass('disabled');
+                        } else {
+
+                            if (result.CookieToken) {
+
+                                setCookie("ninki_rem", result.CookieToken);
+                            }
+
+                            if (Engine.m_walletinfo.hotHash == '') {
+
+                                initialiseUI(function (err, result) {
+
+                                    setCookie("user", Engine.m_nickname);
+                                    setCookie("userimg", Engine.m_profileImage);
+
+                                });
+
+
+                            } else {
+
+                                //display a screen advising the user to write down their hot key
+                                //checkbox->ok
+                                //then migrate the packet
+                                //initialise ui
+                                $("#mighotdisp").text(Engine.encodeKey(Engine.m_walletinfo.hotHash));
+
+                                $("#openWalletStart").hide();
+                                $("#hotmigmodal").modal('show');
+                                $("#hotmigenter").show();
+
+
+                            }
                         }
+                    });
+                } else {
 
-                        initialiseUI();
-                    }
-                });
+                    $("#img2faopenwaiting").hide();
+                    $("#openwalletalert").show();
+                    $("#openwalletalertmessage").text("Invalid two factor code");
+                    $("#btn2faLogin").prop('disabled', false);
+                    $("#btn2faLogin").removeClass('disabled');
+                }
 
             }, 100);
 
@@ -1168,11 +1423,7 @@ function UI() {
 
         });
 
-        $("#btnaddfriend").click(function () {
 
-            addFriend();
-
-        });
 
         $("#btngenaddr").click(function () {
 
@@ -1328,12 +1579,13 @@ function UI() {
         });
 
 
+
         $("#btnCreate").click(function () {
 
             if ($("#frmcreate").parsley('validate')) {
 
                 //check password strength
-                if (($(".password-verdict").text() == 'Strong' || $(".password-verdict").text() == 'Very Strong')) {
+                if (($(".password-verdict").html() == 'Strong' || $(".password-verdict").html() == 'Very Strong')) {
 
                     //can we remove this check?
                     if (ensureCreateWalletGuidNicknameAndPasswordValid()) {
@@ -1353,6 +1605,8 @@ function UI() {
                         var password = $('#createWalletStart input#cpassword').val();
                         var emailAddress = $('#createWalletStart input#emailaddress').val();
 
+
+                        Engine.m_nickname = username;
 
                         Engine.createWallet(guid, password, username, emailAddress, function (err, result) {
 
@@ -1391,6 +1645,9 @@ function UI() {
                                     $("#btnCreate").removeClass('disabled');
                                     $("#lnkOpenWallet").show();
 
+                                    $("#createwalletalert").show();
+                                    $("#createwalletalertmessage").text("Error");
+
                                 }
 
                             } else {
@@ -1404,12 +1661,14 @@ function UI() {
 
                                 $("#hotWalletPhrase").text(result.hotWalletPhrase);
                                 $("#coldWalletPhrase").text(result.coldWalletPhrase);
-                                //$("#ninkiWalletPhrase").text(result.ninkiWalletPhrase);
+                                $("#coldWalletPhrasePrintText").text(result.coldWalletPhrase);
+
 
                                 $("#walletGuid").text($('input#guid').val());
                                 $("#showPhrases").show();
                                 $("#securitywizard").show();
 
+                                $(".next").hide();
 
                                 $("#no2famessage").hide();
                                 showTwoFactorQr();
@@ -1429,12 +1688,40 @@ function UI() {
 
         });
 
+        $("#coldconf").change(function () {
+            if (this.checked) {
+                $(".next").show();
+            } else {
+                $(".next").hide();
+            }
+        });
+
+        $("#hotconf").change(function () {
+            if (this.checked) {
+                $(".next").show();
+            } else {
+                $(".next").hide();
+            }
+        });
+
+
+        $("#chkhotmig").change(function () {
+            if (this.checked) {
+                $("#hotmigcont").show();
+            } else {
+                $("#hotmigcont").hide();
+            }
+        });
+
+
         $("#btnPassphraseLogin").click(function () {
 
 
             var isvalid = $('#phrase2fa').parsley('validate');
 
             if (isvalid) {
+
+                $("#btnPassphraseLogin").prop('disabled', true);
 
                 var twoFactorCodeChk = $('#twoFactorCodeCheck').val();
 
@@ -1443,7 +1730,7 @@ function UI() {
 
                 $("#imgphrasewaiting").show();
 
-                setCookie('guid', Engine.m_oguid, 30);
+                setCookie('guid', Engine.m_oguid);
 
                 Engine.openWalletAfterCreate(twoFactorCodeChk, function (err, result) {
 
@@ -1452,10 +1739,12 @@ function UI() {
                         $("#imgphrasewaiting").hide();
                         $("#phraseloginerror").show();
                         $("#phraseloginerrormessage").text(result);
+                        $("#btnPassphraseLogin").prop('disabled', false);
 
                     } else {
 
                         initialiseUI();
+                        $("#btnPassphraseLogin").prop('disabled', false);
                         $("#imgphrasewaiting").hide();
                         $("#phraseloginerror").hide();
                         $("#validateemail").show();
@@ -1466,6 +1755,10 @@ function UI() {
                         $("#prgsecwiz").width('100%');
                         $(".next").hide();
                         $(".previous").hide();
+
+                        setCookie("user", Engine.m_nickname);
+                        setCookie("userimg", Engine.m_profileImage);
+
                     }
 
 
@@ -1479,10 +1772,12 @@ function UI() {
 
             var token = $("#txtEmailToken").val();
 
+            $("#btnEmailValidate").prop('disabled', true);
+
             Engine.getEmailValidation(token, function (err, response) {
 
                 if (err) {
-
+                    $("#btnEmailValidate").prop('disabled', false);
                 } else {
 
                     if (response != "Valid") {
@@ -1495,7 +1790,7 @@ function UI() {
                             $("#valemailerrormessage").text('Your token is not valid');
                         }
 
-
+                        $("#btnEmailValidate").prop('disabled', false);
 
                     } else {
 
@@ -1503,11 +1798,12 @@ function UI() {
                         //initialiseUI();
                         Engine.m_validate = false;
 
-                        //readAccountSettingsFromServerAndPopulateForm();
+
                         $("#securitywizard").hide();
                         $("#validateemail").hide();
                         $("#mainWallet").show();
                         $("#valemailerror").hide();
+                        $("#btnEmailValidate").prop('disabled', false);
                     }
                 }
 
@@ -1533,7 +1829,11 @@ function UI() {
                 $("#listep2").removeClass("active");
                 $("#listep3").addClass("active");
                 $("#prgsecwiz").width('75%');
+
+
                 $(".next").hide();
+
+
                 $(".previous").show();
                 step++;
             }
@@ -1545,6 +1845,12 @@ function UI() {
                 $("#listep2").addClass("active");
                 $("#prgsecwiz").width('50%');
                 $(".previous").show();
+
+                if ($("#hotconf")[0].checked) {
+                    $(".next").show();
+                } else {
+                    $(".next").hide();
+                }
 
                 step++;
             }
@@ -1649,12 +1955,15 @@ function UI() {
                         var ninkiPub = result.ninkiPubKey;
                         var phrase = result.hotHash;
 
-                        var bip39 = new BIP39();  // 'en' is the default language
-                        var hotmnem = bip39.entropyToMnemonic(phrase);
+                        if (phrase != "Unavailable") {
+                            var bip39 = new BIP39();  // 'en' is the default language
+                            var hotmnem = bip39.entropyToMnemonic(phrase);
+                            $("#secdisphrase").text(hotmnem);
+                            $("#secdisphrase").show();
+                        }
 
-                        $("#secdisphrase").text(hotmnem);
                         $("#secdisninki").text(ninkiPub);
-                        $("#secdisphrase").show();
+
                         $("#secdisninki").show();
                         $("#btnhidekeys").show();
                         $("#btndisplaykeys").hide();
@@ -1964,15 +2273,93 @@ function UI() {
 
             if (res.length > 0) {
 
+                $("#guidsec").hide();
+
+
+                if (isChromeApp()) {
+
+                    getCookie('user', function (uname) {
+
+                        //console.write(res);
+                        $("#loginuser").text(uname);
+
+                        getCookie('userimg', function (res) {
+
+                            var imageSrcSmall = "images/avatar/64px/Avatar-" + pad(uname.length) + ".png";
+
+                            if (res != '') {
+                                imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(res) + "?crop=faces&fit=crop&h=64&w=64&mask=ellipse&border=1,d0d0d0";
+                            }
+
+                            var xhrsm = new XMLHttpRequest();
+                            xhrsm.open('GET', imageSrcSmall, true);
+                            xhrsm.responseType = 'blob';
+
+                            xhrsm.onload = function (e) {
+                                $("#loginimg").attr("src", window.URL.createObjectURL(this.response));
+                            };
+
+                            xhrsm.send();
+
+                            $("#password").focus();
+
+                        });
+
+
+
+                    });
+
+                }
+
                 showOpenWalletStart();
+
 
             } else {
 
-                showCreateWalletStart();
+                $("#introduction").show();
 
             }
-        })
+        });
 
+        $("#btnsigndiff").click(function () {
+
+            $("#guidsec").show();
+            $("#userlogin").hide();
+
+        });
+
+
+
+
+        $("#printCold").click(function () {
+            // $("#coldWalletPhrase").printElement();
+
+            chrome.app.window.create('printwindow.html', { 'bounds': {
+                'width': Math.round(window.screen.availWidth * 0.8),
+                'height': Math.round(window.screen.availHeight * 0.8)
+            }
+            },
+            function (createdWindow) {
+                var win = createdWindow.contentWindow;
+                win.onload = function () {
+                    win.document.querySelector('#content').innerHTML = $("#coldWalletPhrasePrintText").text();
+                    win.print();
+                }
+            }
+        );
+
+        });
+
+
+        $("#btnCreateInit").click(function () {
+            $("#introduction").hide();
+            showCreateWalletStart();
+        });
+
+        $("#btnLoginInit").click(function () {
+            $("#introduction").hide();
+            showOpenWalletStart();
+        });
 
 
         $("#password").keypress(function (e) {
@@ -2125,6 +2512,26 @@ function UI() {
 
                                     password = results;
 
+
+                                    //                                    Engine.getEncHotHash(function (err, data) {
+
+                                    //                                        var bb = new Blob([data], { type: 'text/plain' });
+
+                                    //                                        var a = document.getElementById('btnSaveBackupP');
+
+                                    //                                        var d = new Date();
+                                    //                                        var fdate = "" + (d.getDate()) + (d.getMonth() + 1) + (d.getFullYear());
+
+                                    //                                        a.download = "ninki_backup_" + _.escape(Engine.m_nickname) + "_" + fdate + ".json";
+                                    //                                        a.href = window.URL.createObjectURL(bb);
+
+                                    //                                        a.dataset.downloadurl = ['text/plain', a.download, a.href].join(':');
+
+                                    //                                    });
+
+
+                                    $("#pwdchangemain").hide();
+
                                     $("#chngpwerr").hide();
                                     $("#chngpwdprogbar").width('100%');
                                     $("#chngpwdprog").hide();
@@ -2158,6 +2565,14 @@ function UI() {
 
         $("#btnVerify").click(function () {
 
+
+            $(this).prop('disabled', true);
+
+            var target = document.getElementById('verifyspinner');
+            var spinner = new Spinner(spinneropts).spin(target);
+
+            $("#verifyspinner").show();
+
             var code = $("#txtCode").val();
 
             $("#txtCode").css("border-color", "#ccc");
@@ -2169,34 +2584,83 @@ function UI() {
 
             if (code.length != 40) {
                 $("#txtCode").css("border-color", "#ffaaaa");
+                $("#verifyspinner").hide();
+                $(this).prop('disabled', false);
                 return;
             }
 
-            //get the hash to validate against
-            //this will confirm that my friend has the same keys
-            //i orginally packaged for him
+            var isAccepted = false;
 
-            Engine.verifyFriendData(SELECTEDFRIEND, code, function (err, result) {
-
-                if (result) {
-                    $("#validateform").hide();
-                    $("#validatesuccess").show();
-                    $("#txtCode").val('');
-                    selectedFriend.validated = true;
-                    FRIENDSLIST[selectedFriend.userName].validated = true;
-                    updateSelectedFriend();
-
-                    //update list also
-
-                    //find friend in list and update the validated icon
-                    $("#myfriends #seltarget" + selectedFriend.userName).html('<div class="pull-right text-success m-t-sm"><i class="fa fa-check-square" style="font-size:1.5em"></i></div>');
+            if (FRIENDSLIST[selectedFriend.userName].IsSend) {
+                isAccepted = true;
+            }
 
 
-                } else {
-                    $("#validatefail").show();
-                }
+            if (isAccepted) {
 
-            });
+                Engine.verifyFriendData(SELECTEDFRIEND, code, function (err, result) {
+
+                    if (result) {
+
+                        $("#validateform").hide();
+                        $("#validatesuccess").show();
+                        $("#txtCode").val('');
+                        selectedFriend.validated = true;
+                        FRIENDSLIST[selectedFriend.userName].validated = true;
+                        updateSelectedFriend();
+
+                        //update list also
+
+                        //find friend in list and update the validated icon
+                        $("#myfriends #seltarget" + selectedFriend.userName).html('<div class="pull-right text-success m-t-sm"><i class="fa fa-check-square" style="font-size:1.5em"></i></div>');
+
+
+                    } else {
+
+                        $("#validatefail").show();
+
+                    }
+
+                    $("#verifyspinner").hide();
+                    $("#btnVerify").prop('disabled', false);
+                });
+
+            } else {
+
+                Engine.acceptFriendRequest(SELECTEDFRIEND, function (err, res) {
+
+
+                    //get the hash to validate against
+                    //this will confirm that my friend has the same keys
+                    //i orginally packaged for him
+
+                    Engine.verifyFriendData(SELECTEDFRIEND, code, function (err, result) {
+
+                        if (result) {
+                            $("#validateform").hide();
+                            $("#validatesuccess").show();
+                            $("#txtCode").val('');
+                            selectedFriend.validated = true;
+                            FRIENDSLIST[selectedFriend.userName].validated = true;
+                            updateSelectedFriend();
+
+                            //update list also
+
+                            //find friend in list and update the validated icon
+                            $("#myfriends #seltarget" + selectedFriend.userName).html('<div class="pull-right text-success m-t-sm"><i class="fa fa-check-square" style="font-size:1.5em"></i></div>');
+
+
+                        } else {
+                            $("#validatefail").show();
+                        }
+
+                        $("#verifyspinner").hide();
+                        $("#btnVerify").prop('disabled', false);
+                    });
+
+                });
+
+            }
         });
 
 
@@ -2254,7 +2718,7 @@ function UI() {
                     //TWOFACTORONLOGIN = true;
                     //refresh settings panel
 
-                    readAccountSettingsFromServerAndPopulateForm();
+                    readAccountSettings();
 
                     $("#twofactorsettings").hide();
                     $("#btnSetupTwoFactor").hide();
@@ -2279,8 +2743,33 @@ function UI() {
 
 
         $("#hsettings").click(function () {
-            readAccountSettingsFromServerAndPopulateForm();
+
         });
+
+
+
+        $("#btnSaveBackup").click(function () {
+
+            //errbackup
+            backupHotKey('#errbackup');
+
+        });
+
+        $("#btnSaveBackupP").click(function () {
+
+            //errbackupp
+            backupHotKey('#errbackupp');
+
+        });
+
+        $("#backupHot").click(function () {
+
+            //errbackuphot
+            backupHotKey('#errbackuphot');
+
+        });
+
+
 
         $("#savesettingsbutton").click(function () {
             if ($("#frmsettings").parsley('validate')) {
@@ -2600,9 +3089,6 @@ function UI() {
 
         });
 
-
-
-        $("#openWalletStart #password").focus();
     });
 
     $('#txtTax').blur(function () {
@@ -3513,7 +3999,7 @@ function UI() {
 
 
 
-    function initialiseUI() {
+    function initialiseUI(callback) {
 
         //check if hot key is available
         //if not prompt the user to enter their hot key
@@ -3521,7 +4007,7 @@ function UI() {
         Engine.appHasLoaded();
 
 
-        Engine.getHotHash("",function (err, result) {
+        Engine.getHotHash("", function (err, result) {
 
 
             if (err) {
@@ -3599,6 +4085,7 @@ function UI() {
                 catOptions += '</select>';
 
                 $("#netcatoptions").html(catOptions);
+
                 $("#nselnetcat").change(function () {
 
                     $("#nselnetcat option:selected").each(function () {
@@ -3621,15 +4108,17 @@ function UI() {
 
 
                     document.onAway = function () { logout(); }
+
                     setInterval(function () {
                         updateUI();
                     }, 10000);
 
+                    setInterval(function () {
+                        refreshSelectedFriend();
+                    }, 30000);
+
                     
 
-                    updateUI();
-
-                    updateRequestsMadeByMe();
 
                     $('#showPhrases').hide();
                     $("#openWalletStart").hide();
@@ -3659,11 +4148,23 @@ function UI() {
                         $("#validateemail").hide();
                     }
 
+                    updateUI();
+
+                    updateRequestsMadeByMe();
+
+                    readAccountSettings();
+
+
                     setAwayTimeout(600000);
 
                     $('#stdselcu').click();
                     $('#netselcu').click();
 
+                    if (callback) {
+
+                        return callback(false, "ok");
+
+                    }
 
 
                 }
@@ -3703,10 +4204,14 @@ function UI() {
         updateUI();
     }
 
+
+
+
+
     function updateUI() {
 
 
-        Ninki.API.getPrice(Engine.m_settings.LocalCurrency, function (err, result) {
+        Ninki.API.getPrice(Engine.m_guid, Engine.m_settings.LocalCurrency, function (err, result) {
 
             price = result * 1.0;
 
@@ -3761,13 +4266,6 @@ function UI() {
 
                                     showInvoiceListNetwork(function (err, res) {
 
-                                        if (!norefresh) {
-                                            refreshSelectedFriend(function (err, res) {
-
-                                                console.log('completed refresh');
-
-                                            });
-                                        }
 
                                     });
 
@@ -3796,6 +4294,10 @@ function UI() {
         $("#lostguid").hide();
         $("#reset2fa").hide();
         $("#validateemail").hide();
+        $("#password").focus();
+        $("#signdiff").show();
+        $("#crwallet").show();
+
     }
 
     function showTwoFactorQr() {
@@ -3838,7 +4340,7 @@ function UI() {
     }
 
     //Download settings from server and populate input boxes
-    function readAccountSettingsFromServerAndPopulateForm() {
+    function readAccountSettings() {
 
         $("#savesettingserror").hide();
         $("#savesettingssuccess").hide();
@@ -3981,7 +4483,7 @@ function UI() {
                     if (jsonPacket['CoinUnit'] != COINUNIT) {
                         COINUNIT = jsonPacket['CoinUnit'];
                         lastNoOfTrans = -1;
-                        readAccountSettingsFromServerAndPopulateForm();
+                        readAccountSettings();
                         $("#stdsendcunit").text(COINUNIT);
                         $("#amount").val('');
                         $("#friendAmount").val('');
@@ -4104,28 +4606,40 @@ function UI() {
 
         Engine.getBalance(function (err, result) {
 
-            //get in BTC units
-            var balance = convertFromSatoshis(result.TotalBalance, COINUNIT);
+            if (!err) {
+                //get in BTC units
+                var balance = convertFromSatoshis(result.TotalBalance, COINUNIT);
 
 
-            $("#balance").text(balance);
-            $("#balanceTop").text(balance + " " + COINUNIT);
-            //$("#balanceTop").text(balance + " " + COINUNIT + " ($" + (xccy) + ")");
-            $("#dashcoinunit").text(COINUNIT);
-            var template = '';
-            if (result.UnconfirmedBalance > 0) {
-                template += '<div class="btn btn-warning btn-icon btn-rounded"><i class="fa fa-clock-o"></i></div>';
+                if (COINUNIT == 'BTC') {
+                    $("#balance").text(balance);
+                    $("#balanceTop").text(balance + " " + COINUNIT);
+                } else {
+                    $("#balance").text(balance.toLocaleString());
+                    $("#balanceTop").text(balance.toLocaleString() + " " + COINUNIT);
+                }
+
+
+                //$("#balanceTop").text(balance + " " + COINUNIT + " ($" + (xccy) + ")");
+                $("#dashcoinunit").text(COINUNIT);
+                var template = '';
+                if (result.UnconfirmedBalance > 0) {
+                    template += '<div class="btn btn-warning btn-icon btn-rounded"><i class="fa fa-clock-o"></i></div>';
+                } else {
+                    template += '<div class="btn btn-success btn-icon btn-rounded"><i class="fa fa-check"></i></div>';
+                }
+
+                $("#balancetimer").html(template);
+
+                if (callback) {
+                    callback();
+                }
             } else {
-                template += '<div class="btn btn-success btn-icon btn-rounded"><i class="fa fa-check"></i></div>';
+
+                $("#balance").text("connecting...");
+                $("#balanceTop").text("connecting...");
+
             }
-
-            $("#balancetimer").html(template);
-
-            if (callback) {
-                callback();
-            }
-
-
 
         });
 
@@ -4502,11 +5016,11 @@ function UI() {
     }
 
     function refreshSelectedFriend(callback) {
+        if (!norefresh) {
+            if (SELECTEDFRIEND.length > 0) {
 
-        if (SELECTEDFRIEND.length > 0) {
+                Engine.getFriend(SELECTEDFRIEND, function (err, friend) {
 
-            Engine.getFriend(SELECTEDFRIEND, function (err, friend) {
-                if (!norefresh) {
                     if (SELECTEDFRIEND == friend.userName) {
                         selectedFriend = friend;
                         FRIENDSLIST[SELECTEDFRIEND] = friend;
@@ -4570,15 +5084,19 @@ function UI() {
                             $("#friendvalreq").show();
                         }
 
-                        callback(err, friend);
+                        if (callback) {
+                            callback(err, friend);
+                        }
 
                         //updateSelectedFriend(function (err, res) {
                         //    selFriendBkgUpdate = false;
                         //    callback(err, res);
                         //});
                     }
-                }
-            });
+
+                });
+
+            }
 
         }
 
@@ -4647,7 +5165,7 @@ function UI() {
             }
 
             //if (selectedFriend.status != '') {
-                $("#friendSelectedStatus").text(selectedFriend.status);
+            $("#friendSelectedStatus").text(selectedFriend.status);
             //}
 
             if (isChromeApp()) {
@@ -4749,7 +5267,7 @@ function UI() {
                                 '<div class="clear">' +
                                 '<a href="#" class="text-info">' + _.escape(friends[i].userName) + '<i class="icon-twitter"></i></a>' +
                                 '<small class="block text-muted">has requested you as a contact</small>' +
-                                '<div id="imgrequestwaiting"></div><a href="#" id=\"btnaccept' + i + '\" class="btn btn-xs btn-success m-t-xs">Accept</a> <a href="#" class="btn btn-xs btn-success m-t-xs" onclick=\"rejectFriend(\'' + _.escape(friends[i].userName) + '\')\">Reject</a>' +
+                                '<div id="imgrequestwaiting"></div><button id=\"btnaccept' + i + '\" class="btn btn-xs btn-success m-t-xs">Accept</button> <button class="btn btn-xs btn-success m-t-xs" id=\"btnreject' + i + '\">Reject</button>' +
                                 '</div></li>';
 
                     $("#friendreq").append(template);
@@ -4761,10 +5279,51 @@ function UI() {
 
 
                     $("#friendreq #btnaccept" + i).click({
-                        userName: friends[i].userName
+                        userName: friends[i].userName, index: i
                     }, function (event) {
+
+                        $(this).prop('disabled', true);
+                        $("#friendreq #btnreject" + event.data.index).prop('disabled', true);
+
+                        $("#imgrequestwaiting").show();
+                        var target = document.getElementById('imgrequestwaiting');
+                        var spinner = new Spinner(spinneropts).spin(target);
+
+                        var that = $(this);
+                        var thatrej = $("#friendreq #btnreject" + event.data.index);
+
                         acceptFriend(event.data.userName, function (err, res) {
 
+                            if (!err) {
+                                lastNoOfFriendsReq = 0;
+                                updateFriendRequests();
+                            }
+
+                            $("#imgrequestwaiting").hide();
+                            $(that).prop('disabled', false);
+                            $(thatrej).prop('disabled', false);
+
+                        });
+                    });
+
+
+                    $("#friendreq #btnreject" + i).click({
+                        userName: friends[i].userName, index: i
+                    }, function (event) {
+
+                        $(this).prop('disabled', true);
+                        $("#friendreq #btnaccept" + event.data.index).prop('disabled', true);
+
+                        var that = $(this);
+                        var thatacc = $("#friendreq #btnaccept" + event.data.index);
+                        rejectFriend(event.data.userName, function (err, res) {
+
+                            if (!err) {
+                                updateFriendRequests();
+                            }
+
+                            $(that).prop('disabled', false);
+                            $(thatacc).prop('disabled', false);
                             //handle here instead
 
                         });
@@ -4815,7 +5374,11 @@ function UI() {
 
                 });
 
-                return callback(false, "ok");
+                if (callback) {
+
+                    return callback(false, "ok");
+
+                }
             }
 
 
@@ -5188,16 +5751,18 @@ function UI() {
 
 
 
-    function addFriend() {
+    $("#btnaddfriend").click(function () {
 
         var username = $('input#friend').val();
 
         if (username.length == 0 || Engine.m_nickname == username) {
             $("#friend").css("border-color", "#ffaaaa");
+
             return;
         }
-
+        $("#btnaddfriend").prop('disabled', true);
         $("#imgaddcontactwaiting").show();
+
         var target = document.getElementById('imgaddcontactwaiting');
         var spinner = new Spinner(spinneropts).spin(target);
 
@@ -5212,43 +5777,71 @@ function UI() {
 
             //also check if friend already
 
-            if (usernameExistsOnServer) {
+            if (!err) {
 
-                Engine.isNetworkExist(username, function (err, result) {
+                if (usernameExistsOnServer) {
 
-                    if (!result) {
+                    Engine.isNetworkExist(username, function (err, result) {
 
-                        $("#friend").css("border-color", "#ccc");
 
-                        Engine.createFriend(username, '', function (err, result) {
-                            if (err) {
-                                $("#friend").css("border-color", "#ffaaaa");
-                                $("#addcontactalert").show();
-                                $("#addcontactalertmessage").text(result);
-                                $("#imgaddcontactwaiting").hide();
+                        if (!err) {
+
+                            if (!result) {
+
+                                $("#friend").css("border-color", "#ccc");
+
+                                Engine.createFriend(username, '', function (err, result) {
+                                    if (err) {
+                                        $("#friend").css("border-color", "#ffaaaa");
+                                        $("#addcontactalert").show();
+                                        $("#addcontactalertmessage").text(result);
+                                        $("#imgaddcontactwaiting").hide();
+
+                                    } else {
+
+                                        $("#friend").val('');
+                                        $("#imgaddcontactwaiting").hide();
+                                        $("#addcontactsuccess").show();
+                                        $("#addcontactsuccessmessage").text("You requested " + username + " as a contact");
+                                        $("#addcontactsuccess").fadeOut(5000);
+
+                                        updateRequestsMadeByMe();
+                                    }
+
+                                    $("#btnaddfriend").prop('disabled', false);
+
+                                });
+
                             } else {
 
-                                $("#friend").val('');
+                                $("#friend").css("border-color", "#ffaaaa");
+                                $("#addcontactalert").show();
+                                $("#addcontactalertmessage").text("You have already requested " + username + " as a contact");
                                 $("#imgaddcontactwaiting").hide();
-                                $("#addcontactsuccess").show();
-                                $("#addcontactsuccessmessage").text("You requested " + username + " as a contact");
-                                $("#addcontactsuccess").fadeOut(5000);
 
-                                updateRequestsMadeByMe();
+                                $("#btnaddfriend").prop('disabled', false);
                             }
-                        });
 
-                    } else {
+                        } else {
 
-                        $("#friend").css("border-color", "#ffaaaa");
-                        $("#addcontactalert").show();
-                        $("#addcontactalertmessage").text("You have already requested " + username + " as a contact");
-                        $("#imgaddcontactwaiting").hide();
+                            $("#friend").css("border-color", "#ffaaaa");
+                            $("#addcontactalert").show();
+                            $("#addcontactalertmessage").text(result);
+                            $("#imgaddcontactwaiting").hide();
+                            $("#btnaddfriend").prop('disabled', false);
 
-                    }
-                });
+                        }
+                    });
 
+                } else {
 
+                    $("#friend").css("border-color", "#ffaaaa");
+                    $("#addcontactalert").show();
+                    $("#addcontactalertmessage").text("The username could not be found");
+                    $("#imgaddcontactwaiting").hide();
+                    $("#btnaddfriend").prop('disabled', false);
+
+                }
 
             } else {
 
@@ -5256,57 +5849,56 @@ function UI() {
                 $("#addcontactalert").show();
                 $("#addcontactalertmessage").text("The username could not be found");
                 $("#imgaddcontactwaiting").hide();
+                $("#btnaddfriend").prop('disabled', false);
 
             }
         });
 
 
-    }
+    });
 
 
-    function rejectFriend(username) {
+    function rejectFriend(username, callback) {
 
         Engine.rejectFriendRequest(username, function (err, result) {
 
-            updateFriendRequests();
+            return callback(err, result);
 
         });
     }
 
-    function acceptFriend(username) {
+    function acceptFriend(username, callback) {
 
 
         //need to add error handling and messages here
 
-        $("#imgrequestwaiting").show();
-        var target = document.getElementById('imgrequestwaiting');
-        var spinner = new Spinner(spinneropts).spin(target);
-
-        //$('#friendreq').fadeOut(1000);
         Engine.acceptFriendRequest(username, function (err, secret) {
+
             if (err) {
 
-                //alert("Wallet could not be opened.\n\n" + err);
+                return callback(err, secret);
+
             } else {
 
                 Engine.isNetworkExist(username, function (err, result) {
 
                     if (!result) {
 
-                        Engine.createFriend(username, '', '', function (err, result) {
+                        Engine.createFriend(username, '', function (err, result) {
 
                             if (err) {
 
+                                return callback(err, result);
                             } else {
-                                $("#imgrequestwaiting").hide();
+
+                                return callback(err, result);
                             }
                         });
 
+                    } else {
+
+                        return callback(err, result);
                     }
-
-                    lastNoOfFriendsReq = 0;
-
-                    updateFriendRequests();
 
                 });
             }

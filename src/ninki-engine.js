@@ -31,6 +31,7 @@ function Engine() {
     this.m_pubKey = '';
     this.m_APIToken = '';
     this.m_appInitialised = false;
+    this.m_watchOnly = false;
 
     m_this = this;
 
@@ -205,7 +206,7 @@ function Engine() {
         };
     };
 
-
+    this.pbkdf2 = pbkdf2;
     function pbkdf2(password, salt) {
         var passwordSalt = sjcl.codec.utf8String.toBits(salt);
         var derivedKey = sjcl.misc.pbkdf2(password, passwordSalt, 1000, 256, hmac);
@@ -224,7 +225,88 @@ function Engine() {
     }
 
 
+    this.getEncHotHash = getEncHotHash;
+    function getEncHotHash(callback) {
 
+        var isWeb = isBrowser();
+        if (isChromeApp()) {
+
+            chrome.storage.local.get("hk" + m_this.m_guid, function (result) {
+
+                if (result["hk" + m_this.m_guid]) {
+
+                    var hk = result["hk" + m_this.m_guid];
+
+                    chrome.storage.local.get("hkiv" + m_this.m_guid, function (resultiv) {
+
+                        if (resultiv["hkiv" + m_this.m_guid]) {
+
+                            var hkiv = resultiv["hkiv" + m_this.m_guid];
+
+                            var data = "{\"enc\":\"" + hk + "\", \"iv\":\"" + hkiv + "\"}";
+                            return callback(false, data);
+                        } else {
+                            return callback(true, "ErrMissing");
+                        }
+
+                    });
+
+                } else {
+                    return callback(true, "ErrMissing");
+                }
+
+            });
+
+        } else {
+
+            return callback(true, "ErrInvalid");
+        }
+
+
+
+    }
+
+
+    this.restoreHotHash = restoreHotHash;
+
+    function restoreHotHash(hothash, callback) {
+
+
+
+        //validate against loaded hot public key
+        var validseed = true;
+        try {
+            var bipHot = Bitcoin.HDWallet.fromSeedHex(hothash);
+            if (m_this.m_walletinfo.hotPub != bipHot.toString()) {
+                validseed = false;
+            }
+        } catch (error) {
+
+            validseed = false;
+        }
+
+        if (validseed) {
+
+            saveHotHash(hothash, function (err, result) {
+
+                if (!err) {
+                    return callback(false, hothash);
+                } else {
+                    return callback(err, result);
+                }
+
+            });
+
+        } else {
+
+            return callback(true, "ErrSeedInvalid");
+
+        }
+
+
+
+
+    }
 
 
     this.getHotHash = getHotHash;
@@ -507,7 +589,7 @@ function Engine() {
             }
             else {
 
-                $('#textMessageCreate').html('stretching password...');
+                $('#textMessageCreate').text('stretching password...');
 
                 setTimeout(function () {
 
@@ -541,7 +623,7 @@ function Engine() {
                             walletInformation.wallet.recPacketIV = recpacket.iv.toString();
 
                             //save the wallet to the server
-                            $('#textMessageCreate').html('saving data...');
+                            $('#textMessageCreate').text('saving data...');
 
                             setTimeout(function () {
 
@@ -579,7 +661,8 @@ function Engine() {
         //TODO add some more param checking
         //rename this function
         setTimeout(function () {
-            $('#textMessageCreate').html('creating account...');
+
+            $('#textMessageCreate').text('creating account...');
 
             API.getMasterPublicKeyFromUpstreamServer(m_this.m_oguid, function (err, ninkiPubKey, userToken, secret) {
                 if (err) {
@@ -604,7 +687,7 @@ function Engine() {
         var network = "mainnet";
 
 
-        $('#textMessageCreate').html('getting entropy...');
+        $('#textMessageCreate').text('getting entropy...');
 
         setTimeout(function () {
             //get some random data for the cold key
@@ -631,7 +714,7 @@ function Engine() {
 
             //var seedtest = bip39.mnemonicToSeed(hotmnem, '');
 
-            $('#textMessageCreate').html('creating cold keys...');
+            $('#textMessageCreate').text('creating cold keys...');
 
             setTimeout(function () {
 
@@ -644,7 +727,7 @@ function Engine() {
                 var coldPriv = coldWallet.toString(" ");
                 var coldPub = coldWallet.toString();
 
-                $('#textMessageCreate').html('creating hot keys...');
+                $('#textMessageCreate').text('creating hot keys...');
 
 
                 setTimeout(function () {
@@ -667,7 +750,7 @@ function Engine() {
                     var hcbkey = Bitcoin.convert.hexToBytes(hckey);
                     var hchkey = Bitcoin.Crypto.SHA256(Bitcoin.convert.bytesToWordArray(hcbkey)).toString();
 
-                    $('#textMessageCreate').html('creating pgp keys...');
+                    $('#textMessageCreate').text('creating pgp keys...');
 
 
                     setTimeout(function () {
@@ -684,7 +767,7 @@ function Engine() {
 
                         setTimeout(function () {
 
-                            $('#textMessageCreate').html('encrypting data...');
+                            $('#textMessageCreate').text('encrypting data...');
                             //save the wallet keys and user token in an encrypted packet
                             //AES256 using PBKDF2 on the password and a unique salt
 
@@ -796,35 +879,22 @@ function Engine() {
 
                     m_this.m_twoFactorOnLogin = true;
 
-                    getPGPKeys(function (err, result) {
+                    getSettings(function (err, result) {
 
-                        if (!err) {
-                            getSettings(function (err, result) {
+                        callback(err, result);
 
-                                callback(err, result);
-
-                            });
-                        } else {
-                            callback(err, result);
-                        }
                     });
+
                 }
 
             });
 
         } else {
 
-            getPGPKeys(function (err, result) {
+            getSettings(function (err, result) {
 
-                if (!err) {
-                    getSettings(function (err, result) {
+                callback(err, result);
 
-                        callback(err, result);
-
-                    });
-                } else {
-                    callback(err, result);
-                }
             });
 
         }
@@ -832,10 +902,11 @@ function Engine() {
     }
 
 
-    this.openWallet2fa = openWallet2fa;
-    function openWallet2fa(twoFactCode, rememberTwoFactor, callback) {
+    this.migrateHotKeyFromPacket = migrateHotKeyFromPacket;
+    function migrateHotKeyFromPacket(twoFactCode, callback) {
 
-        API.getWalletFromServer(m_this.m_guid, m_this.m_secret, twoFactCode, rememberTwoFactor, function (err, wallet) {
+
+        API.getWalletFromServer(m_this.m_guid, m_this.m_secret, twoFactCode, false, function (err, wallet) {
 
             if (err) {
                 return callback(err, wallet);
@@ -847,9 +918,13 @@ function Engine() {
                 return callback(true, "Incorrect password");
             }
 
-
             //if any account still has a hotkey stored in their encrypted packet
             //then remove it and resave the packet
+
+
+            // show a notice to the user that their hotkey has been migrated locally
+            // they should write this down as they will need t to setup their wallet
+            // on a new PC or if they uninstall the chrome app
 
             if (walletInformation.hotHash != '') {
 
@@ -873,6 +948,7 @@ function Engine() {
                                 var postData = { twoFactorCode: twoFactCode, guid: m_this.m_guid, sharedid: walletInformation.userToken, accountPacket: packet.toString(), IVA: packet.iv.toString() };
                                 API.post("/api/1/u/migratepacket", postData, function (err, dataStr) {
 
+                                    return callback(false, "ok");
 
                                 });
 
@@ -887,6 +963,24 @@ function Engine() {
 
             }
 
+        });
+
+    }
+
+    this.openWallet2fa = openWallet2fa;
+    function openWallet2fa(twoFactCode, rememberTwoFactor, callback) {
+
+        API.getWalletFromServer(m_this.m_guid, m_this.m_secret, twoFactCode, rememberTwoFactor, function (err, wallet) {
+
+            if (err) {
+                return callback(err, wallet);
+            }
+
+            try {
+                var walletInformation = decrypt(wallet.Payload, m_this.m_password, wallet.IV);
+            } catch (err) {
+                return callback(true, "Incorrect password");
+            }
 
             if (m_this.m_migrateBeta12fa) {
 
@@ -928,20 +1022,14 @@ function Engine() {
 
                         //save secret
 
-                        getPGPKeys(function (err, result) {
 
+                        getSettings(function (err, result) {
                             if (!err) {
-                                getSettings(function (err, result) {
-                                    if (!err) {
-                                        callback(err, wallet);
-                                    } else {
-                                        callback(err, result);
-                                    }
-
-                                });
+                                callback(err, wallet);
                             } else {
                                 callback(err, result);
                             }
+
                         });
 
                     }
@@ -954,9 +1042,9 @@ function Engine() {
                 //2. this is the standard login code execution
                 //eventually only this block will be required
 
-                walletInformation.hotPriv = '';
-                walletInformation.hotHash = '';
-                walletInformation.hchkey = '';
+                //walletInformation.hotPriv = '';
+                //walletInformation.hotHash = '';
+                //walletInformation.hchkey = '';
 
                 m_this.m_twoFactorOnLogin = wallet.TwoFactorOnLogin;
                 m_this.m_walletinfo = walletInformation;
@@ -974,21 +1062,15 @@ function Engine() {
 
                 //save secret
 
-                getPGPKeys(function (err, result) {
-
+                getSettings(function (err, result) {
                     if (!err) {
-                        getSettings(function (err, result) {
-                            if (!err) {
-                                callback(err, wallet);
-                            } else {
-                                callback(err, result);
-                            }
-
-                        });
+                        callback(err, wallet);
                     } else {
                         callback(err, result);
                     }
+
                 });
+
 
             }
 
@@ -1089,26 +1171,20 @@ function Engine() {
 
                                     //alert and remind the user to write down their hotkeys
 
-                                    walletInformation.hotPriv = '';
-                                    walletInformation.hotHash = '';
-                                    walletInformation.hchkey = '';
+                                    //walletInformation.hotPriv = '';
+                                    //walletInformation.hotHash = '';
+                                    //walletInformation.hchkey = '';
 
 
                                     m_this.m_twoFactorOnLogin = wallet.TwoFactorOnLogin;
                                     m_this.m_walletinfo = walletInformation;
                                     m_this.m_sharedid = walletInformation.userToken;
 
-                                    getPGPKeys(function (err, result) {
 
-                                        if (!err) {
-                                            getSettings(function (err, result) {
+                                    getSettings(function (err, result) {
 
-                                                callback(err, result);
+                                        callback(err, result);
 
-                                            });
-                                        } else {
-                                            callback(err, result);
-                                        }
                                     });
 
 
@@ -1179,18 +1255,13 @@ function Engine() {
                                 m_this.m_walletinfo = walletInformation;
                                 m_this.m_sharedid = walletInformation.userToken;
 
-                                getPGPKeys(function (err, result) {
 
-                                    if (!err) {
-                                        getSettings(function (err, result) {
+                                getSettings(function (err, result) {
 
-                                            callback(err, result);
+                                    callback(err, result);
 
-                                        });
-                                    } else {
-                                        callback(err, result);
-                                    }
                                 });
+
 
                             });
 
@@ -1245,50 +1316,54 @@ function Engine() {
 
     }
 
+
     function getSettings(callback) {
+
         //nickname in packet?
-        getNickname(function (err, nickname) {
+        getUserData(function (err, data) {
 
-            m_this.m_nickname = nickname;
+            if (!err) {
+
+                data = JSON.parse(data);
+
+                m_this.m_nickname = data.Nickname;
+
+                m_this.m_profileImage = data.ProfileImage;
+                m_this.m_statusText = data.Status;
+                m_this.m_invoiceTax = data.Tax;
 
 
-            getUserProfile(function (err, result) {
+                //display the secret on a div
 
-                var userProfile = JSON.parse(result);
+                var rsaKeyPair = decrypt(data.Payload, m_this.m_password, data.IV);
 
-                m_this.m_profileImage = userProfile.ProfileImage;
-                m_this.m_statusText = userProfile.Status;
-                m_this.m_invoiceTax = userProfile.Tax;
+                var publicKeys = openpgp.key.readArmored(rsaKeyPair.RSAPub);
+                var privKeys = openpgp.key.readArmored(rsaKeyPair.RSAPriv);
 
-                getFingerPrint(function (err, fingerprint) {
-                    //display the secret on a div
+                m_this.m_privKey = privKeys.keys[0];
+                m_this.m_pubKey = publicKeys.keys[0];
 
+                if (m_this.m_privKey.decrypt(m_this.m_sharedid)) {
                     var bip39 = new BIP39();  // 'en' is the default language
-                    var fingermnem = bip39.entropyToMnemonic(fingerprint);
+                    var fingermnem = bip39.entropyToMnemonic(m_this.m_pubKey.primaryKey.fingerprint);
+
                     m_this.m_fingerprint = fingermnem;
+                    m_this.m_settings = data.Settings;
+                    m_this.m_validate = !data.Settings.EmailVerified;
 
-                    getAccountSettings(function (err, response) {
-                        if (err) {
+                    return callback(err, "ok");
+                } else {
+                    callback(true, 'failed');
+                }
+            } else {
 
-
-                        } else {
-
-                            var settingsObject = JSON.parse(response);
-                            m_this.m_settings = settingsObject;
-                            m_this.m_validate = !settingsObject.EmailVerified;
-                        }
-
-                        return callback(err, "ok");
-
-                    });
-
-                });
-
-            });
+                return callback(err, data);
+            }
 
         });
 
     }
+
 
 
     function deriveChild(path, hdwallet) {
@@ -1493,22 +1568,25 @@ function Engine() {
         //setup handles to report back progress
         var progressel = '';
         var messel = '';
+        var progresselnum = ''
 
         if (sendType == 'friend') {
             messel = '#textMessageSend';
             progressel = '#sendfriendprogstatus';
+            progresselnum = '#sendstdprognum';
         }
 
         if (sendType == 'standard') {
             messel = '#textMessageSendStd';
             progressel = '#sendstdprogstatus';
+            progresselnum = '#sendstdprognum';
         }
 
         if (sendType == 'invoice') {
             messel = '#textMessageSendInv';
             progressel = '#sendinvprogstatus';
+            progresselnum = '#sendstdprognum';
         }
-
 
         var minersFee = 10000;
         //??
@@ -1540,313 +1618,365 @@ function Engine() {
             var pdata = { guid: m_this.m_guid, sharedid: m_this.m_sharedid };
 
 
-            $(messel).html('Getting unspent outputs...');
+            $(messel).text('Getting unspent outputs...');
 
 
             API.post("/api/1/u/getunspentoutputs", pdata, function (err, outputs) {
 
-                var outputs = JSON.parse(outputs);
-                var outputsToSpend = [];
-                var amountsToSend = [];
-                var addressToSend = [];
-                var userHotPrivKeys = [];
 
-                var nodeLevels = [];
-                var publicKeys = [];
-                var packet = { addressToSend: addressToSend, amountsToSend: amountsToSend, outputsToSpend: outputsToSpend, userHotPrivKeys: userHotPrivKeys, guid: m_this.m_guid, paths: nodeLevels, publicKeys: publicKeys };
+                if (!err) {
 
-                //get outputs to spend, calculate change amount minus miners fee
+                    var outputs = JSON.parse(outputs);
+                    var outputsToSpend = [];
+                    var amountsToSend = [];
+                    var addressToSend = [];
+                    var userHotPrivKeys = [];
 
-                $(progressel).width('20%');
+                    var nodeLevels = [];
+                    var publicKeys = [];
+                    var packet = { addressToSend: addressToSend, amountsToSend: amountsToSend, outputsToSpend: outputsToSpend, userHotPrivKeys: userHotPrivKeys, guid: m_this.m_guid, paths: nodeLevels, publicKeys: publicKeys };
 
-                //iterate the unspent outputs and select the first n that equal the amount to spend
-                //TO DO: do this before doing any key derivation
-                var amountSoFar = 0;
-                for (var i = 0; i < outputs.length; i++) {
+                    //get outputs to spend, calculate change amount minus miners fee
 
-                    var pitem = outputs[i];
-                    var pout = { transactionId: pitem.TransactionId, outputIndex: pitem.OutputIndex, amount: pitem.Amount, address: pitem.Address }
-
-                    nodeLevels.push(pitem.NodeLevel);
-
-                    outputsToSpend.push(pout);
-
-                    //derive the private key to use for signing
-                    userHotPrivKeys.push(deriveChild(pitem.NodeLevel, bipHot).priv);
-
-                    //derive the public keys to use for script generation
-                    //this could be cached on the server as no privacy or hand-off issue that I can see
-
-                    var dbipHotPub = "";
-                    var dbipColdPub = "";
-                    var dbipNinkiPub = "";
-
-                    if (pitem.PK1.length > 0) {
-
-                        dbipHotPub = Bitcoin.convert.hexToBytes(pitem.PK1);
-                        dbipColdPub = Bitcoin.convert.hexToBytes(pitem.PK2);
-                        dbipNinkiPub = Bitcoin.convert.hexToBytes(pitem.PK3);
-
-                    } else {
-
-                        dbipHotPub = deriveChild(pitem.NodeLevel, bipHotPub).pub.toBytes();
-                        dbipColdPub = deriveChild(pitem.NodeLevel, bipCold).pub.toBytes();
-                        dbipNinkiPub = deriveChild(pitem.NodeLevel, bipNinki).pub.toBytes();
-
+                    $(progressel).width('20%');
+                    if ($(progresselnum)) {
+                        $(progresselnum).text('20%');
                     }
 
-                    publicKeys.push([dbipHotPub, dbipColdPub, dbipNinkiPub]);
+                    //iterate the unspent outputs and select the first n that equal the amount to spend
+                    //TO DO: do this before doing any key derivation
+                    var amountSoFar = 0;
+                    for (var i = 0; i < outputs.length; i++) {
 
-                    //add the amount
-                    amountSoFar += pitem.Amount;
+                        var pitem = outputs[i];
+                        var pout = { transactionId: pitem.TransactionId, outputIndex: pitem.OutputIndex, amount: pitem.Amount, address: pitem.Address }
 
-                    if ((amountSoFar - amount) >= minersFee) {
-                        break;
-                    }
+                        nodeLevels.push(pitem.NodeLevel);
 
-                }
+                        outputsToSpend.push(pout);
 
-                amountsToSend.push(amount);
+                        //derive the private key to use for signing
+                        userHotPrivKeys.push(deriveChild(pitem.NodeLevel, bipHot).priv);
 
-                //now create the change
-                //again move this before the key derivation
-                var changeAmount = amountSoFar - (amount + minersFee);
+                        //derive the public keys to use for script generation
+                        //this could be cached on the server as no privacy or hand-off issue that I can see
 
-                if (changeAmount < 0) {
-                    //this message needs to be handled carefully
-                    //as the wallet will most likely have pending confirmations
-                    //rather than insufficent funds
-                    return callback(true, "ErrInsufficientFunds");
-                }
+                        var dbipHotPub = "";
+                        var dbipColdPub = "";
+                        var dbipNinkiPub = "";
 
-                if (changeAmount > 0) {
-                    amountsToSend.push(changeAmount);
-                }
+                        if (pitem.PK1.length > 0) {
 
-                //create a new address for my change to be sent back to me
+                            dbipHotPub = Bitcoin.convert.hexToBytes(pitem.PK1);
+                            dbipColdPub = Bitcoin.convert.hexToBytes(pitem.PK2);
+                            dbipNinkiPub = Bitcoin.convert.hexToBytes(pitem.PK3);
 
-                //if we are sending money to a contact or paying an invoice
-                //we need to derive addresses on their behalf
-
-                if (sendType == 'friend' || sendType == 'invoice') {
-                    var params = { guid: m_this.m_guid, sharedid: m_this.m_sharedid, username: friendUserName, amount: amount };
-
-                    //generate the address for the contact
-                    //this must be done on the client
-                    $(messel).html('Creating address...');
-                    createAddressForFriend(friendUserName, function (err, address) {
-
-                        if (!err) {
-
-                            $(progressel).width('40%');
-                            addressToSend.push(address);
-
-                            //create the change address, this must be done on the client
-                            $(messel).html('Creating change address...');
-
-                            createAddress('m/0/1', changeAmount, function (err, changeaddress) {
-
-                                if (!err) {
-                                    $(progressel).width('60%');
-                                    if (changeAmount > 0) {
-                                        addressToSend.push(changeaddress);
-                                    }
-                                    //now get the  transaction data
-                                    $(messel).html('Creating transaction...');
-                                    aGetTransactionData(packet, function (err, hashesForSigning, rawTransaction) {
-
-                                        $(progressel).width('80%');
-                                        var jsonSend = { guid: m_this.m_guid, hashesForSigning: hashesForSigning, rawTransaction: rawTransaction, pathsToSignWith: nodeLevels }
-                                        var jsonp1 = { guid: m_this.m_guid, jsonPacket: JSON.stringify(jsonSend), sharedid: m_this.m_sharedid, twoFactorCode: twoFactorCode, userName: friendUserName };
-                                        $(messel).html('Counter-signing transaction...');
-
-                                        //send the transaction to the service for countersigning and broadcast to the network
-
-
-                                        //requires 2 factor authentication
-
-                                        API.post("/api/1/u/sendtransaction", jsonp1, function (err, result) {
-
-                                            if (!err) {
-                                                $(progressel).width('100%');
-                                                $(messel).html('Transaction broadcast...');
-                                                //error handling?
-
-                                                //we have a transaction id so lets make a note of the transaction in the database
-                                                var params = { guid: m_this.m_guid, sharedid: m_this.m_sharedid, username: friendUserName, transactionid: result, address: address, amount: amount };
-                                                API.post("/api/1/u/createtransactionrecord", params, function (err, result) {
-                                                    return callback(err, params.transactionid);
-                                                });
-                                            } else {
-
-                                                //handle error messages returned from the server
-                                                if (result == 'ErrSingleTransactionLimit') {
-                                                    $(progressel).width('100%');
-                                                    $(messel).html('Transaction Failed: Single limit exceeded');
-                                                    return callback(err, result);
-                                                }
-
-                                                if (result == 'ErrDailyTransactionLimit') {
-                                                    $(progressel).width('100%');
-                                                    $(messel).html('Transaction Failed: Daily limit exceeded');
-                                                    return callback(err, result);
-                                                }
-
-                                                if (result == 'ErrTransactionsPerDayLimit') {
-                                                    $(progressel).width('100%');
-                                                    $(messel).html('Transaction Failed: Daily number limit exceeded');
-                                                    return callback(err, result);
-                                                }
-
-                                                if (result == 'ErrTransactionsPerHourLimit') {
-                                                    $(progressel).width('100%');
-                                                    $(messel).html('Transaction Failed: Hourly number limit exceeded');
-                                                    return callback(err, result);
-                                                }
-
-                                                if (result == 'ErrInvalidRequest') {
-                                                    $(progressel).width('100%');
-                                                    $(messel).html('Transaction Failed: Invalid request');
-                                                    return callback(err, result);
-                                                }
-
-                                                if (result == 'ErrLocked') {
-                                                    $(progressel).width('100%');
-                                                    $(messel).html('Transaction Failed: Account is unavailable');
-                                                    return callback(err, result);
-                                                }
-
-
-                                                if (result == 'ErrBroadcastFailed') {
-                                                    $(progressel).width('100%');
-                                                    $(messel).html('Transaction Failed: Not accepted');
-                                                    return callback(err, result);
-                                                }
-
-                                                if (result == "Invalid two factor code") {
-                                                    $(progressel).width('100%');
-                                                    $(messel).html("Invalid two factor code");
-                                                    return callback(err, result);
-                                                }
-
-                                            }
-                                        });
-                                    });
-                                } else {
-                                    //create address error
-                                    if (changeaddress == 'ErrInvalidRequest') {
-                                        $(progressel).width('100%');
-                                        $(messel).html('Transaction Failed: Invalid request');
-                                        return callback(err, changeaddress);
-                                    }
-                                }
-                            });
                         } else {
 
-                            if (address == 'ErrInvalidRequest') {
-                                $(progressel).width('100%');
-                                $(messel).html('Transaction Failed: Invalid request');
-                                return callback(err, address);
-                            }
+                            dbipHotPub = deriveChild(pitem.NodeLevel, bipHotPub).pub.toBytes();
+                            dbipColdPub = deriveChild(pitem.NodeLevel, bipCold).pub.toBytes();
+                            dbipNinkiPub = deriveChild(pitem.NodeLevel, bipNinki).pub.toBytes();
 
                         }
-                    });
-                } else {
 
+                        publicKeys.push([dbipHotPub, dbipColdPub, dbipNinkiPub]);
 
-                    $(messel).html('Creating address...');
+                        //add the amount
+                        amountSoFar += pitem.Amount;
 
-                    addressToSend.push(addressTo);
+                        if ((amountSoFar - amount) >= minersFee) {
+                            break;
+                        }
 
-                    //create the change address, this must be done on the client
-                    createAddress('m/0/1', changeAmount, function (err, changeaddress) {
+                    }
 
-                        if (!err) {
+                    amountsToSend.push(amount);
 
-                            $(progressel).width('40%');
-                            if (changeAmount > 0) {
-                                addressToSend.push(changeaddress);
-                            }
+                    //now create the change
+                    //again move this before the key derivation
+                    var changeAmount = amountSoFar - (amount + minersFee);
 
-                            //now get the  transaction
-                            $(messel).html('Creating transaction...');
-                            aGetTransactionData(packet, function (err, hashesForSigning, rawTransaction) {
-                                $(progressel).width('60%');
-                                var jsonSend = { guid: m_this.m_guid, hashesForSigning: hashesForSigning, rawTransaction: rawTransaction, pathsToSignWith: nodeLevels }
-                                var jsonp1 = { guid: m_this.m_guid, jsonPacket: JSON.stringify(jsonSend), sharedid: m_this.m_sharedid, twoFactorCode: twoFactorCode, userName: '' };
-                                $(messel).html('Counter-signing transaction...');
-                                API.post("/api/1/u/sendtransaction", jsonp1, function (err, result) {
+                    if (changeAmount < 0) {
+                        //this message needs to be handled carefully
+                        //as the wallet will most likely have pending confirmations
+                        //rather than insufficent funds
+                        return callback(true, "ErrInsufficientFunds");
+                    }
 
-                                    $(progressel).width('80%');
+                    if (changeAmount > 0) {
+                        amountsToSend.push(changeAmount);
+                    }
+
+                    //create a new address for my change to be sent back to me
+
+                    //if we are sending money to a contact or paying an invoice
+                    //we need to derive addresses on their behalf
+
+                    if (sendType == 'friend' || sendType == 'invoice') {
+                        var params = { guid: m_this.m_guid, sharedid: m_this.m_sharedid, username: friendUserName, amount: amount };
+
+                        //generate the address for the contact
+                        //this must be done on the client
+                        $(messel).text('Creating address...');
+                        createAddressForFriend(friendUserName, function (err, address) {
+
+                            if (!err) {
+
+                                $(progressel).width('40%');
+                                if ($(progresselnum)) {
+                                    $(progresselnum).text('40%');
+                                }
+
+                                addressToSend.push(address);
+
+                                //create the change address, this must be done on the client
+                                $(messel).text('Creating change address...');
+
+                                createAddress('m/0/1', changeAmount, function (err, changeaddress) {
+
                                     if (!err) {
-                                        $(progressel).width('100%');
-                                        $(messel).html('Transaction broadcast...');
+                                        $(progressel).width('60%');
+                                        if ($(progresselnum)) {
+                                            $(progresselnum).text('60%');
+                                        }
 
 
-                                        //we have a transaction id so lets make a note of the transaction in the database
-                                        var params = { guid: m_this.m_guid, sharedid: m_this.m_sharedid, username: 'External', transactionid: result, address: addressTo, amount: amount };
-                                        API.post("/api/1/u/createtransactionrecord", params, function (err, result) {
-                                            return callback(err, result);
+                                        if (changeAmount > 0) {
+                                            addressToSend.push(changeaddress);
+                                        }
+                                        //now get the  transaction data
+                                        $(messel).text('Creating transaction...');
+                                        aGetTransactionData(packet, function (err, hashesForSigning, rawTransaction) {
+
+                                            $(progressel).width('80%');
+                                            if ($(progresselnum)) {
+                                                $(progresselnum).text('80%');
+                                            }
+
+
+                                            var jsonSend = { guid: m_this.m_guid, hashesForSigning: hashesForSigning, rawTransaction: rawTransaction, pathsToSignWith: nodeLevels }
+                                            var jsonp1 = { guid: m_this.m_guid, jsonPacket: JSON.stringify(jsonSend), sharedid: m_this.m_sharedid, twoFactorCode: twoFactorCode, userName: friendUserName };
+                                            $(messel).text('Counter-signing transaction...');
+
+                                            //send the transaction to the service for countersigning and broadcast to the network
+
+
+                                            //requires 2 factor authentication
+
+                                            API.post("/api/1/u/sendtransaction", jsonp1, function (err, result) {
+
+                                                if (!err) {
+                                                    $(progressel).width('100%');
+                                                    if ($(progresselnum)) {
+                                                        $(progresselnum).text('100%');
+                                                    }
+
+
+                                                    $(messel).text('Transaction broadcast...');
+                                                    //error handling?
+
+                                                    //we have a transaction id so lets make a note of the transaction in the database
+                                                    var params = { guid: m_this.m_guid, sharedid: m_this.m_sharedid, username: friendUserName, transactionid: result, address: address, amount: amount };
+                                                    API.post("/api/1/u/createtransactionrecord", params, function (err, result) {
+                                                        return callback(err, params.transactionid);
+                                                    });
+                                                } else {
+
+                                                    //handle error messages returned from the server
+                                                    if (result == 'ErrSingleTransactionLimit') {
+                                                        $(progressel).width('100%');
+                                                        $(messel).text('Transaction Failed: Single limit exceeded');
+                                                        return callback(err, result);
+                                                    }
+
+                                                    if (result == 'ErrDailyTransactionLimit') {
+                                                        $(progressel).width('100%');
+                                                        $(messel).text('Transaction Failed: Daily limit exceeded');
+                                                        return callback(err, result);
+                                                    }
+
+                                                    if (result == 'ErrTransactionsPerDayLimit') {
+                                                        $(progressel).width('100%');
+                                                        $(messel).text('Transaction Failed: Daily number limit exceeded');
+                                                        return callback(err, result);
+                                                    }
+
+                                                    if (result == 'ErrTransactionsPerHourLimit') {
+                                                        $(progressel).width('100%');
+                                                        $(messel).text('Transaction Failed: Hourly number limit exceeded');
+                                                        return callback(err, result);
+                                                    }
+
+                                                    if (result == 'ErrInvalidRequest') {
+                                                        $(progressel).width('100%');
+                                                        $(messel).text('Transaction Failed: Invalid request');
+                                                        return callback(err, result);
+                                                    }
+
+                                                    if (result == 'ErrLocked') {
+                                                        $(progressel).width('100%');
+                                                        $(messel).text('Transaction Failed: Account is unavailable');
+                                                        return callback(err, result);
+                                                    }
+
+
+                                                    if (result == 'ErrBroadcastFailed') {
+                                                        $(progressel).width('100%');
+                                                        $(messel).text('Transaction Failed: Not accepted');
+                                                        return callback(err, result);
+                                                    }
+
+                                                    if (result == "Invalid two factor code") {
+                                                        $(progressel).width('100%');
+                                                        $(messel).text("Invalid two factor code");
+                                                        return callback(err, result);
+                                                    }
+
+                                                }
+                                            });
                                         });
                                     } else {
-                                        if (result == 'ErrSingleTransactionLimit') {
+                                        //create address error
+                                        if (changeaddress == 'ErrInvalidRequest') {
                                             $(progressel).width('100%');
-                                            $(messel).html('Transaction Failed: Single limit exceeded');
-                                            return callback(err, result);
+                                            $(messel).text('Transaction Failed: Invalid request');
+                                            return callback(err, changeaddress);
                                         }
-
-                                        if (result == 'ErrDailyTransactionLimit') {
-                                            $(progressel).width('100%');
-                                            $(messel).html('Transaction Failed: Daily limit exceeded');
-                                            return callback(err, result);
-                                        }
-
-                                        if (result == 'ErrTransactionsPerDayLimit') {
-                                            $(progressel).width('100%');
-                                            $(messel).html('Transaction Failed: Daily number limit exceeded');
-                                            return callback(err, result);
-                                        }
-
-                                        if (result == 'ErrTransactionsPerHourLimit') {
-                                            $(progressel).width('100%');
-                                            $(messel).html('Transaction Failed: Hourly number limit exceeded');
-                                            return callback(err, result);
-                                        }
-
-                                        if (result == 'ErrInvalidRequest') {
-                                            $(progressel).width('100%');
-                                            $(messel).html('Transaction Failed: Invalid request');
-                                            return callback(err, result);
-                                        }
-
-
-                                        if (result == 'ErrBroadcastFailed') {
-                                            $(progressel).width('100%');
-                                            $(messel).html('Transaction Failed: Not accepted');
-                                            return callback(err, result);
-                                        }
-
-                                        if (result == "Invalid two factor code") {
-                                            $(progressel).width('100%');
-                                            $(messel).html("Invalid two factor code");
-                                            return callback(err, result);
-                                        }
-
-
                                     }
                                 });
-                            });
-                        } else {
+                            } else {
 
-                            //create address error
-                            if (changeaddress == 'ErrInvalidRequest') {
-                                $(progressel).width('100%');
-                                $(messel).html('Transaction Failed: Invalid request');
-                                return callback(err, changeaddress);
+                                if (address == 'ErrInvalidRequest') {
+                                    $(progressel).width('100%');
+                                    $(messel).text('Transaction Failed: Invalid request');
+                                    return callback(err, address);
+                                }
+
                             }
+                        });
+                    } else {
 
-                        }
-                    });
+
+                        $(messel).text('Creating address...');
+
+                        addressToSend.push(addressTo);
+
+                        //create the change address, this must be done on the client
+                        createAddress('m/0/1', changeAmount, function (err, changeaddress) {
+
+                            if (!err) {
+
+                                $(progressel).width('40%');
+
+                                if ($(progresselnum)) {
+                                    $(progresselnum).text('40%');
+                                }
+
+                                if (changeAmount > 0) {
+                                    addressToSend.push(changeaddress);
+                                }
+
+                                //now get the  transaction
+                                $(messel).text('Creating transaction...');
+                                aGetTransactionData(packet, function (err, hashesForSigning, rawTransaction) {
+                                    $(progressel).width('60%');
+
+                                    if ($(progresselnum)) {
+                                        $(progresselnum).text('60%');
+                                    }
+
+                                    var jsonSend = { guid: m_this.m_guid, hashesForSigning: hashesForSigning, rawTransaction: rawTransaction, pathsToSignWith: nodeLevels }
+                                    var jsonp1 = { guid: m_this.m_guid, jsonPacket: JSON.stringify(jsonSend), sharedid: m_this.m_sharedid, twoFactorCode: twoFactorCode, userName: '' };
+                                    $(messel).text('Counter-signing transaction...');
+                                    API.post("/api/1/u/sendtransaction", jsonp1, function (err, result) {
+
+                                        $(progressel).width('80%');
+
+                                        if ($(progresselnum)) {
+                                            $(progresselnum).text('80%');
+                                        }
+
+
+                                        if (!err) {
+
+
+                                            if ($(progresselnum)) {
+                                                $(progresselnum).text('100%');
+                                            }
+                                            $(progressel).width('100%');
+                                            $(messel).text('Transaction broadcast...');
+
+
+                                            //we have a transaction id so lets make a note of the transaction in the database
+                                            var params = { guid: m_this.m_guid, sharedid: m_this.m_sharedid, username: 'External', transactionid: result, address: addressTo, amount: amount };
+                                            API.post("/api/1/u/createtransactionrecord", params, function (err, result) {
+                                                return callback(err, result);
+                                            });
+                                        } else {
+                                            if (result == 'ErrSingleTransactionLimit') {
+                                                $(progressel).width('100%');
+                                                $(messel).text('Transaction Failed: Single limit exceeded');
+                                                return callback(err, result);
+                                            }
+
+                                            if (result == 'ErrDailyTransactionLimit') {
+                                                $(progressel).width('100%');
+                                                $(messel).text('Transaction Failed: Daily limit exceeded');
+                                                return callback(err, result);
+                                            }
+
+                                            if (result == 'ErrTransactionsPerDayLimit') {
+                                                $(progressel).width('100%');
+                                                $(messel).text('Transaction Failed: Daily number limit exceeded');
+                                                return callback(err, result);
+                                            }
+
+                                            if (result == 'ErrTransactionsPerHourLimit') {
+                                                $(progressel).width('100%');
+                                                $(messel).text('Transaction Failed: Hourly number limit exceeded');
+                                                return callback(err, result);
+                                            }
+
+                                            if (result == 'ErrInvalidRequest') {
+                                                $(progressel).width('100%');
+                                                $(messel).text('Transaction Failed: Invalid request');
+                                                return callback(err, result);
+                                            }
+
+
+                                            if (result == 'ErrBroadcastFailed') {
+                                                $(progressel).width('100%');
+                                                $(messel).text('Transaction Failed: Not accepted');
+                                                return callback(err, result);
+                                            }
+
+                                            if (result == "Invalid two factor code") {
+                                                $(progressel).width('100%');
+                                                $(messel).text("Invalid two factor code");
+                                                return callback(err, result);
+                                            }
+
+
+                                        }
+                                    });
+                                });
+                            } else {
+
+                                //create address error
+                                if (changeaddress == 'ErrInvalidRequest') {
+                                    $(progressel).width('100%');
+                                    $(messel).text('Transaction Failed: Invalid request');
+                                    return callback(err, changeaddress);
+                                }
+
+                            }
+                        });
+                    }
+
+                } else {
+
+                    return callback(err, outputs);
+
                 }
 
             });
@@ -1926,62 +2056,70 @@ function Engine() {
 
         API.post("/api/1/u/getfriendpacket", postData, function (err, packet) {
 
-            //get the packet from friend containing the public key set to
-            //be used for address generation and decrypt
+            if (!err) {
 
-            var msg = openpgp.message.readArmored(packet);
-            var decrypted = openpgp.decryptAndVerifyMessage(m_this.m_privKey, [m_this.m_pubKey], msg);
+                //get the packet from friend containing the public key set to
+                //be used for address generation and decrypt
 
-            var pubkeys = JSON.parse(sanitizer.sanitize(decrypted.text));
-            //var pubkeys = decrypt(packet, password, params.oguid);
-            //only allow address to be created if the packet has been validated
-            if (pubkeys.validated) {
-                //get the next leaf on the contacts address space node assigned to this user
-                API.post("/api/1/u/getnextleafforfriend", postData, function (err, leaf) {
+                var msg = openpgp.message.readArmored(packet);
+                var decrypted = openpgp.decryptAndVerifyMessage(m_this.m_privKey, [m_this.m_pubKey], msg);
 
-                    //derive the public keys
-                    var path = 'm/' + leaf;
+                var pubkeys = JSON.parse(sanitizer.sanitize(decrypted.text));
+                //var pubkeys = decrypt(packet, password, params.oguid);
+                //only allow address to be created if the packet has been validated
+                if (pubkeys.validated) {
+                    //get the next leaf on the contacts address space node assigned to this user
+                    API.post("/api/1/u/getnextleafforfriend", postData, function (err, leaf) {
 
-                    var bipHot = Bitcoin.HDWallet.fromBase58(pubkeys.hotPub);
-                    var bipCold = Bitcoin.HDWallet.fromBase58(pubkeys.coldPub);
-                    var bipNinki = Bitcoin.HDWallet.fromBase58(pubkeys.ninkiPub);
+                        //derive the public keys
+                        var path = 'm/' + leaf;
 
-                    var hotKey = deriveChild(path, bipHot);
-                    var coldKey = deriveChild(path, bipCold);
-                    var ninkiKey = deriveChild(path, bipNinki);
+                        var bipHot = Bitcoin.HDWallet.fromBase58(pubkeys.hotPub);
+                        var bipCold = Bitcoin.HDWallet.fromBase58(pubkeys.coldPub);
+                        var bipNinki = Bitcoin.HDWallet.fromBase58(pubkeys.ninkiPub);
 
-                    //now create the multisig address
-                    var script = [0x52];
-                    script.push(33);
-                    script = script.concat(hotKey.pub.toBytes());
-                    script.push(33);
-                    script = script.concat(coldKey.pub.toBytes());
-                    script.push(33);
-                    script = script.concat(ninkiKey.pub.toBytes());
-                    script.push(0x53);
-                    script.push(0xae);
-                    var address = multiSig(script);
+                        var hotKey = deriveChild(path, bipHot);
+                        var coldKey = deriveChild(path, bipCold);
+                        var ninkiKey = deriveChild(path, bipNinki);
 
-                    //register the address with the server
-                    var postData = { guid: m_this.m_guid, sharedid: m_this.m_sharedid, username: username, address: address, leaf: leaf, pk1: hotKey.pub.toString(), pk2: coldKey.pub.toString(), pk3: ninkiKey.pub.toString() };
-                    API.post("/api/1/u/createaddressforfriend", postData, function (err, result) {
+                        //now create the multisig address
+                        var script = [0x52];
+                        script.push(33);
+                        script = script.concat(hotKey.pub.toBytes());
+                        script.push(33);
+                        script = script.concat(coldKey.pub.toBytes());
+                        script.push(33);
+                        script = script.concat(ninkiKey.pub.toBytes());
+                        script.push(0x53);
+                        script.push(0xae);
+                        var address = multiSig(script);
 
-                        if (!err) {
-                            return callback(err, address);
-                        } else {
-                            return callback(err, result);
-                        }
+                        //register the address with the server
+                        var postData = { guid: m_this.m_guid, sharedid: m_this.m_sharedid, username: username, address: address, leaf: leaf, pk1: hotKey.pub.toString(), pk2: coldKey.pub.toString(), pk3: ninkiKey.pub.toString() };
+                        API.post("/api/1/u/createaddressforfriend", postData, function (err, result) {
+
+                            if (!err) {
+                                return callback(err, address);
+                            } else {
+                                return callback(err, result);
+                            }
+
+                        });
+
+                        //now update the address to the server
 
                     });
+                } else {
 
-                    //now update the address to the server
+                    //something very bad has happened
+                    //attempting to derive an address for a non validated contact
+                    return callback(true, "ErrInvalid");
+                }
 
-                });
             } else {
 
-                //something very bad has happened
-                //attempting to derive an address for a non validated contact
                 return callback(true, "ErrInvalid");
+
             }
 
         });
@@ -2067,8 +2205,12 @@ function Engine() {
     function getUserNetwork(callback) {
         var postData = { guid: m_this.m_guid, sharedid: m_this.m_sharedid };
         API.post("/api/1/u/getusernetwork", postData, function (err, data) {
-            var friends = JSON.parse(data);
-            return callback(err, friends);
+            if (!err) {
+                var friends = JSON.parse(data);
+                return callback(err, friends);
+            } else {
+                return callback(err, data);
+            }
         });
     }
 
@@ -2079,10 +2221,12 @@ function Engine() {
         var postData = { guid: m_this.m_guid, sharedid: m_this.m_sharedid, username: username };
 
         return API.post("/api/1/u/getfriend", postData, function (err, data) {
-
-            var friend = JSON.parse(data);
-
-            return callback(err, friend);
+            if (!err) {
+                var friend = JSON.parse(data);
+                return callback(err, friend);
+            } else {
+                return callback(err, data);
+            }
         });
 
     }
@@ -2096,7 +2240,7 @@ function Engine() {
         var postData = { guid: m_this.m_guid, sharedid: m_this.m_sharedid, username: username };
 
         if ($(uimessage)) {
-            $(uimessage).html('Assigning node...');
+            $(uimessage).text('Assigning node...');
         }
 
         API.post("/api/1/u/getnextnodeforfriend", postData, function (err, node) {
@@ -2113,31 +2257,31 @@ function Engine() {
                 var hotKey = deriveChild(node, bipHot).toString();
 
                 if ($(uimessage)) {
-                    $(uimessage).html('Deriving address.');
+                    $(uimessage).text('Deriving address.');
                 }
 
                 setTimeout(function () {
 
                     var coldKey = deriveChild(node, bipCold).toString();
                     if ($(uimessage)) {
-                        $(uimessage).html('Deriving address..');
+                        $(uimessage).text('Deriving address..');
                     }
 
                     setTimeout(function () {
 
                         var ninkiKey = deriveChild(node, bipNinki).toString();
                         if ($(uimessage)) {
-                            $(uimessage).html('Deriving address...');
+                            $(uimessage).text('Deriving address...');
                         }
                         //get the friends public RSA key
                         var rsaKey = '';
 
-                        $(uimessage).html('Get PGP keys...');
+                        $(uimessage).text('Get PGP keys...');
                         API.post("/api/1/u/getrsakey", postData, function (err, rsaKey) {
 
                             var publicKeys = openpgp.key.readArmored(rsaKey);
                             if ($(uimessage)) {
-                                $(uimessage).html('Encrypting data...');
+                                $(uimessage).text('Encrypting data...');
                             }
 
                             var pubKey = publicKeys.keys[0];
@@ -2194,7 +2338,7 @@ function Engine() {
 
                 var isValid = decrypted.signatures[0].valid;
                 if (isValid) {
-                
+
                     var keys = sanitizer.sanitize(decrypted.text);
 
                     var key1 = keys.substring(0, 111);
@@ -2251,45 +2395,51 @@ function Engine() {
             //there was no easy way to change this password in the library so i opted to go with a fixed password
             //instead of a blank one
 
+            if (!err) {
 
-            var msg = openpgp.message.readArmored(packet);
-            var decrypted = openpgp.decryptAndVerifyMessage(m_this.m_privKey, [m_this.m_pubKey], msg);
+                var msg = openpgp.message.readArmored(packet);
+                var decrypted = openpgp.decryptAndVerifyMessage(m_this.m_privKey, [m_this.m_pubKey], msg);
 
-            var isValid = decrypted.signatures[0].valid;
-            if (isValid) {
+                var isValid = decrypted.signatures[0].valid;
+                if (isValid) {
 
-                var payload = JSON.parse(sanitizer.sanitize(decrypted.text));
+                    var payload = JSON.parse(sanitizer.sanitize(decrypted.text));
 
-                var publicKeysUsed = openpgp.key.readArmored(payload.rsaKey);
-                var pubKeyUsed = publicKeysUsed.keys[0];
+                    var publicKeysUsed = openpgp.key.readArmored(payload.rsaKey);
+                    var pubKeyUsed = publicKeysUsed.keys[0];
 
-                if (code == pubKeyUsed.primaryKey.fingerprint) {
+                    if (code == pubKeyUsed.primaryKey.fingerprint) {
 
-                    var reencrypt = {
-                        hotPub: payload.hotPub,
-                        coldPub: payload.coldPub,
-                        ninkiPub: payload.ninkiPub,
-                        rsaKey: payload.rsaKey,
-                        validated: true
-                    };
+                        var reencrypt = {
+                            hotPub: payload.hotPub,
+                            coldPub: payload.coldPub,
+                            ninkiPub: payload.ninkiPub,
+                            rsaKey: payload.rsaKey,
+                            validated: true
+                        };
 
-                    var encryptedPayload = openpgp.signAndEncryptMessage([m_this.m_pubKey], m_this.m_privKey, JSON.stringify(reencrypt));
+                        var encryptedPayload = openpgp.signAndEncryptMessage([m_this.m_pubKey], m_this.m_privKey, JSON.stringify(reencrypt));
 
-                    postData = { guid: m_this.m_guid, sharedid: m_this.m_sharedid, username: username, packet: encryptedPayload, validationHash: code };
+                        postData = { guid: m_this.m_guid, sharedid: m_this.m_sharedid, username: username, packet: encryptedPayload, validationHash: code };
 
-                    API.post("/api/1/u/updatefriend", postData, function (err, result) {
+                        API.post("/api/1/u/updatefriend", postData, function (err, result) {
 
-                        return callback(err, result);
+                            return callback(err, result);
 
-                    });
+                        });
 
-                    return callback(err, true);
 
-                } else {
 
-                    return callback(err, false);
+                    } else {
+
+                        return callback(err, false);
+
+                    }
 
                 }
+            } else {
+
+                return callback(err, result);
 
             }
 
@@ -2394,7 +2544,7 @@ function Engine() {
 
             var isValid = decrypted.signatures[0].valid;
             if (isValid) {
-                       
+
                 var json = JSON.parse(sanitizer.sanitize(decrypted.text));
 
                 //remove any xss data
@@ -2420,7 +2570,6 @@ function Engine() {
         var postData = {
             guid: m_this.m_guid,
             sharedid: m_this.m_sharedid,
-            twoFactorOnLogin: true,
             twoFactorCode: twoFactorCode,
             verifyToken: verifyToken
         };
@@ -2458,7 +2607,6 @@ function Engine() {
         var postData = {
             guid: m_this.m_guid,
             sharedid: m_this.m_sharedid,
-            twoFactorOnLogin: true,
             twoFactorCode: twoFactorCode,
             verifyToken: ''
         };
@@ -2540,7 +2688,7 @@ function Engine() {
                 getHotHash("", function (err, hothash) {
 
                     $(progbar).width('40%');
-                    $(progmess).html('Securing password...');
+                    $(progmess).text('Securing password...');
                     setTimeout(function () {
 
                         //if password reset do not pbkdf the password
@@ -2549,10 +2697,10 @@ function Engine() {
 
                         //get the two packets
                         $(progbar).width('40%');
-                        $(progmess).html('Getting packets...');
+                        $(progmess).text('Getting packets...');
 
                         // $("#chngpwdprogbar").width('50%');
-                        //$("#chngpwdprogmess").html('Decrypting account packet...');
+                        //$("#chngpwdprogmess").text('Decrypting account packet...');
                         //decrypt with the old password
                         var decryptedWithOld = true;
                         var decryptedPayload = '';
@@ -2565,7 +2713,7 @@ function Engine() {
                         if (decryptedWithOld) {
 
                             $(progbar).width('80%');
-                            $(progmess).html('Securing new password...');
+                            $(progmess).text('Securing new password...');
                             API.getUserPacket(m_this.m_guid, m_this.m_sharedid, function (err, encpacket) {
 
                                 var decryptedUsrWithOld = true;
@@ -2587,151 +2735,159 @@ function Engine() {
                                     }, function (err, response) {
 
 
-                                        //decrypt packet
-                                        var decryptedVerWithOld = true;
-                                        var jpacket = JSON.parse(response);
-                                        var veripacket = '';
-                                        try {
-                                            veripacket = decryptNp(jpacket.packet, m_this.m_password, jpacket.IV);
-                                        }
-                                        catch (verror) {
-                                            decryptedVerWithOld = false;
-                                        }
+                                        if (!err) {
+
+                                            //decrypt packet
+                                            var decryptedVerWithOld = true;
+                                            var jpacket = JSON.parse(response);
+                                            var veripacket = '';
+                                            try {
+                                                veripacket = decryptNp(jpacket.packet, m_this.m_password, jpacket.IV);
+                                            }
+                                            catch (verror) {
+                                                decryptedVerWithOld = false;
+                                            }
 
 
-                                        if (decryptedVerWithOld) {
+                                            if (decryptedVerWithOld) {
 
-                                            setTimeout(function () {
-
-
-                                                newpassword = pbkdf2(newpassword, m_this.m_oguid);
+                                                setTimeout(function () {
 
 
-                                                $(progbar).width('80%');
-                                                $(progmess).html('Encrypting account packet...');
+                                                    newpassword = pbkdf2(newpassword, m_this.m_oguid);
 
-                                                var newpayloadsuccess = true;
-                                                var newpayload = '';
-                                                var newusrpayload = '';
-                                                var newveripacket = '';
-                                                var newpasspacket = '';
-                                                var newAIV = '';
-                                                var newUIV = '';
-                                                var newRIV = '';
-                                                var newPIV = ''
-                                                try {
 
-                                                    newpayload = encrypt(decryptedPayload, newpassword);
-                                                    newusrpayload = encrypt(rsaKeyPair, newpassword);
-                                                    newveripacket = encryptNp(veripacket, newpassword);
+                                                    $(progbar).width('80%');
+                                                    $(progmess).text('Encrypting account packet...');
 
-                                                    if (decryptedPayload.hckey) {
-                                                        newpasspacket = encryptNp(newpassword, decryptedPayload.hckey);
-                                                    }
-
-                                                    newAIV = newpayload.iv.toString();
-                                                    newUIV = newusrpayload.iv.toString();
-                                                    newRIV = newveripacket.iv.toString();
-
-                                                    if (decryptedPayload.hckey) {
-                                                        newPIV = newpasspacket.iv.toString();
-                                                    }
-
-                                                } catch (err) {
-                                                    newpayloadsuccess = false;
-                                                }
-
-                                                if (newpayloadsuccess) {
-
-                                                    //$("#chngpwdprogbar").width('90%');
-                                                    //$("#chngpwdprogmess").html('Encrypting user packet...');
-
-                                                    //test decryption - then update
-                                                    var testpayload = '';
-                                                    var testnewusrpayload = '';
-                                                    var testveripacket = '';
-                                                    var testpasspacket = '';
-                                                    var testsuccess = true;
+                                                    var newpayloadsuccess = true;
+                                                    var newpayload = '';
+                                                    var newusrpayload = '';
+                                                    var newveripacket = '';
+                                                    var newpasspacket = '';
+                                                    var newAIV = '';
+                                                    var newUIV = '';
+                                                    var newRIV = '';
+                                                    var newPIV = ''
                                                     try {
 
-                                                        testpayload = decrypt(newpayload.toString(), newpassword, newAIV);
-                                                        testnewusrpayload = decrypt(newusrpayload.toString(), newpassword, newUIV);
-                                                        testveripacket = decryptNp(newveripacket.toString(), newpassword, newRIV);
+                                                        newpayload = encrypt(decryptedPayload, newpassword);
+                                                        newusrpayload = encrypt(rsaKeyPair, newpassword);
+                                                        newveripacket = encryptNp(veripacket, newpassword);
 
                                                         if (decryptedPayload.hckey) {
-                                                            testpasspacket = decryptNp(newpasspacket.toString(), decryptedPayload.hckey, newPIV)
+                                                            newpasspacket = encryptNp(newpassword, decryptedPayload.hckey);
+                                                        }
+
+                                                        newAIV = newpayload.iv.toString();
+                                                        newUIV = newusrpayload.iv.toString();
+                                                        newRIV = newveripacket.iv.toString();
+
+                                                        if (decryptedPayload.hckey) {
+                                                            newPIV = newpasspacket.iv.toString();
                                                         }
 
                                                     } catch (err) {
-                                                        testsuccess = false;
+                                                        newpayloadsuccess = false;
                                                     }
 
-                                                    if (testsuccess) {
+                                                    if (newpayloadsuccess) {
 
-                                                        //save to the server
-                                                        $(progbar).width('95%');
-                                                        $(progmess).html('Saving...');
+                                                        //$("#chngpwdprogbar").width('90%');
+                                                        //$("#chngpwdprogmess").text('Encrypting user packet...');
 
+                                                        //test decryption - then update
+                                                        var testpayload = '';
+                                                        var testnewusrpayload = '';
+                                                        var testveripacket = '';
+                                                        var testpasspacket = '';
+                                                        var testsuccess = true;
+                                                        try {
 
-                                                        //TO DO:
-                                                        //add in the re-encryption of the verification
-                                                        //packet
+                                                            testpayload = decrypt(newpayload.toString(), newpassword, newAIV);
+                                                            testnewusrpayload = decrypt(newusrpayload.toString(), newpassword, newUIV);
+                                                            testveripacket = decryptNp(newveripacket.toString(), newpassword, newRIV);
 
+                                                            if (decryptedPayload.hckey) {
+                                                                testpasspacket = decryptNp(newpasspacket.toString(), decryptedPayload.hckey, newPIV)
+                                                            }
 
-                                                        //if reset password then provide signed message and call reset function
+                                                        } catch (err) {
+                                                            testsuccess = false;
+                                                        }
 
+                                                        if (testsuccess) {
 
-
-                                                        //need to add two factor here
-                                                        //so 1. add two factor
-                                                        //2. add way to save only the main packet
-
-                                                        var postData = { twoFactorCode: twoFactorCode, guid: m_this.m_guid, sharedid: m_this.m_sharedid, accountPacket: newpayload.toString(), userPacket: newusrpayload.toString(), verifyPacket: newveripacket.toString(), passPacket: newpasspacket.toString(), IVA: newAIV, IVU: newUIV, IVR: newRIV, PIV: newPIV };
-                                                        API.post("/api/1/u/updatepackets", postData, function (err, dataStr) {
-                                                            if (err) {
-                                                                callback(true, "Error: Password not changed");
-                                                            } else {
-
-                                                                if (dataStr == "ok") {
-
-                                                                    m_this.m_password = newpassword;
-
-                                                                    //if something goes wrong here
-                                                                    //the worst case scenario is the
-                                                                    //user has to reenter their hot key
-
-                                                                    saveHotHash(hothash, function (err, result) {
-
-                                                                        callback(false, '');
-
-                                                                    });
+                                                            //save to the server
+                                                            $(progbar).width('95%');
+                                                            $(progmess).text('Saving...');
 
 
+                                                            //TO DO:
+                                                            //add in the re-encryption of the verification
+                                                            //packet
+
+
+                                                            //if reset password then provide signed message and call reset function
+
+
+
+                                                            //need to add two factor here
+                                                            //so 1. add two factor
+                                                            //2. add way to save only the main packet
+
+                                                            var postData = { twoFactorCode: twoFactorCode, guid: m_this.m_guid, sharedid: m_this.m_sharedid, accountPacket: newpayload.toString(), userPacket: newusrpayload.toString(), verifyPacket: newveripacket.toString(), passPacket: newpasspacket.toString(), IVA: newAIV, IVU: newUIV, IVR: newRIV, PIV: newPIV };
+                                                            API.post("/api/1/u/updatepackets", postData, function (err, dataStr) {
+                                                                if (err) {
+                                                                    callback(true, "Error: Password not changed");
                                                                 } else {
 
-                                                                    callback(true, "Error: Password not changed");
+                                                                    if (dataStr == "ok") {
+
+                                                                        m_this.m_password = newpassword;
+
+                                                                        //if something goes wrong here
+                                                                        //the worst case scenario is the
+                                                                        //user has to reenter their hot key
+
+                                                                        saveHotHash(hothash, function (err, result) {
+
+                                                                            callback(false, '');
+
+                                                                        });
+
+
+                                                                    } else {
+
+                                                                        callback(true, "Error: Password not changed");
+                                                                    }
+
                                                                 }
-
-                                                            }
-                                                        });
+                                                            });
 
 
 
+                                                        } else {
+
+                                                            callback(true, "Error: Password not changed");
+
+                                                        }
                                                     } else {
 
                                                         callback(true, "Error: Password not changed");
 
                                                     }
-                                                } else {
+                                                }, 500);
 
-                                                    callback(true, "Error: Password not changed");
+                                            } else {
 
-                                                }
-                                            }, 500);
+                                                callback(true, "Error: Password not changed");
+                                            }
 
                                         } else {
 
                                             callback(true, "Error: Password not changed");
+
                                         }
 
 
@@ -2818,7 +2974,7 @@ function Engine() {
                             //verify that it matches the current one
 
                             $(progbar).width('40%');
-                            $(progmess).html('Securing password...');
+                            $(progmess).text('Securing password...');
                             setTimeout(function () {
 
                                 //if password reset do not pbkdf the password
@@ -2831,13 +2987,13 @@ function Engine() {
 
                                 //get the two packets
                                 $(progbar).width('40%');
-                                $(progmess).html('Getting packets...');
+                                $(progmess).text('Getting packets...');
 
 
 
 
                                 // $("#chngpwdprogbar").width('50%');
-                                //$("#chngpwdprogmess").html('Decrypting account packet...');
+                                //$("#chngpwdprogmess").text('Decrypting account packet...');
                                 //decrypt with the old password
                                 var decryptedWithOld = true;
                                 var decryptedPayload = '';
@@ -2850,7 +3006,7 @@ function Engine() {
                                 if (decryptedWithOld) {
 
                                     $(progbar).width('80%');
-                                    $(progmess).html('Securing new password...');
+                                    $(progmess).text('Securing new password...');
                                     API.getUserPacket(guid, sharedid, function (err, encpacket) {
 
                                         var decryptedUsrWithOld = true;
@@ -2872,128 +3028,136 @@ function Engine() {
                                             }, function (err, response) {
 
 
-                                                //decrypt packet
-                                                var decryptedVerWithOld = true;
-                                                var jpacket = JSON.parse(response);
-                                                var veripacket = '';
-                                                try {
-                                                    veripacket = decryptNp(jpacket.packet, resetKey, jpacket.IV);
-                                                }
-                                                catch (verror) {
-                                                    decryptedVerWithOld = false;
-                                                }
+                                                if (!err) {
+
+                                                    //decrypt packet
+                                                    var decryptedVerWithOld = true;
+                                                    var jpacket = JSON.parse(response);
+                                                    var veripacket = '';
+                                                    try {
+                                                        veripacket = decryptNp(jpacket.packet, resetKey, jpacket.IV);
+                                                    }
+                                                    catch (verror) {
+                                                        decryptedVerWithOld = false;
+                                                    }
 
 
-                                                if (decryptedVerWithOld) {
+                                                    if (decryptedVerWithOld) {
 
-                                                    setTimeout(function () {
-
-
-                                                        newpassword = pbkdf2(newpassword, oguid);
+                                                        setTimeout(function () {
 
 
-                                                        $(progbar).width('80%');
-                                                        $(progmess).html('Encrypting account packet...');
+                                                            newpassword = pbkdf2(newpassword, oguid);
 
-                                                        var newpayloadsuccess = true;
-                                                        var newpayload = '';
-                                                        var newusrpayload = '';
-                                                        var newveripacket = '';
-                                                        var newpasspacket = '';
-                                                        var newAIV = '';
-                                                        var newUIV = '';
-                                                        var newRIV = '';
-                                                        var newPIV = ''
-                                                        try {
 
-                                                            newpayload = encrypt(decryptedPayload, newpassword);
-                                                            newusrpayload = encrypt(rsaKeyPair, newpassword);
-                                                            newveripacket = encryptNp(veripacket, newpassword);
-                                                            newpasspacket = encryptNp(newpassword, decryptedPayload.hckey);
+                                                            $(progbar).width('80%');
+                                                            $(progmess).text('Encrypting account packet...');
 
-                                                            //and encrypt the new password with the hotkey seed
-
-                                                            newAIV = newpayload.iv.toString();
-                                                            newUIV = newusrpayload.iv.toString();
-                                                            newRIV = newveripacket.iv.toString();
-                                                            newPIV = newpasspacket.iv.toString();
-
-                                                        } catch (err) {
-                                                            newpayloadsuccess = false;
-                                                        }
-
-                                                        if (newpayloadsuccess) {
-
-                                                            //$("#chngpwdprogbar").width('90%');
-                                                            //$("#chngpwdprogmess").html('Encrypting user packet...');
-
-                                                            //test decryption - then update
-                                                            var testpayload = '';
-                                                            var testnewusrpayload = '';
-                                                            var testveripacket = '';
-                                                            var testpasspacket = '';
-                                                            var testsuccess = true;
+                                                            var newpayloadsuccess = true;
+                                                            var newpayload = '';
+                                                            var newusrpayload = '';
+                                                            var newveripacket = '';
+                                                            var newpasspacket = '';
+                                                            var newAIV = '';
+                                                            var newUIV = '';
+                                                            var newRIV = '';
+                                                            var newPIV = ''
                                                             try {
-                                                                testpayload = decrypt(newpayload.toString(), newpassword, newAIV);
-                                                                testnewusrpayload = decrypt(newusrpayload.toString(), newpassword, newUIV);
-                                                                testveripacket = decryptNp(newveripacket.toString(), newpassword, newRIV);
-                                                                testpasspacket = decryptNp(newpasspacket.toString(), decryptedPayload.hckey, newPIV);
+
+                                                                newpayload = encrypt(decryptedPayload, newpassword);
+                                                                newusrpayload = encrypt(rsaKeyPair, newpassword);
+                                                                newveripacket = encryptNp(veripacket, newpassword);
+                                                                newpasspacket = encryptNp(newpassword, decryptedPayload.hckey);
+
+                                                                //and encrypt the new password with the hotkey seed
+
+                                                                newAIV = newpayload.iv.toString();
+                                                                newUIV = newusrpayload.iv.toString();
+                                                                newRIV = newveripacket.iv.toString();
+                                                                newPIV = newpasspacket.iv.toString();
 
                                                             } catch (err) {
-                                                                testsuccess = false;
+                                                                newpayloadsuccess = false;
                                                             }
 
-                                                            if (testsuccess) {
+                                                            if (newpayloadsuccess) {
 
-                                                                //save to the server
-                                                                $(progbar).width('95%');
-                                                                $(progmess).html('Saving...');
+                                                                //$("#chngpwdprogbar").width('90%');
+                                                                //$("#chngpwdprogmess").text('Encrypting user packet...');
+
+                                                                //test decryption - then update
+                                                                var testpayload = '';
+                                                                var testnewusrpayload = '';
+                                                                var testveripacket = '';
+                                                                var testpasspacket = '';
+                                                                var testsuccess = true;
+                                                                try {
+                                                                    testpayload = decrypt(newpayload.toString(), newpassword, newAIV);
+                                                                    testnewusrpayload = decrypt(newusrpayload.toString(), newpassword, newUIV);
+                                                                    testveripacket = decryptNp(newveripacket.toString(), newpassword, newRIV);
+                                                                    testpasspacket = decryptNp(newpasspacket.toString(), decryptedPayload.hckey, newPIV);
+
+                                                                } catch (err) {
+                                                                    testsuccess = false;
+                                                                }
+
+                                                                if (testsuccess) {
+
+                                                                    //save to the server
+                                                                    $(progbar).width('95%');
+                                                                    $(progmess).text('Saving...');
 
 
-                                                                //TO DO:
-                                                                //add in the re-encryption of the verification
-                                                                //packet
+                                                                    //TO DO:
+                                                                    //add in the re-encryption of the verification
+                                                                    //packet
 
 
-                                                                //if reset password then provide signed message and call reset function
+                                                                    //if reset password then provide signed message and call reset function
 
-                                                                var postData = { guid: guid, sharedid: sharedid, accountPacket: newpayload.toString(), userPacket: newusrpayload.toString(), verifyPacket: newveripacket.toString(), passPacket: newpasspacket.toString(), IVA: newAIV, IVU: newUIV, IVR: newRIV, PIV: newPIV };
-                                                                API.post("/api/1/u/updatepackets", postData, function (err, dataStr) {
-                                                                    if (err) {
-                                                                        callback(true, "Error: Password not changed");
-                                                                    } else {
-
-                                                                        if (dataStr == "ok") {
-
-
-                                                                            callback(false, newpassword);
-
-
+                                                                    var postData = { guid: guid, sharedid: sharedid, accountPacket: newpayload.toString(), userPacket: newusrpayload.toString(), verifyPacket: newveripacket.toString(), passPacket: newpasspacket.toString(), IVA: newAIV, IVU: newUIV, IVR: newRIV, PIV: newPIV };
+                                                                    API.post("/api/1/u/updatepackets", postData, function (err, dataStr) {
+                                                                        if (err) {
+                                                                            callback(true, "Error: Password not changed");
                                                                         } else {
 
-                                                                            callback(true, "Error: Password not changed");
+                                                                            if (dataStr == "ok") {
+
+
+                                                                                callback(false, newpassword);
+
+
+                                                                            } else {
+
+                                                                                callback(true, "Error: Password not changed");
+                                                                            }
+
                                                                         }
-
-                                                                    }
-                                                                });
+                                                                    });
 
 
 
+                                                                } else {
+
+                                                                    callback(true, "Error: Password not changed");
+
+                                                                }
                                                             } else {
 
                                                                 callback(true, "Error: Password not changed");
 
                                                             }
-                                                        } else {
+                                                        }, 500);
 
-                                                            callback(true, "Error: Password not changed");
+                                                    } else {
 
-                                                        }
-                                                    }, 500);
+                                                        callback(true, "Error: Password not changed");
+                                                    }
 
                                                 } else {
 
                                                     callback(true, "Error: Password not changed");
+
                                                 }
 
 
@@ -3036,8 +3200,7 @@ function Engine() {
 
         API.post("/api/1/getemailvalidationtwofactor", {
             guid: m_this.m_guid,
-            token: vtoken,
-            status: 1
+            token: vtoken
         }, function (err, response) {
 
             if (!err) {
@@ -3076,9 +3239,16 @@ function Engine() {
 
                 getAccountSettings(function (err, res) {
 
-                    var settingsObject = JSON.parse(res);
-                    m_this.m_settings = settingsObject;
-                    callback(err, response);
+                    if (!err) {
+
+                        var settingsObject = JSON.parse(res);
+                        m_this.m_settings = settingsObject;
+                        callback(err, response);
+                    } else {
+
+                        callback(err, res);
+                    }
+
                 });
 
             } else {
@@ -3095,8 +3265,7 @@ function Engine() {
 
         var postData = {
             guid: m_this.m_guid,
-            sharedid: m_this.m_sharedid,
-            twoFactorOnLogin: true
+            sharedid: m_this.m_sharedid
         };
 
         API.post("/api/1/gettwofactorimg", postData, function (err, twoFactorQrImgUrl) {
@@ -3122,6 +3291,7 @@ function Engine() {
 
             var walletInformation = {};
             try {
+
                 walletInformation = decrypt(wallet.Payload, m_this.m_password, wallet.IV);
 
                 var result = {};
@@ -3129,12 +3299,18 @@ function Engine() {
 
                 getHotHash("", function (err, hotHash) {
 
+                    if (!err) {
 
-                    result.hotHash = hotHash;
+                        result.hotHash = hotHash;
+                    }
+                    else {
+
+                        result.hotHash = "Unavailable";
+                    }
 
                     walletInformation = {};
 
-                    callback(err, result);
+                    callback(false, result);
 
                 });
 
@@ -3229,6 +3405,15 @@ function Engine() {
         API.getCoinProfile(m_this.m_guid, m_this.m_sharedid, callback);
     }
 
+    this.getAccountData = getAccountData;
+    function getAccountData(callback) {
+        API.getAccountData(m_this.m_guid, m_this.m_sharedid, callback);
+    }
+
+    this.getUserData = getUserData;
+    function getUserData(callback) {
+        API.getUserData(m_this.m_guid, m_this.m_sharedid, callback);
+    }
 
     this.getNickname = getNickname;
     function getNickname(callback) {

@@ -46,12 +46,10 @@ API.post = function (url, postData, callback) {
 
 function lpost(url, postData, callback) {
 
-    //https://ninkip2p.com
-
     var sessionToken = $('#API-Token').val();
-
+    //
     $.ajax({
-        url: "https://localhost:1111" + url,
+        url: "https://api.ninkip2p.com:443" + url,
         type: "POST",
         data: JSON.stringify(postData),
         contentType: "application/json; charset=utf-8",
@@ -59,13 +57,9 @@ function lpost(url, postData, callback) {
         headers: { 'api-token': sessionToken },
         success: function (data) {
 
-
             data = sanitizer.sanitize(data);
 
-
             var jdata = JSON.parse(data);
-
-
 
             if (jdata.error) {
                 return callback(true, jdata.message);
@@ -76,6 +70,10 @@ function lpost(url, postData, callback) {
             return callback(false, JSON.stringify(jdata));
         },
         fail: function (data, textStatus) {
+
+            data = sanitizer.sanitize(data);
+            textStatus = sanitizer.sanitize(textStatus);
+
             return callback(true, {
                 textStatus: textStatus,
                 data: data
@@ -83,34 +81,36 @@ function lpost(url, postData, callback) {
         },
         error: function (data) {
 
-            console.log(data);
+
             if (data.status == 403) {
                 //session has been lost
 
-            }
-            else if (data.status == 401) {
+            } else if (data.status == 401) {
 
-                //                if (!window.cordova) {
-                //                    if (chrome) {
-                //                        if (chrome.runtime) {
-                //                            if (chrome.runtime.reload) {
-                //                                chrome.runtime.reload()
-                //                            } else {
-                //                                location.reload();
-                //                            }
-                //                        } else {
-                //                            location.reload();
-                //                        }
-                //                        //return callback(true, data.statusText);
-                //                    } else {
-                //                        location.reload();
-                //                    }
-                //                } else {
-                //
-                //                }
+                if (!window.cordova) {
+                    if (chrome) {
+                        if (chrome.runtime) {
+                            if (chrome.runtime.reload) {
+                                chrome.runtime.reload()
+                            } else {
+                                location.reload();
+                            }
+                        } else {
+                            location.reload();
+                        }
+                        //return callback(true, data.statusText);
+                    } else {
+                        location.reload();
+                    }
+                } else {
+
+                }
 
 
             } else {
+
+                data.responseText = sanitizer.sanitize(data.responseText);
+
                 return callback(true, data.responseText);
             }
 
@@ -316,6 +316,21 @@ API.getUnconfirmedBalance = function (guid, sharedid, callback) {
     });
 }
 
+//function for increased performance on login
+API.getAccountData = function (guid, sharedid, callback) {
+    var postData = { guid: guid, sharedid: sharedid };
+    return lpost("/api/1/u/getaccountdata", postData, function (err, dataStr) {
+        return callback(err, dataStr);
+    });
+}
+
+API.getUserData = function (guid, sharedid, callback) {
+    var postData = { guid: guid, sharedid: sharedid };
+    return lpost("/api/1/u/getuserdata", postData, function (err, dataStr) {
+        return callback(err, dataStr);
+    });
+}
+
 
 //gets the username associated with the wallet
 API.getNickname = function (guid, sharedid, callback) {
@@ -345,9 +360,12 @@ API.getUnspentOutputs = function (guid, sharedid, callback) {
 
     var postData = { guid: guid, sharedid: sharedid };
     return lpost("/api/1/u/getunspentoutputs", postData, function (err, response) {
-        var data1 = response;
-        var data2 = JSON.parse(data1);
-        return callback(err, data2.Message);
+        if (!err) {
+            var data = JSON.parse(response);
+            return callback(err, data.Message);
+        } else {
+            return callback(err, response);
+        }
     });
 }
 
@@ -356,17 +374,25 @@ API.getCoinProfile = function (guid, sharedid, callback) {
 
     var postData = { guid: guid, sharedid: sharedid };
     return lpost("/api/1/u/getcoinprofile", postData, function (err, response) {
-        var data = JSON.parse(response);
-        return callback(err, data);
+        if (!err) {
+            var data = JSON.parse(response);
+            return callback(err, data);
+        } else {
+            return callback(err, response);
+        }
     });
 }
 
-API.getPrice = function (ccy, callback) {
+API.getPrice = function (guid, ccy, callback) {
 
-    var postData = { ccy: ccy };
-    return lpost("/api/1/u/getPrice", postData, function (err, response) {
-        var data = JSON.parse(response);
-        return callback(err, data);
+    var postData = { guid: guid, ccy: ccy };
+    return lpost("/api/1/u/getprice", postData, function (err, response) {
+        if (!err) {
+            var data = JSON.parse(response);
+            return callback(err, data);
+        } else {
+            return callback(err, response);
+        }
     });
 }
 
@@ -375,9 +401,12 @@ API.getPendingUserRequests = function (guid, sharedid, callback) {
     //these are requests made by me to other people
     var postData = { guid: guid, sharedid: sharedid };
     return lpost("/api/1/u/getpendinguserrequests", postData, function (err, data) {
-        var friends = JSON.parse(data);
-
-        return callback(err, friends);
+        if (!err) {
+            var friends = JSON.parse(data);
+            return callback(err, friends);
+        } else {
+            return callback(err, data);
+        }
     });
 }
 
@@ -385,8 +414,12 @@ API.getFriendRequests = function (guid, sharedid, callback) {
 
     var postData = { guid: guid, sharedid: sharedid };
     return lpost("/api/1/u/getfriendrequests", postData, function (err, dataStr) {
-        var jdata = JSON.parse(dataStr);
-        return callback(err, jdata);
+        if (!err) {
+            var jdata = JSON.parse(dataStr);
+            return callback(err, jdata);
+        } else {
+            return callback(err, dataStr);
+        }
     });
 }
 
@@ -394,25 +427,31 @@ API.getUserPacket = function (guid, sharedid, callback) {
 
     var postData = { guid: guid, sharedid: sharedid };
     return lpost("/api/1/u/getuserpacket", postData, function (err, dataStr) {
-
-        var jdata = JSON.parse(dataStr);
-        return callback(err, jdata);
+        if (!err) {
+            var jdata = JSON.parse(dataStr);
+            return callback(err, jdata);
+        } else {
+            return callback(err, dataStr);
+        }
     });
 }
 
 API.isNetworkExist = function (guid, sharedid, username, callback) {
     var postData = { guid: guid, sharedid: sharedid, username: username };
     lpost("/api/1/u/doesnetworkexist", postData, function (err, result) {
-        var exists = JSON.parse(result);
-        return callback(err, exists);
-
+        if (!err) {
+            var exists = JSON.parse(result);
+            return callback(err, exists);
+        } else {
+            return callback(err, result);
+        }
     });
 
 }
 
 API.rejectFriendRequest = function (guid, sharedid, username, callback) {
     var postData = { guid: guid, sharedid: sharedid, username: username };
-    lpost("/api/1/u/rejectfriend", params, function (err, result) {
+    lpost("/api/1/u/rejectfriend", postData, function (err, result) {
         return callback(err, result);
     });
 }
@@ -423,9 +462,12 @@ API.getTransactionRecords = function (guid, sharedid, callback) {
 
     lpost("/api/1/u/gettransactionrecords", postData, function (err, transactions) {
 
-        var jtran = JSON.parse(transactions);
-
-        return callback(err, jtran);
+        if (!err) {
+            var jtran = JSON.parse(transactions);
+            return callback(err, jtran);
+        } else {
+            return callback(err, transactions);
+        }
 
     });
 
@@ -437,9 +479,13 @@ API.getInvoiceList = function (guid, sharedid, callback) {
 
     lpost("/api/1/u/getinvoicestopay", postData, function (err, invoices) {
 
-        var jtran = JSON.parse(invoices);
+        if (!err) {
+            var jtran = JSON.parse(invoices);
 
-        return callback(err, jtran);
+            return callback(err, jtran);
+        } else {
+            return callback(err, invoices);
+        }
 
     });
 
@@ -451,9 +497,12 @@ API.getInvoiceByUserList = function (guid, sharedid, callback) {
 
     lpost("/api/1/u/getinvoicesbyuser", postData, function (err, invoices) {
 
-        var jtran = JSON.parse(invoices);
-
-        return callback(err, jtran);
+        if (!err) {
+            var jtran = JSON.parse(invoices);
+            return callback(err, jtran);
+        } else {
+            return callback(err, invoices);
+        }
 
     });
 
@@ -483,7 +532,7 @@ API.registerDevice = function (guid, deviceName, deviceId, deviceModel, devicePI
 }
 
 API.getDeviceKey = function (guid, devicePIN, regToken, callback) {
-    var postData = { guid: guid, devicePIN: devicePIN, regToken: regToken};
+    var postData = { guid: guid, devicePIN: devicePIN, regToken: regToken };
     return lpost("/api/1/u/getdevicekey", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
@@ -516,8 +565,12 @@ API.createDevice = function (guid, sharedid, deviceName, callback) {
 API.getDevices = function (guid, sharedid, callback) {
     var postData = { guid: guid, sharedid: sharedid };
     return lpost("/api/1/u/getdevices", postData, function (err, dataStr) {
-        var jdevs = JSON.parse(dataStr);
-        return callback(err, jdevs);
+        if (!err) {
+            var jdevs = JSON.parse(dataStr);
+            return callback(err, jdevs);
+        } else {
+            return callback(err, dataStr);
+        }
     });
 }
 
