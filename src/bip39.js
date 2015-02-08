@@ -1,9 +1,9 @@
 
-var CryptoJS = require('crypto-js')
-var crypto = require('crypto')
+var CryptoJS = require('crypto-js');
+var crypto = require('crypto');
 
 function BIP39(language) {
-  language = language || 'en'
+  language = language || 'en';
   this.wordlist = [
   "abandon",
   "ability",
@@ -2057,101 +2057,101 @@ function BIP39(language) {
 }
 
 BIP39.prototype.mnemonicToSeed = function(mnemonic, password) {
-  var options = {iterations: 2048, hasher: CryptoJS.algo.SHA512, keySize: 512/32}
+  var options = {iterations: 2048, hasher: CryptoJS.algo.SHA512, keySize: 512/32};
   return CryptoJS.PBKDF2(mnemonic, salt(password), options).toString(CryptoJS.enc.Hex)
-}
+};
 
 BIP39.prototype.entropyToMnemonic = function(entropy) {
-  var entropyBuffer = new Buffer(entropy, 'hex')
-  var entropyBits = bytesToBinary([].slice.call(entropyBuffer))
-  var checksum = checksumBits(entropyBuffer)
+  var entropyBuffer = new Buffer(entropy, 'hex');
+  var entropyBits = bytesToBinary([].slice.call(entropyBuffer));
+  var checksum = checksumBits(entropyBuffer);
 
-  var bits = entropyBits + checksum
-  var chunks = bits.match(/(.{1,11})/g)
+  var bits = entropyBits + checksum;
+  var chunks = bits.match(/(.{1,11})/g);
 
   var words = chunks.map(function(binary) {
-    var index = parseInt(binary, 2)
+    var index = parseInt(binary, 2);
 
     return this.wordlist[index]
-  }, this)
+  }, this);
 
   return words.join(' ')
-}
+};
 
 
 BIP39.prototype.mnemonicToHex = function (mnemonic) {
-    var words = mnemonic.split(' ')
+    var words = mnemonic.split(' ');
 
-    if (words.length % 3 !== 0) return false
+    if (words.length % 3 !== 0) return false;
 
-    var wordlist = this.wordlist
+    var wordlist = this.wordlist;
     var belongToList = words.every(function (word) {
         return wordlist.indexOf(word) > -1
-    })
+    });
 
-    if (!belongToList) return false
+    if (!belongToList) return false;
 
     // convert word indices to 11 bit binary strings
     var bits = words.map(function (word) {
-        var index = wordlist.indexOf(word)
+        var index = wordlist.indexOf(word);
         return lpad(index.toString(2), '0', 11)
-    }).join('')
+    }).join('');
 
     // split the binary string into ENT/CS
-    var dividerIndex = Math.floor(bits.length / 33) * 32
-    var entropy = bits.slice(0, dividerIndex)
-    var checksum = bits.slice(dividerIndex)
+    var dividerIndex = Math.floor(bits.length / 33) * 32;
+    var entropy = bits.slice(0, dividerIndex);
+    var checksum = bits.slice(dividerIndex);
 
     // calculate the checksum and compare
     var entropyBytes = entropy.match(/(.{1,8})/g).map(function (bin) {
         return parseInt(bin, 2)
-    })
-    var entropyBuffer = new Buffer(entropyBytes)
+    });
+    var entropyBuffer = new Buffer(entropyBytes);
 
     return entropyBuffer.toString('hex');
 
-}
+};
 
 
 BIP39.prototype.validate = function(mnemonic) {
-  var words = mnemonic.split(' ')
+  var words = mnemonic.split(' ');
 
-  if (words.length % 3 !== 0) return false
+  if (words.length % 3 !== 0) return false;
 
-  var wordlist = this.wordlist
+  var wordlist = this.wordlist;
   var belongToList = words.every(function(word) {
     return wordlist.indexOf(word) > -1
-  })
+  });
 
-  if (!belongToList) return false
+  if (!belongToList) return false;
 
   // convert word indices to 11 bit binary strings
   var bits = words.map(function(word) {
-    var index = wordlist.indexOf(word)
+    var index = wordlist.indexOf(word);
     return lpad(index.toString(2), '0', 11)
-  }).join('')
+  }).join('');
 
   // split the binary string into ENT/CS
-  var dividerIndex = Math.floor(bits.length / 33) * 32
-  var entropy = bits.slice(0, dividerIndex)
-  var checksum = bits.slice(dividerIndex)
+  var dividerIndex = Math.floor(bits.length / 33) * 32;
+  var entropy = bits.slice(0, dividerIndex);
+  var checksum = bits.slice(dividerIndex);
 
   // calculate the checksum and compare
   var entropyBytes = entropy.match(/(.{1,8})/g).map(function(bin) {
     return parseInt(bin, 2)
-  })
-  var entropyBuffer = new Buffer(entropyBytes)
-  var newChecksum = checksumBits(entropyBuffer)
+  });
+  var entropyBuffer = new Buffer(entropyBytes);
+  var newChecksum = checksumBits(entropyBuffer);
 
   return newChecksum === checksum
-}
+};
 
 function checksumBits(entropyBuffer) {
-  var hash = crypto.createHash('sha256').update(entropyBuffer).digest()
+  var hash = crypto.createHash('sha256').update(entropyBuffer).digest();
 
   // Calculated constants from BIP39
-  var ENT = entropyBuffer.length * 8
-  var CS = ENT / 32
+  var ENT = entropyBuffer.length * 8;
+  var CS = ENT / 32;
 
   return bytesToBinary([].slice.call(hash)).slice(0, CS)
 }
@@ -2177,4 +2177,4 @@ function lpad(str, padString, length) {
   return str;
 }
 
-module.exports = BIP39
+module.exports = BIP39;

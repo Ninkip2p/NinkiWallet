@@ -11,7 +11,7 @@ var config = {
 		port:"1111",
 		basePath:""
 	}
-}
+};
 
 config.thisServer.baseUrl=config.thisServer.protocol+'://'+
 	config.thisServer.hostname+':'+config.thisServer.port+

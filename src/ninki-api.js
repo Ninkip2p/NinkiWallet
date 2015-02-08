@@ -1,30 +1,29 @@
-var jQuery = require('jquery-browserify');
-var $ = require('jquery-browserify');
 var sanitizer = require('sanitizer');
 var common = require('./common');
 var config = require('./config');
+var localStorage = require('browser-storage');
+var crypto = require('crypto');
+
+
 
 function API() {
 
 
 }
 
-//Implementing the GET and POST JQuery functions in a Node style.
+var apiToken = "";
 
-var CSRF_HEADER = 'X-CSRF-Token';
+API.registerToken = function registerToken(token) {
 
-var setCSRFToken = function (securityToken) {
-    jQuery.ajaxPrefilter(function (options, _, xhr) {
-        if (!xhr.crossDomain)
-            xhr.setRequestHeader(CSRF_HEADER, securityToken);
-    });
-};
+    apiToken = token;
 
-//setCSRFToken($('meta[name="token"]').attr('content'));
+}
+
 
 API.get = function (url, querydata, callback) {
     return this.get(url, querydata, callback);
-}
+};
+
 
 function get(url, querydata, callback) {
 
@@ -40,21 +39,118 @@ function get(url, querydata, callback) {
     });
 }
 
+
 API.post = function (url, postData, callback) {
     return lpost(url, postData, callback);
-}
+};
 
 function lpost(url, postData, callback) {
 
-    var sessionToken = $('#API-Token').val();
-    //
+    if (typeof window === 'undefined') { // Running in NodeJS
+
+        var tunnel = require('tunnel');
+        var querystring = require('querystring');
+
+        var tunnelingAgent = tunnel.httpsOverHttp({
+            proxy: {
+                host: '',
+                port: ''
+            }
+        });
+
+
+    }
+
+    if (typeof window === 'undefined') {
+
+        //call node
+        var data = querystring.stringify(postData);
+
+        var https = require('https');
+
+        var options = {
+            host: 'testnet.ninkip2p.com',
+            port: 443,
+            //agent: tunnelingAgent,
+            path: url,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Content-Length': Buffer.byteLength(data),
+                'api-token': apiToken
+            }
+        };
+
+        var req = https.request(options, function (res) {
+
+            var body = '';
+
+
+            res.on('data', function (chunk) {
+
+                body += chunk;
+
+            });
+
+            res.on('end', function () {
+
+                body = sanitizer.sanitize(body);
+
+                //console.log(body)
+                try {
+                    body = JSON.parse(body);
+                    body = JSON.parse(body);
+                } catch (err) {
+                    console.log(err)
+                }
+
+                if ((typeof body === "string")) {
+                    return callback(true, body);
+                }
+
+
+                if (body.error) {
+                    return callback(true, body.message);
+                }
+                if (!(typeof body.message === "undefined")) {
+                    return callback(false, body.message);
+                }
+
+                return callback(false, JSON.stringify(body));
+
+
+            });
+
+            req.on('error', function (e) {
+
+                console.log('problem with request: ' + e.message);
+
+            });
+
+        });
+
+        req.write(data);
+
+        req.end();
+
+
+
+    } else {
+
+
+
+        //https://10.0.1.42:1111
+
+        //https://testnet.ninkip2p.com:443
+
     $.ajax({
         url: "https://api.ninkip2p.com:443" + url,
         type: "POST",
+        timeout: 10000,
         data: JSON.stringify(postData),
         contentType: "application/json; charset=utf-8",
         dataType: "json",
-        headers: { 'api-token': sessionToken },
+        headers: { 'api-token': apiToken },
         success: function (data) {
 
             data = sanitizer.sanitize(data);
@@ -65,8 +161,11 @@ function lpost(url, postData, callback) {
                 return callback(true, jdata.message);
             }
             if (!(typeof jdata.message === "undefined")) {
+
                 return callback(false, jdata.message);
+
             }
+
             return callback(false, JSON.stringify(jdata));
         },
         fail: function (data, textStatus) {
@@ -80,6 +179,12 @@ function lpost(url, postData, callback) {
             });
         },
         error: function (data) {
+
+            if (data.statusText == "timeout") {
+
+                return callback(true, "Could not connect.");
+
+            }
 
 
             if (data.status == 403) {
@@ -117,6 +222,8 @@ function lpost(url, postData, callback) {
 
         }
     });
+
+    }
 }
 
 
@@ -130,7 +237,7 @@ API.emailGUID = function (userName, callback) {
 
     });
 
-}
+};
 
 
 
@@ -159,7 +266,7 @@ API.getMasterPublicKeyFromUpstreamServer = function (guid, callback) {
             }
         }
     });
-}
+};
 
 //function doesUsernameExist
 //verifies that the requested username does not already exist on our database
@@ -174,7 +281,7 @@ API.doesAccountExist = function (username, email, callback) {
             return callback(null, JSON.parse(response));
         }
     });
-}
+};
 
 
 API.sendWelcomeDetails = function (guid, sharedid, callback) {
@@ -184,7 +291,7 @@ API.sendWelcomeDetails = function (guid, sharedid, callback) {
     lpost("/api/1/sendwelcomedetails", postData, function (err, response) {
         return callback(err, response);
     });
-}
+};
 
 
 API.getEmailValidation = function (guid, sharedid, token, callback) {
@@ -200,7 +307,7 @@ API.getEmailValidation = function (guid, sharedid, token, callback) {
 
     });
 
-}
+};
 
 API.getResetToken = function (guid, callback) {
 
@@ -211,7 +318,7 @@ API.getResetToken = function (guid, callback) {
         callback(err, response);
     });
 
-}
+};
 
 
 API.validateSecret = function (guid, secret, callback) {
@@ -226,7 +333,7 @@ API.validateSecret = function (guid, secret, callback) {
             return callback(err, data);
         }
     });
-}
+};
 
 API.updateSecretPacket = function (guid, sharedid, vc, iv, callback) {
 
@@ -234,7 +341,7 @@ API.updateSecretPacket = function (guid, sharedid, vc, iv, callback) {
     return lpost("/api/1/u/updatesecretpacket", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
-}
+};
 
 API.unlockaccount = function (guid, token, callback) {
 
@@ -242,7 +349,7 @@ API.unlockaccount = function (guid, token, callback) {
     return lpost("/api/1/u/unlockaccount", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
-}
+};
 
 
 API.getWalletFromServer = function (guid, secret, twoFactorCode, rememberTwoFactor, callback) {
@@ -254,20 +361,13 @@ API.getWalletFromServer = function (guid, secret, twoFactorCode, rememberTwoFact
             return callback(err, dataStr);
         } else {
             var data = JSON.parse(dataStr);
-            var currentToken = $("#API-Token").val();
 
-            //if (currentToken.length == 0) {
-            if (data.SessionToken) {
-                $("#API-Token").val(data.SessionToken);
-            } else {
-                $("#API-Token").val('');
-            }
-            //}
+            apiToken = data.SessionToken;
 
             return callback(err, data);
         }
     });
-}
+};
 
 
 //function getBalance gets the summary balance for all the account's  outputs
@@ -281,7 +381,7 @@ API.getBalance = function (guid, sharedid, callback) {
             return callback(err, data);
         }
     });
-}
+};
 
 
 //function getBalance gets the summary balance for all the account's  outputs
@@ -296,14 +396,14 @@ API.getusernetworkcategory = function (callback) {
             return callback(err, data);
         }
     });
-}
+};
 
 API.updateusernetworkcategory = function (guid, sharedid, username, category, callback) {
     var postData = { guid: guid, sharedid: sharedid, username: username, category: category };
     return lpost("/api/1/updateusernetworkcategory", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
-}
+};
 
 
 
@@ -314,7 +414,7 @@ API.getUnconfirmedBalance = function (guid, sharedid, callback) {
     return lpost("/api/1/u/getunconfirmedbalance", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
-}
+};
 
 //function for increased performance on login
 API.getAccountData = function (guid, sharedid, callback) {
@@ -322,14 +422,14 @@ API.getAccountData = function (guid, sharedid, callback) {
     return lpost("/api/1/u/getaccountdata", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
-}
+};
 
 API.getUserData = function (guid, sharedid, callback) {
     var postData = { guid: guid, sharedid: sharedid };
     return lpost("/api/1/u/getuserdata", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
-}
+};
 
 
 //gets the username associated with the wallet
@@ -338,21 +438,21 @@ API.getNickname = function (guid, sharedid, callback) {
     return lpost("/api/1/u/getnickname", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
-}
+};
 
 API.getUserProfile = function (guid, sharedid, callback) {
     var postData = { guid: guid, sharedid: sharedid };
     return lpost("/api/1/u/getuserprofile", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
-}
+};
 
 API.updateUserProfile = function (guid, sharedid, profileImage, status, tax, callback) {
     var postData = { guid: guid, sharedid: sharedid, profileImage: profileImage, status: status, tax: tax };
     return lpost("/api/1/u/updateuserprofile", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
-}
+};
 
 
 //function returns all outputs unspent by the wallet
@@ -367,7 +467,7 @@ API.getUnspentOutputs = function (guid, sharedid, callback) {
             return callback(err, response);
         }
     });
-}
+};
 
 //function returns all outputs unspent by the wallet
 API.getCoinProfile = function (guid, sharedid, callback) {
@@ -381,7 +481,7 @@ API.getCoinProfile = function (guid, sharedid, callback) {
             return callback(err, response);
         }
     });
-}
+};
 
 API.getPrice = function (guid, ccy, callback) {
 
@@ -394,7 +494,7 @@ API.getPrice = function (guid, ccy, callback) {
             return callback(err, response);
         }
     });
-}
+};
 
 API.getPendingUserRequests = function (guid, sharedid, callback) {
 
@@ -408,7 +508,7 @@ API.getPendingUserRequests = function (guid, sharedid, callback) {
             return callback(err, data);
         }
     });
-}
+};
 
 API.getFriendRequests = function (guid, sharedid, callback) {
 
@@ -421,7 +521,7 @@ API.getFriendRequests = function (guid, sharedid, callback) {
             return callback(err, dataStr);
         }
     });
-}
+};
 
 API.getUserPacket = function (guid, sharedid, callback) {
 
@@ -434,7 +534,7 @@ API.getUserPacket = function (guid, sharedid, callback) {
             return callback(err, dataStr);
         }
     });
-}
+};
 
 API.isNetworkExist = function (guid, sharedid, username, callback) {
     var postData = { guid: guid, sharedid: sharedid, username: username };
@@ -447,14 +547,14 @@ API.isNetworkExist = function (guid, sharedid, username, callback) {
         }
     });
 
-}
+};
 
 API.rejectFriendRequest = function (guid, sharedid, username, callback) {
     var postData = { guid: guid, sharedid: sharedid, username: username };
     lpost("/api/1/u/rejectfriend", postData, function (err, result) {
         return callback(err, result);
     });
-}
+};
 
 API.getTransactionRecords = function (guid, sharedid, callback) {
 
@@ -471,7 +571,7 @@ API.getTransactionRecords = function (guid, sharedid, callback) {
 
     });
 
-}
+};
 
 API.getInvoiceList = function (guid, sharedid, callback) {
 
@@ -489,7 +589,7 @@ API.getInvoiceList = function (guid, sharedid, callback) {
 
     });
 
-}
+};
 
 API.getInvoiceByUserList = function (guid, sharedid, callback) {
 
@@ -506,7 +606,7 @@ API.getInvoiceByUserList = function (guid, sharedid, callback) {
 
     });
 
-}
+};
 
 
 
@@ -515,42 +615,42 @@ API.updateInvoice = function (guid, sharedid, username, invoiceId, transactionId
     return lpost("/api/1/u/updateinvoice", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
-}
+};
 
 API.getVersion = function (callback) {
     var postData = {};
     return lpost("/api/1/u/getversion", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
-}
+};
 
 API.registerDevice = function (guid, deviceName, deviceId, deviceModel, devicePIN, regToken, secret, callback) {
     var postData = { guid: guid, deviceName: deviceName, deviceId: deviceId, deviceModel: deviceModel, devicePIN: devicePIN, regToken: regToken, secret: secret };
     return lpost("/api/1/u/registerdevice", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
-}
+};
 
 API.getDeviceKey = function (guid, devicePIN, regToken, callback) {
     var postData = { guid: guid, devicePIN: devicePIN, regToken: regToken };
     return lpost("/api/1/u/getdevicekey", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
-}
+};
 
 API.destroyDevice = function (guid, regToken, callback) {
     var postData = { guid: guid, regToken: regToken };
     return lpost("/api/1/u/destroydevice", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
-}
+};
 
 API.destroyDevice2fa = function (guid, sharedid, deviceName, twoFactorCode, callback) {
     var postData = { guid: guid, sharedid: sharedid, deviceName: deviceName, twoFactorCode: twoFactorCode };
     return lpost("/api/1/u/destroydevice2fa", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
-}
+};
 
 
 
@@ -559,7 +659,7 @@ API.createDevice = function (guid, sharedid, deviceName, callback) {
     return lpost("/api/1/u/createdevice", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
-}
+};
 
 
 API.getDevices = function (guid, sharedid, callback) {
@@ -572,14 +672,14 @@ API.getDevices = function (guid, sharedid, callback) {
             return callback(err, dataStr);
         }
     });
-}
+};
 
 API.getDeviceToken = function (guid, sharedid, deviceName, twoFactorCode, callback) {
     var postData = { guid: guid, sharedid: sharedid, deviceName: deviceName, twoFactorCode: twoFactorCode };
     return lpost("/api/1/u/getdevicetoken", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
-}
+};
 
 
 
@@ -588,6 +688,21 @@ API.getRecoveryPacket = function (guid, callback) {
     return lpost("/api/1/getrecoverypacket", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
-}
+};
+
+API.getLimitStatus = function (guid, sharedid, callback) {
+    var postData = { guid: guid, sharedid: sharedid };
+    return lpost("/api/1/u/getlimitstatus", postData, function (err, dataStr) {
+        return callback(err, dataStr);
+    });
+};
+
+API.createBackupCodes = function (guid, sharedid, twoFactorCode, callback) {
+    var postData = { guid: guid, sharedid: sharedid, twoFactorCode: twoFactorCode };
+    return lpost("/api/1/u/createbackupcodes", postData, function (err, dataStr) {
+        return callback(err, dataStr);
+    });
+};
+
 
 module.exports = API;

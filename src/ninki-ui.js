@@ -1,20 +1,13 @@
 var Bitcoin = require('bitcoinjs-lib');
 var BIP39 = require('./bip39');
 
+
+
 function UI() {
 
 
     var Engine = new Ninki.Engine();
 
-
-    //    var WALLETINFORMATION = {};
-    //    var SHAREDID = '';
-
-    //    var TWOFACTORONLOGIN = false;
-    //    var NICKNAME = '';
-    //    var guid = '';
-    //    var oguid = '';
-    //    var password = '';
 
     var FRIENDSLIST = {};
     var COINUNIT = 'BTC';
@@ -85,97 +78,6 @@ function UI() {
     };
 
 
-
-    function setCookie(cname, cvalue) {
-
-
-        if (isChromeApp()) {
-
-            var obj = {};
-            obj[cname] = cvalue;
-            chrome.storage.local.set(obj, function () {
-
-                console.log("saved");
-
-            });
-
-        }
-        else {
-
-            localStorage[cname] = cvalue;
-
-        }
-
-
-    }
-
-    function isChromeApp() {
-
-        var is_chrome = navigator.userAgent.toLowerCase().indexOf('chrome') > -1;
-        if (is_chrome) {
-            if (chrome) {
-                if (chrome.app) {
-                    if (chrome.app.runtime) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
-
-    function getCookie(cname, callback) {
-
-
-        if (isChromeApp()) {
-
-            chrome.storage.local.get(cname, function (result) {
-
-                if (result[cname]) {
-                    result = result[cname];
-                } else {
-                    result = "";
-                }
-
-                return callback(result);
-
-            });
-
-        } else {
-
-            if (localStorage[cname]) {
-                return callback(localStorage[cname]);
-            } else {
-                return callback('');
-            }
-
-        }
-
-    }
-
-    function deleteCookie(cname) {
-
-
-        if (isChromeApp()) {
-
-            chrome.storage.local.remove(cname, function () {
-
-                console.log("deleted");
-
-            });
-
-        } else {
-
-            localStorage.removeItem(cname);
-
-        }
-    }
-
-
-
-
-
     function getLocalTime(datetime) {
 
         var timestamp = datetime,
@@ -233,6 +135,48 @@ function UI() {
     jQuery(document).ready(function () {
 
 
+
+
+        $("#btnBackupCodes").click(function () {
+
+            $("#txt2faForBackupError").hide();
+
+            var twoFactorCode = $("#txt2faForBackup").val();
+
+            var codes = Engine.createBackupCodes(twoFactorCode, function (err, codes) {
+
+                if (!err) {
+
+                    for (var i = 0; i < codes.length; i++) {
+
+                        $("#bc" + (i + 1)).text(codes[i].Code.substring(0, 5) + ' ' + codes[i].Code.substring(5, 8));
+                    }
+
+                    Engine.m_settings.BackupIndex = 1;
+
+                    $("#pnlBackupCodes").show();
+                    $("#btnPrintCodes").show();
+                    $("#btnBackupCodes").addClass('disabled');
+
+                } else {
+
+                    $("#txt2faForBackupError").show();
+
+                }
+            });
+
+        });
+
+        $("#btnPairUseBackups").click(function () {
+
+            $("#pairerror").hide();
+            $("#pairqr2fa").hide();
+            $("#pairusebackup").show();
+
+        });
+
+
+
         $("#btnBackupBeta").click(function () {
 
             backupHotKey('#errbackupbeta');
@@ -242,7 +186,7 @@ function UI() {
 
         $('#openWalletStart input#password').focus();
 
-        var fatokk = getCookie("ninki_rem", function (res) {
+        var fatokk = Engine.Device.getStorageItem("ninki_rem", function (res) {
 
             if (res.length > 0) {
                 $('#twofacenable').show();
@@ -252,8 +196,8 @@ function UI() {
 
         var tmpContent = {};
         $("#btnBrowseRestore").click(function () {
-
-            chrome.fileSystem.chooseEntry({ type: 'openFile', accepts: [{ extensions: ['json']}] }, function (readOnlyEntry) {
+            //, accepts: [{ extensions: ['json']}]
+            chrome.fileSystem.chooseEntry({ type: 'openFile' }, function (readOnlyEntry) {
 
                 readOnlyEntry.file(function (file) {
                     var reader = new FileReader();
@@ -266,7 +210,7 @@ function UI() {
                             if (e.target.result) {
                                 var json = JSON.parse(e.target.result);
                                 tmpContent = json;
-                                restoreFromFile(m_this.m_password, json);
+                                restoreFromFile(Engine.m_password, json);
                             } else {
                                 $("#restoreerror").text('The file was empty');
                             }
@@ -384,7 +328,7 @@ function UI() {
         $("#hunlock").click(function () {
 
 
-            if (isChromeApp()) {
+            if (Engine.Device.isChromeApp()) {
                 chrome.app.window.create('recover_v1.html', {
                     'state': 'maximized'
                 });
@@ -406,7 +350,7 @@ function UI() {
 
         $("#twofacenable").click(function () {
 
-            deleteCookie("ninki_rem");
+            Engine.Device.deleteStorageItem("ninki_rem");
             $('#twofacenable').hide();
         });
 
@@ -442,7 +386,7 @@ function UI() {
 
             var imageSrc = "images/avatar/256px/Avatar-" + pad(Engine.m_nickname.length) + ".png";
 
-            if (isChromeApp()) {
+            if (Engine.Device.isChromeApp()) {
                 var xhrsm = new XMLHttpRequest();
                 xhrsm.open('GET', imageSrc, true);
                 xhrsm.responseType = 'blob';
@@ -487,7 +431,7 @@ function UI() {
                     }
 
 
-                    if (isChromeApp()) {
+                    if (Engine.Device.isChromeApp()) {
                         var xhrsm = new XMLHttpRequest();
                         xhrsm.open('GET', imageSrc, true);
                         xhrsm.responseType = 'blob';
@@ -545,7 +489,7 @@ function UI() {
                 imageSrc = "https://ninkip2p.imgix.net/" + _.escape(Engine.m_profileImage) + "?crop=faces&fit=crop&h=256&w=256&mask=ellipse&border=1,d0d0d0";
             }
 
-            if (isChromeApp()) {
+            if (Engine.Device.isChromeApp()) {
                 var xhrsm = new XMLHttpRequest();
                 xhrsm.open('GET', imageSrc, true);
                 xhrsm.responseType = 'blob';
@@ -625,7 +569,7 @@ function UI() {
                 var file = files[0];
                 var fd = new FormData();
 
-                key = "images\/" + Engine.m_nickname + '_' + (new Date).getTime()
+                key = "images\/" + Engine.m_nickname + '_' + (new Date).getTime();
 
                 Engine.createS3Policy(function (err, result) {
 
@@ -653,7 +597,7 @@ function UI() {
                         xhr.open('POST', 'https://ninkip2pimgstore.s3-us-west-1.amazonaws.com/', true); //MUST BE LAST LINE BEFORE YOU SEND 
 
                         xhr.send(fd);
-                    } 
+                    }
 
                 });
             }
@@ -678,7 +622,7 @@ function UI() {
 
             var imageSrc = 'https://ninkip2p.imgix.net/' + _.escape(key) + "?fit=crop&crop=faces&h=128&w=128&mask=ellipse&border=1,d0d0d0";
 
-            if (isChromeApp()) {
+            if (Engine.Device.isChromeApp()) {
                 var xhrsm = new XMLHttpRequest();
                 xhrsm.open('GET', imageSrc, true);
                 xhrsm.responseType = 'blob';
@@ -1038,7 +982,7 @@ function UI() {
 
                                     var data = encdata.toString() + '|' + encdata.iv.toString() + '|' + Engine.m_oguid + '|' + currentDevice.DeviceName + '|' + jresult.RegToken;
 
-                                    var options = { text: data, width: 256, height: 256 };
+                                    var options = { text: data, width: 256, height: 256, ecLevel: 'H' };
 
                                     $('#qrdevice').text(data);
                                     $('#qrdevice').qrcode(options);
@@ -1107,7 +1051,67 @@ function UI() {
             $("#pairdevicemodal").modal('hide');
             $("#pairdeviceqr").hide();
 
+
         });
+
+        $("#btnUnpairBackupCancel").click(function () {
+            $("#pairdevicemodal").modal('hide');
+            $("#pairdeviceqr").hide();
+            $("#unpairbackupcode").val();
+            $("#pairerror").hide();
+            $("#pairqr2fa").show();
+            $("#pairusebackup").hide();
+        });
+
+
+        $("#btnUnpairBackupDone").click(function () {
+
+
+            $("#pairerror").hide();
+
+            var backupCode = $("#unpairbackupcode").val();
+
+
+            if (backupCode.length == 8) {
+
+                Engine.destroyDevice2fa(currentDevice.DeviceName, backupCode, function (err, result) {
+
+                    if (!err) {
+
+                        $('#upb' + Engine.m_settings.BackupIndex).removeAttr("style");
+
+                        Engine.m_settings.BackupIndex = Engine.m_settings.BackupIndex + 1;
+
+                        lastNoOfDevices = 0;
+                        updateDeviceList();
+
+                        $("#pairdevicemodal").modal('hide');
+                        $("#pairdeviceqr").hide();
+
+                        $("#pairerror").hide();
+                        $("#pairqr2fa").show();
+                        $("#pairusebackup").hide();
+
+
+                    } else {
+
+                        $('#pairerror').show();
+                        $('#pairerrormess').text(result);
+
+                        $('#upb' + Engine.m_settings.BackupIndex).removeAttr("style");
+
+                        Engine.m_settings.BackupIndex = Engine.m_settings.BackupIndex + 1;
+
+                        $('#upb' + Engine.m_settings.BackupIndex).attr("style", "border-color:red");
+
+                    }
+
+                });
+
+            }
+
+        });
+
 
 
 
@@ -1131,14 +1135,14 @@ function UI() {
 
                 Engine.setPass(password, guid);
 
-                getCookie("ninki_rem", function (res) {
+                Engine.Device.getStorageItem("ninki_rem", function (res) {
 
                     if (res.length > 0) {
                         var enc = JSON.parse(res);
                         twoFactorCode = Engine.decryptNp(enc.ct, Engine.m_password, enc.iv);
                     }
 
-                    setCookie('guid', guid);
+                    Engine.Device.setStorageItem('guid', guid);
 
 
 
@@ -1154,35 +1158,42 @@ function UI() {
                             $("#openwalletalert").hide();
 
 
+                            if (!Engine.m_settings.HasBackupCodes) {
+                                $("#btnPairUseBackups").hide();
+                                $("#btnBackupCode2fa").hide();
+                                $("#lost2fa").hide();
+                            } else {
+                                $("#lost2fa").show();
+                                $("#btnPairUseBackups").show();
+                                $("#btnBackupCode2fa").show();
+                            }
+
 
                             if (result.TwoFactorOnLogin) {
 
                                 //delete any old 2 factor tokens
 
-                                deleteCookie("ninki_rem");
+                                Engine.Device.deleteStorageItem("ninki_rem");
 
                                 if (!result.Beta12fa) {
 
                                     $('#openWalletStart input#password').val('');
 
-                                    if (result.TwoFactorOnLogin) {
+                                    $("#siguid").hide();
+                                    $("#silguid").hide();
+                                    $("#sipwd").hide();
+                                    $("#si2fa").show();
+                                    $("#sib1").hide();
+                                    $("#sib2").show();
+                                    $("#signdiff").hide();
+                                    $("#crwallet").hide();
 
-                                        $("#siguid").hide();
-                                        $("#silguid").hide();
-                                        $("#sipwd").hide();
-                                        $("#si2fa").show();
-                                        $("#sib1").hide();
-                                        $("#sib2").show();
-                                        $("#signdiff").hide();
-                                        $("#crwallet").hide();
+                                    $('#openWalletStart input#twoFactorCode').focus();
 
+                                    $("#btnLogin").prop('disabled', false);
+                                    $("#btnLogin").removeClass('disabled');
+                                    $("#imgopenwaiting").hide();
 
-                                        $('#openWalletStart input#twoFactorCode').focus();
-
-                                        $("#btnLogin").prop('disabled', false);
-                                        $("#btnLogin").removeClass('disabled');
-                                        $("#imgopenwaiting").hide();
-                                    }
 
                                 } else {
 
@@ -1204,13 +1215,13 @@ function UI() {
 
 
                                 //initiate 2fa setup modal
-                                if (!m_this.m_twoFactorOnLogin) {
+                                if (!Engine.m_twoFactorOnLogin) {
 
                                     $("#twofactorsettings").show();
                                     $("#2famodal").modal('show');
 
                                     $("#twofactorsettings").show();
-                                    $("#btnSetupTwoFactor").hide();
+                                    //$("#btnSetupTwoFactor").hide();
                                     $("#savetwofactorerror").hide();
                                     $("#setup2faemail").hide();
                                     $("#setup2faqr").show();
@@ -1218,7 +1229,9 @@ function UI() {
                                     $("#btnLogin").removeClass('disabled');
                                     $("#imgopenwaiting").hide();
 
-                                    showSettingsTwoFactorQr();
+
+
+                                    showMissingTwoFactorQr();
 
                                 } else {
 
@@ -1227,8 +1240,8 @@ function UI() {
 
                                         initialiseUI(function (err, result) {
 
-                                            setCookie("user", Engine.m_nickname);
-                                            setCookie("userimg", Engine.m_profileImage);
+                                            Engine.Device.setStorageItem("user", Engine.m_nickname);
+                                            Engine.Device.setStorageItem("userimg", Engine.m_profileImage);
 
                                             $("#btnLogin").prop('disabled', false);
                                             $("#btnLogin").removeClass('disabled');
@@ -1364,19 +1377,20 @@ function UI() {
                             $("#openwalletalertmessage").text(result);
                             $("#btn2faLogin").prop('disabled', false);
                             $("#btn2faLogin").removeClass('disabled');
+
                         } else {
 
                             if (result.CookieToken) {
 
-                                setCookie("ninki_rem", result.CookieToken);
+                                Engine.Device.setStorageItem("ninki_rem", result.CookieToken);
                             }
 
                             if (Engine.m_walletinfo.hotHash == '') {
 
                                 initialiseUI(function (err, result) {
 
-                                    setCookie("user", Engine.m_nickname);
-                                    setCookie("userimg", Engine.m_profileImage);
+                                    Engine.Device.setStorageItem("user", Engine.m_nickname);
+                                    Engine.Device.setStorageItem("userimg", Engine.m_profileImage);
 
                                 });
 
@@ -1407,6 +1421,52 @@ function UI() {
                 }
 
             }, 100);
+
+        });
+
+
+        $("#btnLoginBackupDone").click(function () {
+
+
+
+            var twoFactorCode = $('#txtLoginBackupCode').val();
+
+            if (twoFactorCode.length == 8) {
+
+                Engine.openWallet2fa(twoFactorCode, false, function (err, result) {
+
+                    if (err) {
+
+                        $('#log' + Engine.m_settings.BackupIndex).removeAttr("style");
+
+                        Engine.m_settings.BackupIndex = Engine.m_settings.BackupIndex + 1;
+
+                        $('#log' + Engine.m_settings.BackupIndex).attr("style", "border-color:red");
+
+                    } else {
+
+                        initialiseUI(function (err, result) {
+
+                            $("#loginbackup").hide();
+
+                            Engine.Device.setStorageItem("user", Engine.m_nickname);
+                            Engine.Device.setStorageItem("userimg", Engine.m_profileImage);
+
+                            $('#log' + Engine.m_settings.BackupIndex).removeAttr("style");
+
+                            //increment not required as login will update settings
+
+                        });
+
+                    }
+
+                });
+
+            } else {
+
+            }
+
+
 
         });
 
@@ -1506,13 +1566,73 @@ function UI() {
             if (allok) {
 
 
-                $('#sendstds2amt').text($('#hdamount').val() + ' ' + COINUNIT);
-                $('#sendstds2add').text($('#toAddress').val());
+                Engine.Device.getStorageItem("tfso" + Engine.m_guid, function (res) {
 
-                //$("#sendstds1").hide();
-                $("#sendstds3").hide();
-                $("#sendstds2").show();
-                $("#sendstdmodal").modal('show');
+                    if (res == "") {
+                        //get the current limit status from the server
+                        //and determine if we need 2fa or not
+
+                        $('#sendstds2amt').text($('#hdamount').val() + ' ' + COINUNIT);
+                        $('#sendstds2add').text($('#toAddress').val());
+
+                        //$("#sendstds1").hide();
+                        $("#sendstds3").hide();
+                        $("#sendstds2").show();
+                        $("#sendstdmodal").modal('show');
+
+                    } else {
+
+                        Engine.getLimitStatus(function (err, limits) {
+
+                            var twofareq = false;
+                            if ((limits.No24hr + 1) > limits.NoOfTransactionsPerDay) {
+                                twofareq = true;
+                            }
+                            if ((limits.No1hr + 1) > limits.NoOfTransactionsPerHour) {
+                                twofareq = true;
+                            }
+
+                            var amount = convertToSatoshis($('#hdamount').val(), COINUNIT);
+
+                            if ((amount) > limits.SingleTransactionLimit) {
+                                twofareq = true;
+                            }
+                            if ((limits.TotalAmount24hr + amount) > limits.DailyTransactionLimit) {
+                                twofareq = true;
+                            }
+
+                            if (twofareq) {
+
+
+                                $('#twofactreq').show();
+                                $('#sendstds2amt').text($('#hdamount').val() + ' ' + COINUNIT);
+                                $('#sendstds2add').text($('#toAddress').val());
+
+                                //$("#sendstds1").hide();
+                                $("#sendstds3").hide();
+                                $("#sendstds2").show();
+                                $("#sendstdmodal").modal('show');
+
+                            } else {
+
+
+                                $('#twofactreq').hide();
+                                $('#sendstds2amt').text($('#hdamount').val() + ' ' + COINUNIT);
+                                $('#sendstds2add').text($('#toAddress').val());
+
+                                //$("#sendstds1").hide();
+                                $("#sendstds3").hide();
+                                $("#sendstds2").show();
+                                $("#sendstdmodal").modal('show');
+
+                            }
+
+
+                        });
+
+                    }
+
+                });
 
             }
         });
@@ -1561,13 +1681,79 @@ function UI() {
                 allok = false;
             }
             if (allok) {
-                $('#sendnets2amt').text($('#hdfriendAmount').val() + ' ' + COINUNIT);
-                $('#sendnets2add').text(SELECTEDFRIEND);
 
-                //$("#networksend").hide();
-                $("#sendnets3").hide();
-                $("#sendnetmodal").modal('show');
-                $("#sendnets2").show();
+                Engine.Device.getStorageItem("tfso" + Engine.m_guid, function (res) {
+
+                    if (res == "") {
+
+
+                        $('#sendnets2amt').text($('#hdfriendAmount').val() + ' ' + COINUNIT);
+                        $('#sendnets2add').text(SELECTEDFRIEND);
+
+                        //$("#networksend").hide();
+                        $("#sendnets3").hide();
+                        $("#sendnetmodal").modal('show');
+                        $("#sendnets2").show();
+
+                        $("#twofactreqnet").show();
+
+                    } else {
+
+                        Engine.getLimitStatus(function (err, limits) {
+
+                            var twofareq = false;
+                            if ((limits.No24hr + 1) > limits.NoOfTransactionsPerDay) {
+                                twofareq = true;
+                            }
+                            if ((limits.No1hr + 1) > limits.NoOfTransactionsPerHour) {
+                                twofareq = true;
+                            }
+
+                            var amount = convertToSatoshis($('#hdfriendAmount').val(), COINUNIT);
+
+                            if ((amount) > limits.SingleTransactionLimit) {
+                                twofareq = true;
+                            }
+                            if ((limits.TotalAmount24hr + amount) > limits.DailyTransactionLimit) {
+                                twofareq = true;
+                            }
+
+                            if (twofareq) {
+
+
+                                $('#sendnets2amt').text($('#hdfriendAmount').val() + ' ' + COINUNIT);
+                                $('#sendnets2add').text(SELECTEDFRIEND);
+
+                                //$("#networksend").hide();
+                                $("#sendnets3").hide();
+                                $("#sendnetmodal").modal('show');
+                                $("#sendnets2").show();
+
+                                $("#twofactreqnet").show();
+
+                            } else {
+
+
+                                $('#sendnets2amt').text($('#hdfriendAmount').val() + ' ' + COINUNIT);
+                                $('#sendnets2add').text(SELECTEDFRIEND);
+
+                                //$("#networksend").hide();
+                                $("#sendnets3").hide();
+                                $("#sendnetmodal").modal('show');
+                                $("#sendnets2").show();
+
+                                $("#twofactreqnet").hide();
+
+
+                            }
+
+                        });
+
+                    }
+
+                });
+
+
             }
         });
 
@@ -1730,7 +1916,7 @@ function UI() {
 
                 $("#imgphrasewaiting").show();
 
-                setCookie('guid', Engine.m_oguid);
+                Engine.Device.setStorageItem('guid', Engine.m_oguid);
 
                 Engine.openWalletAfterCreate(twoFactorCodeChk, function (err, result) {
 
@@ -1756,8 +1942,8 @@ function UI() {
                         $(".next").hide();
                         $(".previous").hide();
 
-                        setCookie("user", Engine.m_nickname);
-                        setCookie("userimg", Engine.m_profileImage);
+                        Engine.Device.setStorageItem("user", Engine.m_nickname);
+                        Engine.Device.setStorageItem("userimg", Engine.m_profileImage);
 
                     }
 
@@ -2267,7 +2453,7 @@ function UI() {
         });
 
 
-        getCookie('guid', function (res) {
+        Engine.Device.getStorageItem('guid', function (res) {
 
             $("#openWalletStart #guid").val(res);
 
@@ -2276,14 +2462,14 @@ function UI() {
                 $("#guidsec").hide();
 
 
-                if (isChromeApp()) {
+                if (Engine.Device.isChromeApp()) {
 
-                    getCookie('user', function (uname) {
+                    Engine.Device.getStorageItem('user', function (uname) {
 
                         //console.write(res);
                         $("#loginuser").text(uname);
 
-                        getCookie('userimg', function (res) {
+                        Engine.Device.getStorageItem('userimg', function (res) {
 
                             var imageSrcSmall = "images/avatar/64px/Avatar-" + pad(uname.length) + ".png";
 
@@ -2335,14 +2521,34 @@ function UI() {
             // $("#coldWalletPhrase").printElement();
 
             chrome.app.window.create('printwindow.html', { 'bounds': {
-                'width': Math.round(window.screen.availWidth * 0.8),
-                'height': Math.round(window.screen.availHeight * 0.8)
+                'width': Math.round(window.screen.availWidth * 0.25),
+                'height': Math.round(window.screen.availHeight * 0.25)
             }
             },
             function (createdWindow) {
                 var win = createdWindow.contentWindow;
                 win.onload = function () {
                     win.document.querySelector('#content').innerHTML = $("#coldWalletPhrasePrintText").text();
+                    win.print();
+                }
+            }
+        );
+
+        });
+
+
+        $("#btnPrintCodes").click(function () {
+            // $("#coldWalletPhrase").printElement();
+
+            chrome.app.window.create('printwindow.html', { 'bounds': {
+                'width': Math.round(window.screen.availWidth * 0.2),
+                'height': Math.round(window.screen.availHeight * 0.5)
+            }
+            },
+            function (createdWindow) {
+                var win = createdWindow.contentWindow;
+                win.onload = function () {
+                    win.document.querySelector('#content').innerHTML = $("#codeprintarea").html();
                     win.print();
                 }
             }
@@ -2431,12 +2637,22 @@ function UI() {
 
         $("#hlost2fa").click(function () {
 
-            $("#createWalletStart").hide();
+            $("#logusebackup").show();
             $("#openWalletStart").hide();
-            $("#lostguid").hide();
-            $("#reset2fa").show();
+            $("#loginbackup").show();
+
+            $('#log' + Engine.m_settings.BackupIndex).attr("style", "border-color:red");
 
         });
+
+        $("#btnLoginBackupCancel").click(function () {
+
+            $("#logusebackup").hide();
+            $("#openWalletStart").show();
+            $("#loginbackup").hide();
+
+        });
+
 
 
         $("#emailresend").click(function () {
@@ -2500,7 +2716,7 @@ function UI() {
 
                         setTimeout(function () {
 
-                            Engine.ChangePassword(twoFactorCode, oldpassword, newpassword, "#chngpwdprogbar", "#chngpwdprogmess", false, '', '', function (err, results) {
+                            Engine.ChangePassword(twoFactorCode, oldpassword, newpassword, function (err, results) {
 
                                 if (err) {
                                     $("#chngpwerr").show();
@@ -2511,24 +2727,6 @@ function UI() {
                                 } else {
 
                                     password = results;
-
-
-                                    //                                    Engine.getEncHotHash(function (err, data) {
-
-                                    //                                        var bb = new Blob([data], { type: 'text/plain' });
-
-                                    //                                        var a = document.getElementById('btnSaveBackupP');
-
-                                    //                                        var d = new Date();
-                                    //                                        var fdate = "" + (d.getDate()) + (d.getMonth() + 1) + (d.getFullYear());
-
-                                    //                                        a.download = "ninki_backup_" + _.escape(Engine.m_nickname) + "_" + fdate + ".json";
-                                    //                                        a.href = window.URL.createObjectURL(bb);
-
-                                    //                                        a.dataset.downloadurl = ['text/plain', a.download, a.href].join(':');
-
-                                    //                                    });
-
 
                                     $("#pwdchangemain").hide();
 
@@ -2546,6 +2744,11 @@ function UI() {
 
                                 }
 
+                            }, function (message, progress) {
+
+                                $("#chngpwdprogmess").text(message);
+                                $("#chngpwdprogbar").width(progress);
+
                             });
 
 
@@ -2553,6 +2756,7 @@ function UI() {
                     }
 
                 } else {
+
                     $("#chngpwerr").show();
                     $("#chngpwerrmess").text("Passwords are the same. Password not updated");
                     $("#chngpwdprogmess").hide();
@@ -2664,14 +2868,37 @@ function UI() {
         });
 
 
+
+        $("#btnBackupCode2fa").click(function () {
+
+            $('#fab' + Engine.m_settings.BackupIndex).attr("style", "border-color:red");
+
+            $("#tfausebackup").show();
+            $("#tfamove").hide();
+
+        });
+
+        $("#btn2faBackupCancel").click(function () {
+
+            $("#tfausebackup").hide();
+            $("#tfamove").show();
+
+        });
+
+
+
         $("#btnSetupTwoFactor").click(function () {
 
-            $("#twofactorsettings").show();
-            $("#btnSetupTwoFactor").hide();
-            $("#savetwofactorerror").hide();
-            $("#setup2faemail").hide();
-            $("#setup2faqr").show();
+
             showSettingsTwoFactorQr();
+
+        });
+
+
+        $("#btn2faBackupDone").click(function () {
+
+
+            showSettingsBackupTwoFactorQr();
 
         });
 
@@ -2691,7 +2918,13 @@ function UI() {
 
                     if (!err) {
                         //ok
-                        logout();
+                        //logout();
+
+                        $("#twofactorsettings").hide();
+                        $("#2famodal").modal('hide');
+
+                        $("#twoFactorCodeFor2fa").val('');
+                        $("#txtsettings2fa").val('');
 
 
                     } else {
@@ -2804,15 +3037,82 @@ function UI() {
 
         $("#btnpayinvoice").click(function () {
 
-            $('input#txtInvoice2FA').css("border-color", "#ccc");
-            $('input#txtInvoice2FA').val('');
 
-            $("#sendinvprog").hide();
-            $("#textMessageSendInv").hide();
+            Engine.Device.getStorageItem("tfso" + Engine.m_guid, function (res) {
 
-            $("#sendinvs2").hide();
-            $("#sendinvs2").show();
-            $("#invmodal").modal('show');
+                if (res == "") {
+
+                    $('input#txtInvoice2FA').css("border-color", "#ccc");
+                    $('input#txtInvoice2FA').val('');
+
+                    $("#sendinvprog").hide();
+                    $("#textMessageSendInv").hide();
+
+                    $("#sendinvs2").hide();
+                    $("#sendinvs2").show();
+                    $("#invmodal").modal('show');
+
+                    $("#twofactreqinv").show();
+
+                } else {
+
+
+                    Engine.getLimitStatus(function (err, limits) {
+
+                        var twofareq = false;
+                        if ((limits.No24hr + 1) > limits.NoOfTransactionsPerDay) {
+                            twofareq = true;
+                        }
+                        if ((limits.No1hr + 1) > limits.NoOfTransactionsPerHour) {
+                            twofareq = true;
+                        }
+
+                        var amount = selectedInvoiceAmount;
+
+                        if ((amount) > limits.SingleTransactionLimit) {
+                            twofareq = true;
+                        }
+                        if ((limits.TotalAmount24hr + amount) > limits.DailyTransactionLimit) {
+                            twofareq = true;
+                        }
+
+                        if (twofareq) {
+
+                            $('input#txtInvoice2FA').css("border-color", "#ccc");
+                            $('input#txtInvoice2FA').val('');
+
+                            $("#sendinvprog").hide();
+                            $("#textMessageSendInv").hide();
+
+                            $("#sendinvs2").hide();
+                            $("#sendinvs2").show();
+                            $("#invmodal").modal('show');
+
+                            $("#twofactreqinv").show();
+
+
+                        } else {
+
+                            $('input#txtInvoice2FA').css("border-color", "#ccc");
+                            $('input#txtInvoice2FA').val('');
+
+                            $("#sendinvprog").hide();
+                            $("#textMessageSendInv").hide();
+
+                            $("#sendinvs2").hide();
+                            $("#sendinvs2").show();
+                            $("#invmodal").modal('show');
+
+                            $("#twofactreqinv").hide();
+
+                        }
+
+                    });
+
+
+                }
+
+            });
 
 
         });
@@ -2822,35 +3122,48 @@ function UI() {
             var allok = true;
             var twoFactorCode = $('#txtInvoice2FA').val();
 
-            if (twoFactorCode.length == 6) {
-                $('input#txtInvoice2FA').css("border-color", "#ccc");
-            } else {
-                $('input#txtInvoice2FA').css("border-color", "#ffaaaa");
-                allok = false;
-            }
+            Engine.get2faOverride(amount, function (err, result) {
 
-            if (allok) {
+                if (result == "") {
 
-
-
-                $('#textMessageSendInv').removeClass('alert alert-danger');
-                $('#textMessageSendInv').text('Creating transaction...');
-                $('#textMessageSendInv').show();
-                $('#sendinvprogstatus').width('3%')
-                $('#sendinvprog').show();
-                $('#sendinvprogstatus').width('10%');
-
-                payInvoice(selectedInvoiceUserName, selectedInvoiceAmount, selectedInvoiceId, twoFactorCode, function (err, result) {
-
-                    if (!err) {
-
-                        $("#sendinvs2").hide();
-                        $("#sendinvs3").show();
+                    if (twoFactorCode.length == 6) {
+                        $('input#txtSendTwoFactor').css("border-color", "#ccc");
+                    } else {
+                        $('input#txtSendTwoFactor').css("border-color", "#ffaaaa");
+                        allok = false;
                     }
+                } else {
+
+                    twoFactorCode = result;
+
+                }
+
+                if (allok) {
+
+                    $('#textMessageSendInv').removeClass('alert alert-danger');
+                    $('#textMessageSendInv').text('Creating transaction...');
+                    $('#textMessageSendInv').show();
+                    $('#sendinvprogstatus').width('3%');
+                    $('#sendinvprog').show();
+                    $('#sendinvprogstatus').width('10%');
+
+                    payInvoice(selectedInvoiceUserName, selectedInvoiceAmount, selectedInvoiceId, twoFactorCode, function (err, result) {
+
+                        if (!err) {
+
+                            $("#sendinvs2").hide();
+                            $("#sendinvs3").show();
+                        }
 
 
-                });
-            }
+                    });
+
+                }
+
+
+
+            });
+
 
         });
 
@@ -2997,7 +3310,7 @@ function UI() {
             $("#invoicedisplay").hide();
             uiInvoiceReturnToNetwork = true;
             invoiceSelectedUser = SELECTEDFRIEND;
-            lineCount = 0
+            lineCount = 0;
             $("#createinvoiceforlabel").text('Create an Invoice for ' + SELECTEDFRIEND);
             $("#tblinvoice tbody").empty();
 
@@ -3132,8 +3445,7 @@ function UI() {
         $("#tax").text((subTotal * tax).toFixed(4));
         $("#total").text((subTotal + (subTotal * tax)).toFixed(4));
 
-    };
-
+    }
     function validateInvoice() {
         var subTotal = 0;
 
@@ -3228,10 +3540,7 @@ function UI() {
 
         return isValid;
 
-    };
-
-
-
+    }
     var lineCount = 0;
     function getRowTempate() {
         var template = '<tr id=\"row' + lineCount + '\">' +
@@ -3394,7 +3703,7 @@ function UI() {
                     }
 
 
-                    if (isChromeApp()) {
+                    if (Engine.Device.isChromeApp()) {
                         var xhrsm = new XMLHttpRequest();
                         xhrsm.open('GET', imageSrcSmall, true);
                         xhrsm.responseType = 'blob';
@@ -3688,7 +3997,7 @@ function UI() {
 
 
 
-                    if (isChromeApp()) {
+                    if (Engine.Device.isChromeApp()) {
                         var xhrsm = new XMLHttpRequest();
                         xhrsm.open('GET', imageSrcSmall, true);
                         xhrsm.responseType = 'blob';
@@ -3795,7 +4104,7 @@ function UI() {
         $("#tblinvdisplay tfoot th #dtax").text(convertFromSatoshis(json.summary.tax, COINUNIT));
         $("#tblinvdisplay tfoot th #dtotal").text(convertFromSatoshis(json.summary.total, COINUNIT));
 
-        selectedInvoiceAmount = convertFromSatoshis(json.summary.total);
+        selectedInvoiceAmount = json.summary.total;
         selectedInvoiceId = invoice.InvoiceId;
         selectedInvoiceUserName = invoice.InvoiceFrom;
 
@@ -3918,8 +4227,6 @@ function UI() {
     function payInvoice(friend, amount, invoiceNumber, twoFactorCode, callback) {
 
 
-
-
         Engine.sendTransaction('invoice', friend, '', amount, twoFactorCode, function (err, transactionid) {
 
             if (!err) {
@@ -3964,8 +4271,10 @@ function UI() {
 
 
             } else {
+
+
                 $('#textMessageSendInv').addClass('alert alert-danger');
-                $('#sendinvprogstatus').width('0%')
+                $('#sendinvprogstatus').width('0%');
 
                 if (transactionid == "ErrInsufficientFunds") {
                     $('#textMessageSendInv').text('Transaction Failed: Not enough funds are currently available to send this transaction');
@@ -3978,6 +4287,16 @@ function UI() {
             }
 
 
+
+        }, function (message, progress) {
+
+            if (message) {
+                $('#textMessageSendInv').text(message);
+            }
+
+            if (progress) {
+                $('#sendinvprogstatus').width(progress);
+            }
 
         });
 
@@ -4042,7 +4361,7 @@ function UI() {
                 imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(Engine.m_profileImage) + "?crop=faces&fit=crop&h=64&w=64&mask=ellipse&border=1,d0d0d0";
             }
 
-            if (isChromeApp()) {
+            if (Engine.Device.isChromeApp()) {
 
                 var xhr = new XMLHttpRequest();
                 xhr.open('GET', imageSrc, true);
@@ -4107,7 +4426,7 @@ function UI() {
                 if (!err) {
 
 
-                    document.onAway = function () { logout(); }
+                    document.onAway = function () { logout(); };
 
                     setInterval(function () {
                         updateUI();
@@ -4117,7 +4436,7 @@ function UI() {
                         refreshSelectedFriend();
                     }, 30000);
 
-                    
+
 
 
                     $('#showPhrases').hide();
@@ -4202,7 +4521,7 @@ function UI() {
 
     UI.updateUITimer = function () {
         updateUI();
-    }
+    };
 
 
 
@@ -4320,22 +4639,125 @@ function UI() {
 
     function showSettingsTwoFactorQr() {
 
-        $("#setup2faqr").show();
-        $("#setting2fa").show();
-        $("#settings2fa").show();
-        $("#btnSetupTwoFactor").hide();
+        $("#twoFactorCodeFor2faError").hide();
+
+        var twoFactorCode = $("#twoFactorCodeFor2fa").val();
+
+        if (twoFactorCode.length == 6) {
+
+            Engine.getNewTwoFactorImg(twoFactorCode, function (err, twoFASecret) {
+
+                if (!err) {
+
+                    var data = "otpauth://totp/Ninki:" + Engine.m_nickname + "?secret=" + twoFASecret + "&issuer=Ninki";
+                    var options = { text: data, width: 172, height: 172 };
+
+                    $('#imgsettings2fa').text('');
+                    $('#imgsettings2fa').qrcode(options);
+
+                    $("#setup2faqr").show();
+                    $("#twofactorsettings").show();
+                    $("#2famodal").modal('show');
+
+                    $("#savetwofactorerror").hide();
+                    $("#setup2faemail").hide();
+
+                } else {
+
+                    $("#twoFactorCodeFor2faError").show();
+
+                }
+            });
+
+        } else {
+
+            $("#twoFactorCodeFor2faError").show();
+
+        }
 
 
+    }
+
+    function showSettingsBackupTwoFactorQr() {
+
+        //$("#twoFactorCodeFor2faError").hide();
+
+        var twoFactorCode = $("#txtTFABackupCode").val();
+
+        if (twoFactorCode.length == 8) {
+
+            Engine.getNewTwoFactorImg(twoFactorCode, function (err, twoFASecret) {
+
+                if (!err) {
+
+                    var data = "otpauth://totp/Ninki:" + Engine.m_nickname + "?secret=" + twoFASecret + "&issuer=Ninki";
+                    var options = { text: data, width: 172, height: 172 };
+
+                    $('#imgsettings2fa').text('');
+                    $('#imgsettings2fa').qrcode(options);
+
+                    $("#setup2faqr").show();
+                    $("#twofactorsettings").show();
+                    $("#2famodal").modal('show');
+
+                    //$("#savetwofactorerror").hide();
+                    $("#setup2faemail").hide();
+
+                    $("#tfausebackup").hide();
+                    $("#tfamove").show();
+
+                    $('#fab' + Engine.m_settings.BackupIndex).removeAttr("style");
+
+                    Engine.m_settings.BackupIndex = Engine.m_settings.BackupIndex + 1;
+
+                } else {
+
+                    $('#fab' + Engine.m_settings.BackupIndex).removeAttr("style");
+
+                    Engine.m_settings.BackupIndex = Engine.m_settings.BackupIndex + 1;
+
+                    $('#fab' + Engine.m_settings.BackupIndex).attr("style", "border-color:red");
+
+                    //$("#twoFactorCodeFor2faError").show();
+
+                }
+            });
+
+        } else {
+
+            // $("#twoFactorCodeFor2faError").show();
+
+        }
+
+
+    }
+    function showMissingTwoFactorQr() {
 
         Engine.getTwoFactorImg(function (err, twoFASecret) {
 
-            var data = "otpauth://totp/Ninki:" + Engine.m_nickname + "?secret=" + twoFASecret + "&issuer=Ninki";
-            var options = { text: data, width: 172, height: 172 };
+            if (!err) {
 
-            $('#imgsettings2fa').text('');
-            $('#imgsettings2fa').qrcode(options);
+                var data = "otpauth://totp/Ninki:" + Engine.m_nickname + "?secret=" + twoFASecret + "&issuer=Ninki";
+                var options = { text: data, width: 172, height: 172 };
+
+                $('#imgsettings2fa').text('');
+                $('#imgsettings2fa').qrcode(options);
+
+                $("#setup2faqr").show();
+                $("#twofactorsettings").show();
+                $("#2famodal").modal('show');
+
+                $("#savetwofactorerror").hide();
+                $("#setup2faemail").hide();
+
+            } else {
+
+                $("#twoFactorCodeFor2faError").show();
+
+            }
+
+
         });
-
 
     }
 
@@ -4353,7 +4775,7 @@ function UI() {
             $("#SingleTransactionLimit").prop('disabled', false);
             $("#NoOfTransactionsPerDay").prop('disabled', false);
             $("#NoOfTransactionsPerHour").prop('disabled', false);
-            $("#btnSetupTwoFactor").hide();
+            //$("#btnSetupTwoFactor").hide();
 
         } else {
             $("#settings2faok").hide();
@@ -4421,12 +4843,52 @@ function UI() {
                     $('#lcCNY').prop('checked', true);
                 }
 
+                Engine.Device.getStorageItem("tfso" + Engine.m_guid, function (res) {
+
+                    if (res == "") {
+
+                        $('#chkTwoFactorLimits').prop('checked', false);
+
+                    } else {
+
+                        $('#chkTwoFactorLimits').prop('checked', true);
+                    }
+
+                });
+
+
+                $('#pnlBackupCodes').hide();
+                if (!settingsObject.HasBackupCodes) {
+                    $('#pnlBackupBtn').show();
+                    $('#pnlBackupIsSetup').hide();
+                    $('#libackupcodes').show();
+                } else {
+
+                    if (settingsObject.BackupIndex > 7) {
+                        $('#pnlBackupBtn').show();
+                        $('#pnlBackupIsSetup').hide();
+                        $('#libackupcodes').show();
+                    } else {
+
+                        $('#pnlBackupBtn').show();
+                        $('#pnlBackupIsSetup').show();
+                        $('#libackupcodes').hide();
+                    }
+                }
+
+
+
             }
         });
     }
 
 
     function saveAccountSettingsToServer() {
+
+
+        $("#savesettingssuccess").hide();
+        $("#savesettingserror").hide();
+
         var jsonPacket = {
             guid: Engine.m_guid
         };
@@ -4461,68 +4923,88 @@ function UI() {
                 $("#amount").val('');
             }
 
-
-            Engine.updateAccountSettings(jsonPacket, $("#txtTwoFactorCodeForSettings").val(), function (err, response) {
-                if (err) {
-                    $("#savesettingserror").show();
-                    $("#savesettingssuccess").hide();
-                    $("#savesettingserrormessage").text(response);
-                } else {
+            var twoFactorSend = false;
 
 
-                    var stdcoinunitsel = false;
-                    if ($("#stdselunit").text() == COINUNIT) {
-                        stdcoinunitsel = true;
-                    }
+            Engine.Device.getStorageItem("tfso" + Engine.m_guid, function (res) {
 
-                    var netcoinunitsel = false;
-                    if ($("#netselunit").text() == COINUNIT) {
-                        netcoinunitsel = true;
-                    }
+                if (res == "" && $('#chkTwoFactorLimits')[0].checked) {
 
-                    if (jsonPacket['CoinUnit'] != COINUNIT) {
-                        COINUNIT = jsonPacket['CoinUnit'];
-                        lastNoOfTrans = -1;
-                        readAccountSettings();
-                        $("#stdsendcunit").text(COINUNIT);
-                        $("#amount").val('');
-                        $("#friendAmount").val('');
-                    }
+                    twoFactorSend = true;
 
-                    $("#stdsendlcurr").text(Engine.m_settings.LocalCurrency);
-
-                    if (stdcoinunitsel) {
-
-                        $("#stdselunit").text(COINUNIT);
-
-                    } else {
-
-                        $("#stdselunit").text(Engine.m_settings.LocalCurrency);
-
-                    }
-
-                    if (netcoinunitsel) {
-
-                        $("#netselunit").text(COINUNIT);
-
-                    } else {
-
-                        $("#netselunit").text(Engine.m_settings.LocalCurrency);
-
-                    }
-
-                    $("#amount").keyup();
-                    $("#friendAmount").keyup();
-
-
-                    updateUI();
-
-                    $("#savesettingssuccess").show();
-                    $("#savesettingserror").hide();
-                    $("#savesettingssuccessmessage").text("Settings saved successfully");
-
-                    //alert(response.body);
                 }
+
+                if (res.length > 0 && !$('#chkTwoFactorLimits')[0].checked) {
+
+                    Engine.Device.deleteStorageItem("tfso" + Engine.m_guid);
+
+                }
+
+                Engine.updateAccountSettings(jsonPacket, $("#txtTwoFactorCodeForSettings").val(), twoFactorSend, function (err, response) {
+
+
+                    if (err) {
+                        $("#savesettingserror").show();
+                        $("#savesettingssuccess").hide();
+                        $("#savesettingserrormessage").text(response);
+                    } else {
+
+
+                        var stdcoinunitsel = false;
+                        if ($("#stdselunit").text() == COINUNIT) {
+                            stdcoinunitsel = true;
+                        }
+
+                        var netcoinunitsel = false;
+                        if ($("#netselunit").text() == COINUNIT) {
+                            netcoinunitsel = true;
+                        }
+
+                        if (jsonPacket['CoinUnit'] != COINUNIT) {
+                            COINUNIT = jsonPacket['CoinUnit'];
+                            lastNoOfTrans = -1;
+                            readAccountSettings();
+                            $("#stdsendcunit").text(COINUNIT);
+                            $("#amount").val('');
+                            $("#friendAmount").val('');
+                        }
+
+                        $("#stdsendlcurr").text(Engine.m_settings.LocalCurrency);
+
+                        if (stdcoinunitsel) {
+
+                            $("#stdselunit").text(COINUNIT);
+
+                        } else {
+
+                            $("#stdselunit").text(Engine.m_settings.LocalCurrency);
+
+                        }
+
+                        if (netcoinunitsel) {
+
+                            $("#netselunit").text(COINUNIT);
+
+                        } else {
+
+                            $("#netselunit").text(Engine.m_settings.LocalCurrency);
+
+                        }
+
+                        $("#amount").keyup();
+                        $("#friendAmount").keyup();
+
+
+                        updateUI();
+
+                        $("#savesettingssuccess").show();
+                        $("#savesettingserror").hide();
+                        $("#savesettingssuccessmessage").text("Settings saved successfully");
+
+                        //alert(response.body);
+                    }
+                });
+
             });
 
         } else {
@@ -4575,7 +5057,7 @@ function UI() {
             amount = amount * 100;
         }
 
-        amount = Math.round(amount)
+        amount = Math.round(amount);
         return amount;
     }
 
@@ -4756,14 +5238,17 @@ function UI() {
 
 
                             $('#qrdevice').text('');
-
+                            $('#pairerror').hide();
                             if (!event.data.device.IsPaired) {
+
 
                                 $('#pairqrscan').hide();
                                 $("#pairdevicemodal").modal('show');
                                 $("#pairdeviceqr").show();
                                 $('#pairqr2fa').show();
                                 $("#pairheading").text("Pair " + event.data.device.DeviceName);
+                                $("#btnShowPairQr").text("Pair");
+                                $('#btnPairUseBackups').hide();
 
                             } else {
 
@@ -4773,6 +5258,12 @@ function UI() {
                                 $("#pairheading").text("Unpair " + event.data.device.DeviceName);
                                 $("#btnShowPairQr").text("Unpair");
                                 $('#qrdevice').text('');
+                                $('#btnPairUseBackups').show();
+
+
+                                $('#upb' + Engine.m_settings.BackupIndex).attr("style", "border-color:red");
+
+
                                 //$('#qrdevice').qrcode('');
 
                             }
@@ -4836,11 +5327,10 @@ function UI() {
             }
 
         });
-
-
-
-
     }
+
+
+
 
 
     var lastNoOfFriends = 0;
@@ -4855,156 +5345,165 @@ function UI() {
 
             Engine.getUserNetwork(function (err, friends) {
 
-                $("#nfriends").text(friends.length);
 
-                if (friends.length > lastNoOfFriends) {
-
-                    lastNoOfFriends = friends.length;
-
-                    FRIENDSLIST = {};
-
-                    for (var i = 0; i < friends.length; i++) {
-                        FRIENDSLIST[friends[i].userName] = friends[i];
-                    }
-
-                    //if selected friend is not isend and isreceive
-                    //then find in list and update
-
-                    if (selectedFriend != null) {
-
-                        if (!selectedFriend.ICanSend || !selectedFriend.ICanReceive) {
-                            selectedFriend = FRIENDSLIST[selectedFriend.userName];
-                            updateSelectedFriend();
-                        }
-
-                    }
+                if (!err) {
 
 
                     $("#nfriends").text(friends.length);
-                    $("#myfriends").text('');
 
+                    if (friends.length > lastNoOfFriends) {
 
-                    var grouptemplate = '';
+                        lastNoOfFriends = friends.length;
 
-                    var friendsgroup = _.groupBy(friends, function (item) { return item.category; })
+                        FRIENDSLIST = {};
 
-                    grouptemplate += '<div class="panel-group m-b" id="accordion2">';
+                        for (var i = 0; i < friends.length; i++) {
+                            FRIENDSLIST[friends[i].userName] = friends[i];
+                        }
 
-                    var k = 0;
-                    var g = 1;
-                    for (var key in friendsgroup) {
+                        //if selected friend is not isend and isreceive
+                        //then find in list and update
 
-                        friends = friendsgroup[key];
+                        if (selectedFriend != null) {
 
-                        grouptemplate += '<div class="panel panel-default">';
-                        grouptemplate += '<div class="panel-heading">';
-                        grouptemplate += '<a class="accordion-toggle" data-toggle="collapse" data-parent="#accordion2" href="#collapse' + g + '">';
-                        grouptemplate += key;
-                        grouptemplate += '</a>';
-                        grouptemplate += '</div>';
-                        grouptemplate += '<div id="collapse' + g + '" class="panel-collapse in">';
-                        grouptemplate += '<div class="panel-body text-sm">';
-
-                        for (var i = 0; i < friendsgroup[key].length; i++) {
-
-                            var frnd = FRIENDSLIST[friends[i].userName];
-
-                            var template = '<a href="#" class="media list-group-item" id="friend' + k + '"><div class="media">' +
-                                '<span class="pull-left thumb-sm"><img id="imgfriend' + k + '" alt="" class="img-circle"></span><div id="seltarget' + _.escape(friends[i].userName) + '">';
-
-                            if (frnd.validated) {
-                                template += '<div class="pull-right text-success m-t-sm">' +
-                                '<i class="fa fa-check-square" style="font-size:1.5em"></i>' +
-                                '</div>';
+                            if (!selectedFriend.ICanSend || !selectedFriend.ICanReceive) {
+                                selectedFriend = FRIENDSLIST[selectedFriend.userName];
+                                updateSelectedFriend();
                             }
 
-                            template += '</div><div class="media-body">' +
+                        }
+
+
+                        $("#nfriends").text(friends.length);
+                        $("#myfriends").text('');
+
+
+                        var grouptemplate = '';
+
+                        var friendsgroup = _.groupBy(friends, function (item) { return item.category; });
+
+                        grouptemplate += '<div class="panel-group m-b" id="accordion2">';
+
+                        var k = 0;
+                        var g = 1;
+                        for (var key in friendsgroup) {
+
+                            friends = friendsgroup[key];
+
+                            grouptemplate += '<div class="panel panel-default">';
+                            grouptemplate += '<div class="panel-heading">';
+                            grouptemplate += '<a class="accordion-toggle" data-toggle="collapse" data-parent="#accordion2" href="#collapse' + g + '">';
+                            grouptemplate += key;
+                            grouptemplate += '</a>';
+                            grouptemplate += '</div>';
+                            grouptemplate += '<div id="collapse' + g + '" class="panel-collapse in">';
+                            grouptemplate += '<div class="panel-body text-sm">';
+
+                            for (var i = 0; i < friendsgroup[key].length; i++) {
+
+                                var frnd = FRIENDSLIST[friends[i].userName];
+
+                                var template = '<a href="#" class="media list-group-item" id="friend' + k + '"><div class="media">' +
+                                '<span class="pull-left thumb-sm"><img id="imgfriend' + k + '" alt="" class="img-circle"></span><div id="seltarget' + _.escape(friends[i].userName) + '">';
+
+                                if (frnd.validated) {
+                                    template += '<div class="pull-right text-success m-t-sm">' +
+                                '<i class="fa fa-check-square" style="font-size:1.5em"></i>' +
+                                '</div>';
+                                }
+
+                                template += '</div><div class="media-body">' +
                                 '<div>' + _.escape(friends[i].userName) + '</div>' +
                                 '<small class="text-muted">' + _.escape(frnd.status) + '</small>' +
                                 '</div>' +
                                 '</div></a>';
 
 
-                            grouptemplate += template;
+                                grouptemplate += template;
 
 
 
-                            k++;
+                                k++;
+                            }
+
+                            grouptemplate += '</div>';
+                            grouptemplate += '</div>';
+                            grouptemplate += '</div>';
+                            g++;
                         }
 
                         grouptemplate += '</div>';
-                        grouptemplate += '</div>';
-                        grouptemplate += '</div>';
-                        g++;
-                    }
 
-                    grouptemplate += '</div>';
-
-                    $("#myfriends").html(grouptemplate);
+                        $("#myfriends").html(grouptemplate);
 
 
-                    var k = 0;
-                    var g = 1;
-                    for (var key in friendsgroup) {
-
-                        friends = friendsgroup[key];
-                        for (var i = 0; i < friendsgroup[key].length; i++) {
+                        var k = 0;
+                        var g = 1;
+                        for (var key in friendsgroup) {
 
                             friends = friendsgroup[key];
+                            for (var i = 0; i < friendsgroup[key].length; i++) {
+
+                                friends = friendsgroup[key];
 
 
-                            var length = friends[i].userName.length;
-                            if (length > 20) {
-                                length = 20;
+                                var length = friends[i].userName.length;
+                                if (length > 20) {
+                                    length = 20;
+                                }
+
+                                var imageSrc = "images/avatar/64px/Avatar-" + pad(length) + ".png";
+
+                                if (friends[i].profileImage != '') {
+                                    imageSrc = "https://ninkip2p.imgix.net/" + _.escape(friends[i].profileImage) + "?crop=faces&fit=crop&h=256&w=256&mask=ellipse&border=1,d0d0d0";
+                                    imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(friends[i].profileImage) + "?crop=faces&fit=crop&h=64&w=64&mask=ellipse&border=1,d0d0d0";
+                                }
+
+                                //$("#myfriends #imgfriend" + k)
+
+                                if (Engine.Device.isChromeApp()) {
+                                    var xhrsm = new XMLHttpRequest();
+                                    xhrsm.open('GET', imageSrc, true);
+                                    xhrsm.responseType = 'blob';
+                                    xhrsm.index = k;
+                                    xhrsm.onload = function (e) {
+                                        $("#myfriends #imgfriend" + this.index).attr("src", window.URL.createObjectURL(this.response));
+                                    };
+                                    xhrsm.send();
+                                } else {
+                                    $("#myfriends #imgfriend" + k).attr("src", imageSrc);
+                                }
+
+
+
+                                $("#myfriends #friend" + k).click({ userName: friends[i].userName }, function (event) {
+
+                                    SELECTEDFRIEND = event.data.userName;
+                                    selectedFriend = FRIENDSLIST[event.data.userName];
+
+                                    //depreciate
+
+
+                                    updateSelectedFriend();
+                                    $("#friendAmount").keyup();
+
+
+                                });
+                                console.log("added click " + k + " for " + friends[i].userName);
+
+                                k++;
                             }
-
-                            var imageSrc = "images/avatar/64px/Avatar-" + pad(length) + ".png";
-
-                            if (friends[i].profileImage != '') {
-                                imageSrc = "https://ninkip2p.imgix.net/" + _.escape(friends[i].profileImage) + "?crop=faces&fit=crop&h=256&w=256&mask=ellipse&border=1,d0d0d0";
-                                imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(friends[i].profileImage) + "?crop=faces&fit=crop&h=64&w=64&mask=ellipse&border=1,d0d0d0";
-                            }
-
-                            //$("#myfriends #imgfriend" + k)
-
-                            if (isChromeApp()) {
-                                var xhrsm = new XMLHttpRequest();
-                                xhrsm.open('GET', imageSrc, true);
-                                xhrsm.responseType = 'blob';
-                                xhrsm.index = k;
-                                xhrsm.onload = function (e) {
-                                    $("#myfriends #imgfriend" + this.index).attr("src", window.URL.createObjectURL(this.response));
-                                };
-                                xhrsm.send();
-                            } else {
-                                $("#myfriends #imgfriend" + k).attr("src", imageSrc);
-                            }
-
-
-
-                            $("#myfriends #friend" + k).click({ userName: friends[i].userName }, function (event) {
-
-                                SELECTEDFRIEND = event.data.userName;
-                                selectedFriend = FRIENDSLIST[event.data.userName];
-
-                                //depreciate
-
-
-                                updateSelectedFriend();
-                                $("#friendAmount").keyup();
-
-
-                            });
-                            console.log("added click " + k + " for " + friends[i].userName);
-
-                            k++;
+                            g++;
                         }
-                        g++;
+
                     }
 
-                }
+                    return callback(false, "done");
 
-                return callback(false, "done");
+                } else {
+
+                    return callback(true, "done");
+                }
             });
         }
 
@@ -5044,7 +5543,7 @@ function UI() {
                             imageSrc = "https://ninkip2p.imgix.net/" + _.escape(selectedFriend.profileImage) + "?crop=faces&fit=crop&h=256&w=256&mask=ellipse&border=1,d0d0d0";
                         }
 
-                        if (isChromeApp()) {
+                        if (Engine.Device.isChromeApp()) {
                             var xhrsm = new XMLHttpRequest();
                             xhrsm.open('GET', imageSrc, true);
                             xhrsm.responseType = 'blob';
@@ -5168,7 +5667,7 @@ function UI() {
             $("#friendSelectedStatus").text(selectedFriend.status);
             //}
 
-            if (isChromeApp()) {
+            if (Engine.Device.isChromeApp()) {
                 var xhrsm = new XMLHttpRequest();
                 xhrsm.open('GET', imageSrc, true);
                 xhrsm.responseType = 'blob';
@@ -5550,7 +6049,7 @@ function UI() {
                             imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(FRIENDSLIST[transactions[i].UserName].profileImage) + "?crop=faces&fit=crop&h=64&w=64&mask=ellipse&border=1,d0d0d0";
                         }
                     }
-                    if (isChromeApp()) {
+                    if (Engine.Device.isChromeApp()) {
                         var xhrsm = new XMLHttpRequest();
                         xhrsm.open('GET', imageSrcSmall, true);
                         xhrsm.responseType = 'blob';
@@ -5580,6 +6079,7 @@ function UI() {
 
 
     function generateAddressClient() {
+
 
 
         Engine.createAddress('m/0/0', 1, function (err, newAddress, path) {
@@ -5621,54 +6121,77 @@ function UI() {
             allok = false;
         }
 
-        if (twoFactorCode.length == 6) {
-            $('input#txtFriendSend2FA').css("border-color", "#ccc");
-        } else {
-            $('input#txtFriendSend2FA').css("border-color", "#ffaaaa");
-            allok = false;
-        }
 
-        if (allok) {
-            $('input#friendAmount').css("border-color", "#ccc");
-            $('#textMessageSend').text('Creating transaction...');
-            $('#textMessageSend').show();
-            $('#sendfriendprogstatus').width('3%')
-            $('#sendfriendprog').show();
-            $('#sendfriendprogstatus').width('10%');
-            Engine.sendTransaction('friend', friend, '', amount, twoFactorCode, function (err, transactionid) {
+        Engine.get2faOverride(amount, function (err, result) {
 
-                if (!err) {
-                    updateBalance();
-                    $('#textCompleteSendNet').text('You sent ' + convertFromSatoshis(amount, COINUNIT) + ' ' + COINUNIT + ' to ' + friend);
-                    $('input#friendAmount').val('');
+            if (result == "") {
 
-
-
-                    $("#sendnets2").hide();
-                    $("#sendnets3").show();
-
-
-                    //$('#textMessageSend').fadeOut(5000);
-                    //$('#sendfriendprog').fadeOut(5000);
-
+                if (twoFactorCode.length == 6) {
+                    $('input#txtSendTwoFactor').css("border-color", "#ccc");
                 } else {
-                    $('#textMessageSend').addClass('alert alert-danger');
-                    $('#sendfriendprogstatus').width('0%')
+                    $('input#txtSendTwoFactor').css("border-color", "#ffaaaa");
+                    allok = false;
+                }
+            } else {
 
-                    if (transactionid == "ErrInsufficientFunds") {
-                        $('#textMessageSend').text('Transaction Failed: Not enough funds are currently available to send this transaction');
-                    } else if (result == 'ErrLocked') {
-                        $('#textMessageSend').text('Transaction Failed: Account is unavailable');
+                twoFactorCode = result;
+
+            }
+
+            if (allok) {
+
+                $('input#friendAmount').css("border-color", "#ccc");
+                $('#textMessageSend').text('Creating transaction...');
+                $('#textMessageSend').show();
+                $('#sendfriendprogstatus').width('3%');
+                $('#sendfriendprog').show();
+                $('#sendfriendprogstatus').width('10%');
+                Engine.sendTransaction('friend', friend, '', amount, twoFactorCode, function (err, transactionid) {
+
+                    if (!err) {
+                        updateBalance();
+                        $('#textCompleteSendNet').text('You sent ' + convertFromSatoshis(amount, COINUNIT) + ' ' + COINUNIT + ' to ' + friend);
+                        $('input#friendAmount').val('');
+
+
+
+                        $("#sendnets2").hide();
+                        $("#sendnets3").show();
+
+
+                        //$('#textMessageSend').fadeOut(5000);
+                        //$('#sendfriendprog').fadeOut(5000);
+
                     } else {
-                        $('#textMessageSend').text(transactionid);
+                        $('#textMessageSend').addClass('alert alert-danger');
+                        $('#sendfriendprogstatus').width('0%');
+
+                        if (transactionid == "ErrInsufficientFunds") {
+                            $('#textMessageSend').text('Transaction Failed: Not enough funds are currently available to send this transaction');
+                        } else if (result == 'ErrLocked') {
+                            $('#textMessageSend').text('Transaction Failed: Account is unavailable');
+                        } else {
+                            $('#textMessageSend').text(transactionid);
+                        }
+
+
+                    }
+                    // alert(transactionid);
+                }, function (message, progress) {
+
+                    if (message) {
+                        $('#textMessageSend').text(message);
                     }
 
+                    if (progress) {
+                        $('#sendfriendprogstatus').width(progress);
+                    }
 
-                }
-                // alert(transactionid);
-            });
+                });
 
-        }
+            }
+
+        });
 
 
     }
@@ -5700,52 +6223,72 @@ function UI() {
             allok = false;
         }
 
-        if (twoFactorCode.length == 6) {
-            $('input#txtSendTwoFactor').css("border-color", "#ccc");
-        } else {
-            $('input#txtSendTwoFactor').css("border-color", "#ffaaaa");
-            allok = false;
-        }
+        Engine.get2faOverride(amount, function (err, result) {
 
+            if (result == "") {
 
-
-        if (allok) {
-
-            $('#textMessageSendStd').text('Creating transaction...');
-            $('#textMessageSendStd').show();
-            $('#sendstdprogstatus').width('3%')
-            $('#sendstdprog').show();
-            $('#sendstdprogstatus').width('10%');
-
-
-            Engine.sendTransaction('standard', '', address, amount, twoFactorCode, function (err, transactionid) {
-
-                if (!err) {
-
-                    var confmess = 'You sent ' + _.escape(convertFromSatoshis(amount, COINUNIT)) + ' ' + _.escape(COINUNIT) + ' to <span style="word-wrap:break-word;">' + _.escape(address) + '</span>';
-
-                    $('#textCompleteSendStd').html(confmess);
-                    $('input#amount').val('');
-                    $('input#toAddress').val('');
-                    //$('#textMessageSendStd').fadeOut(5000);
-                    //$('#sendstdprog').fadeOut(5000);
-
-                    $('#sendstds2').hide();
-                    $('#sendstds3').show();
-
+                if (twoFactorCode.length == 6) {
+                    $('input#txtSendTwoFactor').css("border-color", "#ccc");
                 } else {
+                    $('input#txtSendTwoFactor').css("border-color", "#ffaaaa");
+                    allok = false;
+                }
+            } else {
 
-                    if (transactionid == "ErrInsufficientFunds") {
-                        $('#textMessageSendStd').text('Transaction Failed: Not enough funds are currently available to send this transaction');
+                twoFactorCode = result;
+
+            }
+
+            if (allok) {
+
+                $('#textMessageSendStd').text('Creating transaction...');
+                $('#textMessageSendStd').show();
+                $('#sendstdprogstatus').width('3%');
+                $('#sendstdprog').show();
+                $('#sendstdprogstatus').width('10%');
+
+
+                Engine.sendTransaction('standard', '', address, amount, twoFactorCode, function (err, transactionid) {
+
+                    if (!err) {
+
+                        var confmess = 'You sent ' + _.escape(convertFromSatoshis(amount, COINUNIT)) + ' ' + _.escape(COINUNIT) + ' to <span style="word-wrap:break-word;">' + _.escape(address) + '</span>';
+
+                        $('#textCompleteSendStd').html(confmess);
+                        $('input#amount').val('');
+                        $('input#toAddress').val('');
+                        //$('#textMessageSendStd').fadeOut(5000);
+                        //$('#sendstdprog').fadeOut(5000);
+
+                        $('#sendstds2').hide();
+                        $('#sendstds3').show();
+
                     } else {
-                        $('#textMessageSendStd').text(transactionid)
+
+                        if (transactionid == "ErrInsufficientFunds") {
+                            $('#textMessageSendStd').text('Transaction Failed: Not enough funds are currently available to send this transaction');
+                        } else {
+                            $('#textMessageSendStd').text(transactionid)
+                        }
+
+                        $('#sendstdprogstatus').width('0%');
+                        $('#textMessageSendStd').addClass('alert alert-danger');
+                    }
+                }, function (message, progress) {
+
+                    if (message) {
+                        $('#textMessageSendStd').text(message);
                     }
 
-                    $('#sendstdprogstatus').width('0%')
-                    $('#textMessageSendStd').addClass('alert alert-danger');
-                }
-            });
-        }
+                    if (progress) {
+                        $('#sendstdprogstatus').width(progress);
+                    }
+
+                });
+            }
+
+        });
+
 
     }
 
@@ -5907,6 +6450,7 @@ function UI() {
 
 
     }
+
 
 
     function ensureOpenWalletGuidAndPasswordValid() {

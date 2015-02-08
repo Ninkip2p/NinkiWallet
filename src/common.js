@@ -5,7 +5,7 @@ var assert = function(condition, message) {
 	if (!condition) {
 		throw message || "Assertion failed";
 	}
-}
+};
 
 //Checks if GUID is valid. Only takes lowercase, non-bracketed GUIDs.
 var isRealGuid = function(potentialGuidAsString){
@@ -13,10 +13,10 @@ var isRealGuid = function(potentialGuidAsString){
 	if (typeof potentialGuidAsString != 'string') return false;
 	if (potentialGuidAsString.length==0) return false;
 
-	var guidRegex=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+	var guidRegex=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 	var match = potentialGuidAsString.match(guidRegex);
 	return match ? true:false;
-}
+};
 
 var encrypt = function (valueToEncrypt, passphrase) {
     assert(valueToEncrypt, "valueToEncrypt invalid");
