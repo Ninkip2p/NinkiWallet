@@ -19,7 +19,7 @@ function Device() {
 
         var is_chrome = navigator.userAgent.toLowerCase().indexOf('chrome') > -1;
         if (is_chrome) {
-            if (chrome) {
+            if (!(typeof chrome === 'undefined')) {
                 if (chrome.app) {
                     if (chrome.app.runtime) {
                         return true;
@@ -58,6 +58,31 @@ function Device() {
         }
 
     }
+
+    this.isiOS = isiOS;
+    function isiOS() {
+
+        if (typeof window === 'undefined') {
+            return false;
+        } else {
+            if (typeof window.cordova === 'undefined') {
+                return false;
+            }
+            else {
+                if (device.platform == "iOS") {
+
+                    return true;
+
+                } else {
+
+                    return false;
+
+                }
+            }
+        }
+
+    }
+
 
     this.isBrowser = isBrowser;
     function isBrowser() {

@@ -5,6 +5,8 @@ var prettydate = require("pretty-date");
 
 function UI() {
 
+
+
     var Engine = new Ninki.Engine();
 
 
@@ -85,6 +87,11 @@ function UI() {
         left: '50%' // Left position relative to parent
     };
 
+    $(function () {
+        FastClick.attach(document.body);
+    });
+
+
     /* Parse bitcoin URL query keys. */
     function parseBitcoinURL(url) {
         var r = /^bitcoin:([a-zA-Z0-9]{27,34})(?:\?(.*))?$/;
@@ -164,6 +171,10 @@ function UI() {
 
                     if (!err) {
 
+                        if (!(typeof window.app === 'undefined')) {
+                            app.isScanning = true;
+                        }
+
                         if (Engine.m_appInitialised) {
 
                             $('.numdone').attr("style", "background-color:white");
@@ -191,18 +202,28 @@ function UI() {
 
                             //double check footer
                             //bug workaround
-
                             if (menustate == "profile" && profilepagestate == "") {
 
                                 $(".footer").show();
 
                             }
 
-
+                            if (!(typeof window.app === 'undefined')) {
+                                app.isScanning = false;
+                            }
 
                             $("#isactive").val(1);
 
                             setTimeout(updateUI(), 200);
+
+
+                            window.updateUIInterval = setInterval(function () {
+
+                                updateUI();
+
+                            }, 10000);
+
+
 
                         } else {
 
@@ -264,9 +285,6 @@ function UI() {
 
 
 
-                                                    $("#footermode").val(1);
-                                                    $(".footer").show();
-
                                                     Engine.Device.getStorageItem("currency", function (res) {
 
                                                         if (res) {
@@ -278,8 +296,8 @@ function UI() {
                                                             Engine.Device.setStorageItem("currency", Engine.m_settings.LocalCurrency);
                                                         }
 
-                                                        console.log(Engine.m_settings.LocalCurrency);
-                                                        console.log(Engine.m_settings.CoinUnit);
+                                                        //console.log(Engine.m_settings.LocalCurrency);
+                                                        //console.log(Engine.m_settings.CoinUnit);
 
                                                         var t = Engine.m_settings.LocalCurrency;
 
@@ -315,6 +333,7 @@ function UI() {
 
 
                                                         Engine.m_appInitialised = true;
+
                                                         $("#isactive").val(1);
 
                                                         $("#pairspinner").hide();
@@ -323,10 +342,14 @@ function UI() {
                                                         $('#dashheader').show();
 
                                                         $("#mainWallet").show();
+                                                        $("#footermode").val(1);
                                                         $(".footer").show();
 
                                                         $("#nonlogin").show();
 
+                                                        if (!(typeof window.app === 'undefined')) {
+                                                            app.isScanning = false;
+                                                        }
 
                                                     });
 
@@ -354,6 +377,10 @@ function UI() {
                                                 pinlock = false;
                                                 $("#paddel").hide();
                                                 $("#pinloginmessage").text("Enter your PIN number");
+
+                                                if (!(typeof window.app === 'undefined')) {
+                                                    app.isScanning = false;
+                                                }
 
                                             }
 
@@ -409,7 +436,9 @@ function UI() {
 
                             }
 
-
+                            if (!(typeof window.app === 'undefined')) {
+                                app.isScanning = false;
+                            }
                         }
 
                     }
@@ -439,14 +468,21 @@ function UI() {
     function pairDevice() {
 
 
+        $("#btnPairDevice").addClass("disabled");
+
         var blob = $('#pairdeviceblob').val();
         var pwd = $('#pairpwd').val();
 
         var splitBlob = blob.split('|');
 
-        console.log(splitBlob.length);
+        //console.log(splitBlob.length);
 
         if (splitBlob.length == 5) {
+
+
+            if (!(typeof window.app === 'undefined')) {
+                app.isScanning = true;
+            }
 
             var guid = splitBlob[2];
 
@@ -474,8 +510,12 @@ function UI() {
 
                 if (err) {
 
-                    bootbox.alert("There was an error, please try again.");
+                    if (!(typeof window.app === 'undefined')) {
+                        app.isScanning = false;
+                    }
 
+                    bootbox.alert("There was an error, please try again.");
+                    $("#btnPairDevice").removeClass("disabled");
 
                 } else {
 
@@ -492,12 +532,23 @@ function UI() {
                             if (secvalid) {
 
                                 //show pin screen
+
                                 $('#pairDevice').hide();
+                                $("#btnPairDevice").removeClass("disabled");
                                 $('#loginpin').show();
 
+                                if (!(typeof window.app === 'undefined')) {
+                                    app.isScanning = false;
+                                }
                             }
 
                         } else {
+
+                            if (!(typeof window.app === 'undefined')) {
+                                app.isScanning = false;
+                            }
+
+                            $("#btnPairDevice").removeClass("disabled");
 
                             if (secvalid == "ErrAccount") {
                                 bootbox.alert("Password not correct");
@@ -517,6 +568,7 @@ function UI() {
 
         } else {
 
+            $("#btnPairDevice").removeClass("disabled");
             bootbox.alert("There was a pairing error, please try again.");
 
             // $('#pairdevicealertmessage').text("There was a pairing error");
@@ -536,6 +588,10 @@ function UI() {
 
         $('#loginpin').hide();
 
+
+        if (!(typeof window.app === 'undefined')) {
+            app.isScanning = true;
+        }
 
 
 
@@ -675,9 +731,18 @@ function UI() {
                                     $("#mainWallet").show();
                                     $(".footer").show();
 
+                                    if (!(typeof window.app === 'undefined')) {
+                                        app.isScanning = false;
+                                    }
+
                                 });
 
                             } else {
+
+                                if (!(typeof window.app === 'undefined')) {
+                                    app.isScanning = false;
+                                }
+
                                 $("#pairspinner").hide();
                                 bootbox.alert("Could not pair", function () {
 
@@ -688,7 +753,13 @@ function UI() {
                             }
 
                         } else {
+
+                            if (!(typeof window.app === 'undefined')) {
+                                app.isScanning = false;
+                            }
+
                             $("#pairspinner").hide();
+
                             bootbox.alert(result, function () {
 
                                 location.reload();
@@ -699,6 +770,12 @@ function UI() {
 
                     });
                 } else {
+
+                    if (!(typeof window.app === 'undefined')) {
+                        app.isScanning = false;
+                    }
+
+
                     $("#pairspinner").hide();
                     bootbox.alert("The pairing token has expired", function () {
 
@@ -710,6 +787,11 @@ function UI() {
 
 
             } else {
+
+
+                if (!(typeof window.app === 'undefined')) {
+                    app.isScanning = false;
+                }
 
                 $("#pairspinner").hide();
                 bootbox.alert(result, function () {
@@ -735,7 +817,7 @@ function UI() {
 
         $("#dashsend").addClass("invis");
         $("#dashsend").removeClass("slideUp");
-
+        $("#dashsend").hide();
 
         $("#dashsendamt").addClass("invis");
         $("#dashsendamt").removeClass("slideUp");
@@ -756,9 +838,11 @@ function UI() {
 
         $("#dashreceive").addClass("invis");
         $("#dashreceive").removeClass("slideUp");
+        $("#dashreceive").hide();
 
         $("#dashcontact").addClass("invis");
         $("#dashcontact").removeClass("slideUp");
+        $("#dashcontact").hide();
 
         //$("#dashreceive").hide();
         //$("#dashcontact").hide();
@@ -782,7 +866,7 @@ function UI() {
 
         $("#dashsend").removeClass("slideUp");
         $("#dashsend").addClass("invis");
-
+        $("#dashsend").hide();
 
         $("#dashsendamt").removeClass("slideUp");
         $("#dashsendamt").addClass("invis");
@@ -798,17 +882,13 @@ function UI() {
 
         $("#dashreceive").removeClass("slideUp");
         $("#dashreceive").addClass("invis");
+        $("#dashreceive").hide();
 
         $("#dashcontact").removeClass("slideUp");
         $("#dashcontact").addClass("invis");
-
-        //$("#dashreceive").hide();
-
-        //$("#dashcontact").hide();
+        $("#dashcontact").hide();
 
         $("#pinconfirm").hide();
-
-        $("#addrfade").hide();
 
         $("#btnStdSndDone").hide();
 
@@ -957,7 +1037,7 @@ function UI() {
         if (sendAmount == '') {
 
             //default entry box and actual value in the case of no input
-            $('#amount').text('Enter amount');
+            $('#amount').text('amount');
             if (stdAmountConvCoin) {
                 $('#ccystdamt').html(convertToLocalCurrency(0));
             } else {
@@ -1008,8 +1088,8 @@ function UI() {
 
                         } else {
 
-                            //allow bitcoin entry up to 6 decimal places
-                            var ramt = Math.min(sendAmount.length - indot, 6);
+                            //allow bitcoin entry up to 8 decimal places
+                            var ramt = Math.min(sendAmount.length - indot, 9);
                             ramt = ramt - 1;
                             cprc = accounting.formatMoney(sendAmount, "", ramt);
                         }
@@ -1020,7 +1100,7 @@ function UI() {
                 }
 
                 var fee = convertFromSatoshis(Engine.m_settings.MinersFee, COINUNIT);
-                if (currentBalance >= (vAmount + fee) && vAmount > 0) {
+                if ((currentBalance >= (vAmount + fee) && vAmount > 0) && convertToSatoshis(vAmount, COINUNIT) >= 10000) {
 
                     $('#btnsendmoneystd').removeClass("disabled");
 
@@ -1092,7 +1172,7 @@ function UI() {
 
 
                 var fee = convertFromSatoshis(Engine.m_settings.MinersFee, COINUNIT);
-                if (currentBalance >= (amt + fee) && amt > 0) {
+                if (currentBalance >= (amt + fee) && amt > 0 && convertToSatoshis(amt, COINUNIT) >= 10000) {
 
                     $('#btnsendmoneystd').removeClass("disabled");
 
@@ -1199,6 +1279,26 @@ function UI() {
 
             stdAmountConvCoin = true;
 
+
+            if (stdAmountConvCoin) {
+
+                if (COINUNIT == "Bits") {
+
+                    $("#numcdot").hide();
+
+                } else {
+
+                    $("#numcdot").show();
+
+                }
+
+            } else {
+
+                $("#numcdot").show();
+
+            }
+
+
             updateStdAmount();
 
         });
@@ -1212,20 +1312,29 @@ function UI() {
             $('#stdselunit').text(Engine.m_settings.LocalCurrency);
             stdAmountConvCoin = false;
 
+
+            if (stdAmountConvCoin) {
+
+                if (COINUNIT == "Bits") {
+
+                    $("#numcdot").hide();
+
+                } else {
+
+                    $("#numcdot").show();
+
+                }
+
+            } else {
+
+                $("#numcdot").show();
+
+            }
+
             updateStdAmount();
 
 
         });
-
-
-        //        $('.numc').bind('touchstart', function () {
-        //            $(this).removeClass('numtapoff');
-
-        //            cl = 'b' + (Math.floor(Math.random() * 6) + 1) + '';
-        //            //alert(cl);
-        //            $(this).addClass(cl);
-
-        //        });
 
 
 
@@ -1271,15 +1380,127 @@ function UI() {
         });
 
 
+        //add copy hook for cordova
+
+
+        $('#copyvalphrase').bind('touchstart', function () {
+
+            if (window.cordova) {
+                cordova.plugins.clipboard.copy($('#codeForFriend').text(), function () {
+
+                    $('#valcodepanel').addClass("backgroundAnimated");
+                    setTimeout(function () {
+                        $('#valcodepanel').removeClass("backgroundAnimated");
+                    }, 1000);
+
+
+                }, function () {
+
+                    console.log("copy error");
+
+                });
+            }
+
+        });
+
+
+
+
+
+
+        $('#copyaddress').bind('touchstart', function () {
+
+            if (window.cordova) {
+
+                cordova.plugins.clipboard.copy($('#requestaddresstxt').text(), function () {
+
+                    $('#addresspanel').addClass("backgroundAnimated");
+                    setTimeout(function () {
+                        $('#addresspanel').removeClass("backgroundAnimated");
+                    }, 1000);
+
+
+                }, function () {
+
+                    console.log("copy error");
+
+                });
+            }
+
+        });
+
+
+        $('#copyinfotran').bind('touchstart', function () {
+
+            if (window.cordova) {
+
+                cordova.plugins.clipboard.copy($('#infofulltran').val(), function () {
+
+                    $('#infotranid').addClass("backgroundAnimated");
+                    setTimeout(function () {
+                        $('#infotranid').removeClass("backgroundAnimated");
+                    }, 1000);
+
+
+                }, function () {
+
+                    console.log("copy error");
+
+                });
+            }
+
+        });
+
+        $('#copyinfoaddress').bind('touchstart', function () {
+
+            if (window.cordova) {
+
+                cordova.plugins.clipboard.copy($('#infotranaddress').text(), function () {
+
+                    $('#infotranaddress').addClass("backgroundAnimated");
+                    setTimeout(function () {
+                        $('#infotranaddress').removeClass("backgroundAnimated");
+                    }, 1000);
+
+
+                }, function () {
+
+                    console.log("copy error");
+
+                });
+            }
+
+        });
+
+        $('#clip').bind('touchstart', function () {
+
+            if (window.cordova) {
+
+                cordova.plugins.clipboard.paste(function (text) {
+
+                    $('#toAddress').val(text);
+                    $("#toAddress").trigger('change');
+
+                }, function () {
+
+                    console.log("paste error");
+
+                });
+            }
+
+        });
+
+
 
 
         $('.numc').bind('touchend', function () {
 
             var num = $(this);
+
             var text = $.trim(num.find('.txt').clone().children().remove().end().text());
 
-
             //check the number of decimal places and if more than 8 for btc
+
             if (text.length > 0) {
 
                 if (stdAmountConvCoin) {
@@ -1289,14 +1510,30 @@ function UI() {
                         var ind = sendAmount.indexOf(".");
 
                         if (COINUNIT == "BTC") {
-                            if ((sendAmount.length - ind) == 7) {
+
+                            if ((sendAmount.length - ind) == 9) {
 
                                 return;
 
                             }
+
+                        }
+
+                    } else {
+
+                        if (COINUNIT == "Bits") {
+
+                            if ((sendAmount == "" && text == "0") || text == ".") {
+
+                                return;
+
+                            }
+
                         }
 
                     }
+
+
 
                 } else {
 
@@ -1304,20 +1541,20 @@ function UI() {
 
                         var ind = sendAmount.indexOf(".");
 
-
                         if ((sendAmount.length - ind) == 3) {
 
                             return;
 
                         }
 
-
                     }
 
                 }
 
-
             }
+
+
+
 
 
             if (!(sendAmount.indexOf(".") > -1 && text == '.')) {
@@ -1325,15 +1562,18 @@ function UI() {
                 var prev = sendAmount.substring(0, sendAmount.length - 1);
 
                 if (text.length > 0) {
+
                     sendAmount = (sendAmount + '' + text);
+
                 } else {
+
                     sendAmount = prev;
+
                 }
 
                 updateStdAmount();
 
             }
-
 
         });
 
@@ -1591,9 +1831,13 @@ function UI() {
         });
 
 
-        $("#btnmenuprofile").bind('touchstart', function () {
+        $("#btnmenuprofile").bind('touchstart', function (e) {
+
+            e.preventDefault();
 
             displayProfile();
+
+
 
         });
 
@@ -1628,7 +1872,9 @@ function UI() {
 
 
         var hastouched = false;
-        $("#btnmenunetwork").bind('touchstart', function () {
+        $("#btnmenunetwork").bind('touchstart', function (e) {
+
+            e.preventDefault();
 
             if (!hastouched) {
 
@@ -1693,7 +1939,7 @@ function UI() {
         }
 
 
-        $("#invformelink").hammer(null).bind("tap", function () {
+        $("#invformelink").bind('touchstart', function (e) {
 
             sendmode = "inv";
             $("#invformetab").show();
@@ -1702,7 +1948,7 @@ function UI() {
             $("#lifor").addClass('active');
         });
 
-        $("#invbymelink").hammer(null).bind("tap", function () {
+        $("#invbymelink").bind('touchstart', function (e) {
             $("#invbymetab").show();
             $("#invformetab").hide();
             $("#lifor").removeClass('active');
@@ -1710,7 +1956,7 @@ function UI() {
         });
 
 
-        $("#tapnetpayments").hammer(null).bind("tap", function () {
+        $("#tapnetpayments").bind('touchstart', function (e) {
             $("#pnlfriendinv").hide();
             $("#networkpayments").show();
             $("#networksend").hide();
@@ -1720,7 +1966,7 @@ function UI() {
         });
 
 
-        $("#tapinvoicefriend").hammer(null).bind("tap", function () {
+        $("#tapinvoicefriend").bind('touchstart', function (e) {
 
             $("#pnlfriendinv").show();
             $("#networkpayments").hide();
@@ -1760,16 +2006,15 @@ function UI() {
 
             $("#dashsend").addClass("invis");
             $("#dashsend").removeClass("slideUp");
-
+            $("#dashsend").hide();
 
             $("#dashreceive").addClass("invis");
             $("#dashreceive").removeClass("slideUp");
+            $("#dashreceive").hide();
 
             $("#dashcontact").addClass("invis");
             $("#dashcontact").removeClass("slideUp");
-
-            //$("#dashreceive").hide();
-            //$("#dashcontact").hide();
+            $("#dashcontact").hide();
 
             $('#invoices').hide();
             $("#dashboard").show();
@@ -1780,7 +2025,9 @@ function UI() {
         }
 
 
-        $("#btnmenusettings").bind('touchstart', function () {
+        $("#btnmenusettings").bind('touchstart', function (e) {
+
+            e.preventDefault();
 
             menustate = "settings";
 
@@ -1795,8 +2042,25 @@ function UI() {
             $("#btnmenusettings").attr('style', 'background-color:#eaeef1');
             $("#btnmenuprofile").attr('style', 'background-color:#ffffff');
             $("#btnmenunetwork").attr('style', 'background-color:#ffffff');
+
         });
 
+        $("#tapeditamt").bind('touchstart', function () {
+
+
+            $('#paddelconf').hide();
+            $("#pinconfirm").hide();
+
+            $("#dashsend").addClass("invis");
+            $("#dashsend").removeClass("slideUp");
+            $("#dashsend").hide();
+
+            $("#dashsendamt").show();
+            $("#dashsendamt").removeClass("invis");
+            $("#dashsendamt").addClass("slideUp");
+
+
+        });
 
         $('#toAddress').change(function () {
 
@@ -1808,30 +2072,145 @@ function UI() {
                 addr = 'bitcoin:' + addr;
             }
 
+            $("#sendstdlabel").text('');
+            $("#sendstds2add").text('');
+            $("#sendstdlbli").hide();
+
             var paddr = parseBitcoinURL(addr);
+            if (paddr) {
+                if (addr.length > 25 && paddr.address) {
 
-            if (addr.length > 25) {
-                if (Engine.isAddressValid(paddr.address)) {
+                    if (Engine.isAddressValid(paddr.address)) {
 
-                    //next stage
+                        //next stage
 
-                    //if amount is included in the URL set the amount and go straight to the
-                    //pay screen
+                        //if amount is included in the URL set the amount and go straight to the
+                        //pay screen
 
-                    $('#toAddress').val(paddr.address);
-
-                    $("#dashsend").addClass("invis");
-                    $("#dashsend").removeClass("slideUp");
-
-                    $("#addrfade").hide();
-
-                    $("#dashsendamt").show();
-                    $("#dashsendamt").removeClass("invis");
-                    $("#dashsendamt").addClass("slideUp");
+                        $('#toAddress').val(paddr.address);
 
 
+                        if (paddr.amount) {
 
+                            var amountInBTC = paddr.amount * 1.0;
+                            var amountInSatoshis = convertToSatoshis(amountInBTC, "BTC");
+                            var amountInCoinUnits = convertFromSatoshis(amountInSatoshis, COINUNIT);
+
+                            var fee = convertFromSatoshis(Engine.m_settings.MinersFee, COINUNIT);
+
+                            if ((currentBalance >= (amountInCoinUnits + fee) && amountInCoinUnits > 0) && convertToSatoshis(amountInCoinUnits, COINUNIT) >= 10000) {
+
+                                $("#hdamount").val(amountInCoinUnits);
+
+                                $('#paddelconf').hide();
+
+                                $("#dashsendamt").hide();
+
+                                if (window.updateUIInterval) {
+                                    clearInterval(window.updateUIInterval);
+                                }
+
+                                $("#pinconfirm").show();
+
+                                if (paddr.label) {
+
+                                    $("#sendstdlabel").text(paddr.label);
+                                    $("#sendstdlbli").show();
+                                    $("#sendstds2add").text($('#toAddress').val());
+                                    // $("#sendstds2to").hide();
+
+                                } else {
+
+                                    $("#sendstdlbli").hide();
+                                    $("#sendstds2add").text($('#toAddress').val());
+                                    // $("#sendstds2to").show();
+
+                                }
+
+
+
+                                $("#sendstds2amt").text(formatCoinAmount($("#hdamount").val()) + ' ' + COINUNIT);
+
+
+                                $("#dashsend").addClass("invis");
+                                $("#dashsend").removeClass("slideUp");
+                                $("#dashsend").hide();
+
+
+                                $("#dashsendamt").addClass("invis");
+                                $("#dashsendamt").removeClass("slideUp");
+                                $("#dashsendamt").hide();
+
+                            } else {
+
+                                $("#sendstdlbli").hide();
+                                //update amount paid on textbox
+                                //switch to coin units
+
+                                stdAmountConvCoin = true;
+                                $('#stdselunit').text(COINUNIT);
+
+                                sendAmount = amountInCoinUnits + '';
+
+                                updateStdAmount();
+
+                                $("#dashsend").addClass("invis");
+                                $("#dashsend").removeClass("slideUp");
+                                $("#dashsend").hide();
+
+                                $("#dashsendamt").show();
+                                $("#dashsendamt").removeClass("invis");
+                                $("#dashsendamt").addClass("slideUp");
+
+
+                            }
+
+                        } else {
+
+                            $("#dashsend").addClass("invis");
+                            $("#dashsend").removeClass("slideUp");
+                            $("#dashsend").hide();
+
+                            $("#dashsendamt").show();
+                            $("#dashsendamt").removeClass("invis");
+                            $("#dashsendamt").addClass("slideUp");
+
+                        }
+
+
+                        if (stdAmountConvCoin) {
+
+                            if (COINUNIT == "Bits") {
+
+                                $("#numcdot").hide();
+
+                            } else {
+
+                                $("#numcdot").show();
+
+                            }
+
+                        } else {
+
+                            $("#numcdot").show();
+
+                        }
+
+                    } else {
+
+                        $("#addressinvalid").show();
+                        $("#addressinvalid").fadeOut(2000);
+                    }
+
+                } else {
+
+                    $("#addressinvalid").show();
+                    $("#addressinvalid").fadeOut(2000);
                 }
+            } else {
+
+                $("#addressinvalid").show();
+                $("#addressinvalid").fadeOut(2000);
             }
         });
 
@@ -1839,8 +2218,10 @@ function UI() {
 
         $("#btnCloseTran").bind('touchstart', function () {
 
+            $("#transview").hide();
             $("#transview").removeClass("slideUp");
             $("#transview").addClass("invis");
+
 
             $("#mainWallet").show();
             $(".footer").show();
@@ -1859,13 +2240,18 @@ function UI() {
 
             //closeSendStd();
 
-            //$("#dashcontact").hide();
+
             $("#dashcontact").removeClass("slideUp");
             $("#dashcontact").addClass("invis");
+            $("#dashcontact").hide();
 
-            $("#mainWallet").show();
             $("#networklistheader").show();
+            $("#networklist").show();
+            $("#network").show();
+            $("#mainWallet").show();
+
             $(".footer").show();
+
 
         });
 
@@ -1879,11 +2265,26 @@ function UI() {
 
         $("#btnCloseStdSndAmt").bind('touchstart', function () {
 
+            $("#sendstdlabel").text('');
+            $("#sendstds2add").text('');
+            $("#sendstdlbli").hide();
+
             closeSendNet();
 
         });
 
         $("#btnCloseStdSndPIN").bind('touchstart', function () {
+
+
+            window.updateUIInterval = setInterval(function () {
+
+                updateUI();
+
+            }, 10000);
+
+            $("#sendstdlabel").text('');
+            $("#sendstds2add").text('');
+            $("#sendstdlbli").hide();
 
             if (sendmode == "std") {
                 closeSendStd();
@@ -1893,6 +2294,8 @@ function UI() {
                 $("#pinconfirm").hide();
                 $("#invoices").show();
             }
+
+
 
         });
 
@@ -1931,6 +2334,12 @@ function UI() {
                 $(".footer").show();
             }
 
+            window.updateUIInterval = setInterval(function () {
+
+                updateUI();
+
+            }, 10000);
+
         });
 
 
@@ -1940,29 +2349,35 @@ function UI() {
             $('#paddelconf').hide();
 
             $("#dashsendamt").hide();
+
+
+            if (window.updateUIInterval) {
+                clearInterval(window.updateUIInterval);
+            }
+
             $("#pinconfirm").show();
 
             if (sendmode == 'std') {
+
                 $("#sendstds2add").text($('#toAddress').val());
+
+
+
             } else if (sendmode == 'net') {
                 $("#sendstds2add").text(SELECTEDFRIEND);
             }
 
-            if (COINUNIT == "BTC") {
-                $("#sendstds2amt").text(accounting.formatNumber($("#hdamount").val(), 8, ",", ".") + ' ' + COINUNIT);
-            } else {
-                $("#sendstds2amt").text(accounting.formatNumber($("#hdamount").val(), 2, ",", ".") + ' ' + COINUNIT);
-            }
 
-
+            $("#sendstds2amt").text(formatCoinAmount($("#hdamount").val()) + ' ' + COINUNIT);
 
             $("#dashsend").addClass("invis");
             $("#dashsend").removeClass("slideUp");
+            $("#dashsend").hide();
 
 
             $("#dashsendamt").addClass("invis");
             $("#dashsendamt").removeClass("slideUp");
-
+            $("#dashsendamt").hide();
 
 
             //sendMoneyStd();
@@ -1991,20 +2406,21 @@ function UI() {
 
             sendmode = "net";
 
+            $("#addressinvalid").hide();
+            $("#sendstdlbli").hide();
+
             $("#sendsubheading").text("send to " + SELECTEDFRIEND);
 
             $("#btnStdSndDone").hide();
             $("#dashsend").addClass("invis");
             $("#dashsend").removeClass("slideUp");
-
-            $("#addrfade").hide();
+            $("#dashsend").hide();
 
             $("#friendheader").hide();
 
             $("#dashsendamt").show();
             $("#dashsendamt").removeClass("invis");
             $("#dashsendamt").addClass("slideUp");
-
 
 
             $("#mainWallet").hide();
@@ -2014,11 +2430,34 @@ function UI() {
             networkpagestate = "friend";
             friendpagestate = "send";
 
+
+            if (stdAmountConvCoin) {
+
+                if (COINUNIT == "Bits") {
+
+                    $("#numcdot").hide();
+
+                } else {
+
+                    $("#numcdot").show();
+
+                }
+
+            } else {
+
+                $("#numcdot").show();
+
+            }
+
             updateStdAmount();
 
         });
 
         $("#tapsend").bind('touchstart', function () {
+
+
+            $("#addressinvalid").hide();
+            $("#sendstdlbli").hide();
 
             sendmode = "std";
             $("#sendsubheading").text('');
@@ -2026,15 +2465,9 @@ function UI() {
             $("#dashprofile").hide();
             $("#dashboard").hide();
 
+            $("#dashsend").show();
+            $("#dashsend").removeClass("invis");
             $("#dashsend").addClass("slideUp");
-
-            //$("#dashsend").removeClass("invis");
-
-
-            setTimeout(function () {
-                $("#addrfade").fadeIn(500);
-
-            }, 500);
 
 
             $("#dashsendamt").addClass("invis");
@@ -2065,9 +2498,10 @@ function UI() {
             $("#dashheader").hide();
             $("#dashprofile").hide();
 
-
             $("#mainWallet").hide();
 
+            $("#dashreceive").show();
+            $("#dashreceive").removeClass("invis");
             $("#dashreceive").addClass("slideUp");
 
             $(".footer").hide();
@@ -2075,27 +2509,36 @@ function UI() {
             profilepagestate = "receive";
             menustate = "profile"
 
-            setTimeout(generateAddressClient(), 1000);
+
+            $('#requestaddressqr').hide();
+            $('#requestaddresstxt').text('');
+            $('#addresspanel').hide();
+
+
+            setTimeout(function () {
+
+                generateAddressClient()
+
+            },
+
+            50);
 
 
         });
 
         $("#taprequest").bind('touchstart', function () {
 
-            $("#mainWallet").hide();
             $("#networklistheader").hide();
+            //$("#networklist").hide();
+            $("#network").hide();
 
+            $("#mainWallet").hide();
+            $("#dashcontact").show();
+            $("#dashcontact").removeClass("invis");
             $("#dashcontact").addClass("slideUp");
-
-            //$("#dashcontact").show();
-
 
             $(".footer").hide();
 
-            //checkAndValidateTimer = setInterval(function () { checkAndValidateFriendRequests() }, 2000);
-
-            //profilepagestate = "contact";
-            //menustate = "profile"
 
         });
 
@@ -2184,6 +2627,8 @@ function UI() {
 
             $("#pairpwd").blur();
 
+
+
             pairDevice();
 
 
@@ -2266,12 +2711,13 @@ function UI() {
 
         $("#btnpayinvoice").bind('touchstart', function () {
 
+            $("#tapeditamt").hide();
 
             $(".footer").hide();
 
             $("#sendstds2add").text(SELECTEDFRIEND);
 
-            $("#sendstds2amt").text(convertFromSatoshis(selectedInvoiceAmount, COINUNIT) + ' ' + COINUNIT);
+            $("#sendstds2amt").text(formatCoinAmount(convertFromSatoshis(selectedInvoiceAmount, COINUNIT)) + ' ' + COINUNIT);
 
             sendmode = 'inv';
 
@@ -2280,8 +2726,15 @@ function UI() {
             pintaps = 0;
             prevpin = '';
 
+            networkpagestate = "friend";
+
             $("#invoices").hide();
             $("#mainWallet").hide();
+
+            if (window.updateUIInterval) {
+                clearInterval(window.updateUIInterval);
+            }
+
             $("#pinconfirm").show();
 
 
@@ -2291,11 +2744,16 @@ function UI() {
 
             Engine.updateInvoice(selectedInvoiceUserName, selectedInvoiceId, '', 2, function (err, result) {
 
+
                 loadInvoices(function (err, res) {
 
                     lastInvoiceToPayCount = 0;
 
                     showInvoiceListNetwork();
+
+                    updateSelectedFriend();
+
+                    networkpagestate = "friend";
 
                     $("#invoices").hide();
                     $("#mainWallet").show();
@@ -2303,8 +2761,6 @@ function UI() {
                     $("#pnlfriend").show();
                     $("#friendheader").show();
                     $(".footer").show();
-
-                    updateSelectedFriend();
 
                 });
             });
@@ -2320,13 +2776,13 @@ function UI() {
             $("#pnlfriend").show();
             $("#friendheader").show();
             $(".footer").show();
-
+            $("#tapeditamt").show();
 
             //if (uiInvoiceReturnToNetwork) {
             //$("#hnetwork").click();
             //uiInvoiceReturnToNetwork = false;
             //}
-
+            networkpagestate = "friend";
 
         });
 
@@ -2374,7 +2830,7 @@ function UI() {
                 statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
             }
 
-            s += "<a id=\"viewinvoicenetfrom" + _.escape(invoices[i].InvoiceFrom) + _.escape(invoices[i].InvoiceId) + "\" class=\"media list-group-item\"><div class=\"pull-left\">" + _.escape(timeLabel) + "</div>" +
+            s += "<a style=\"border-top-left-radius: 0px;border-top-right-radius: 0px\" id=\"viewinvoicenetfrom" + _.escape(invoices[i].InvoiceFrom) + _.escape(invoices[i].InvoiceId) + "\" class=\"media list-group-item\"><div class=\"pull-left\">" + _.escape(timeLabel) + "</div>" +
                                  "<div class=\"pull-right m-t-xs\">" + statusbox + "</div></a>";
         }
 
@@ -2453,10 +2909,10 @@ function UI() {
                     statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
                 }
 
-                s += "<a id=\"viewinvoicenetby" + invoices[i].InvoiceFrom + invoices[i].InvoiceId + "\" class=\"media list-group-item\"><div class=\"pull-left\">" + _.escape(timeLabel) + "</div>" +
+                s += "<a style=\"border-top-left-radius: 0px;border-top-right-radius: 0px\" id=\"viewinvoicenetby" + invoices[i].InvoiceFrom + invoices[i].InvoiceId + "\" class=\"media list-group-item\"><div class=\"pull-left\">" + _.escape(timeLabel) + "</div>" +
                                  "<div class=\"pull-right m-t-xs\">" + statusbox + "</div></a>";
             }
-
+           
             $('#invbynet').append(s);
 
             for (var i = 0; i < invoices.length; i++) {
@@ -2709,6 +3165,17 @@ function UI() {
 
                                     updateStdAmount();
 
+
+                                    prevNetworkTransCount = -1;
+                                    prevtransfeed = -1;
+
+                                    showTransactionFeed(function (err, res) {
+                                        showTransactionNetwork();
+                                    });
+
+                                    updateUI();
+
+
                                     setTimeout(function () {
                                         $("#btnStdSndDone").show();
                                     }, 100);
@@ -2740,10 +3207,10 @@ function UI() {
                         } else {
 
                             $('#sendstdprogstatus').width('0%');
-                            $('#sendstdprognum').text('0%');
+                            $('#sendstdprognum').text('0%'); 
 
                             if (transactionid == "ErrInsufficientFunds") {
-                                $('#textMessageSendStd').text('Transaction Failed: Waiting for funds to clear');
+                                $('#textMessageSendStd').text('Transaction Failed: Insufficient funds');
                             }
 
                             //return to send screen
@@ -2791,21 +3258,19 @@ function UI() {
 
         $("#dashsend").addClass("invis");
         $("#dashsend").removeClass("slideUp");
-
+        $("#dashsend").hide();
 
         $("#dashreceive").addClass("invis");
         $("#dashreceive").removeClass("slideUp");
+        $("#dashreceive").hide();
 
         $("#dashcontact").addClass("invis");
         $("#dashcontact").removeClass("slideUp");
-
-        //$("#dashreceive").hide();
-        //$("#dashcontact").hide();
-
+        $("#dashcontact").hide();
 
         $('#invoices').hide();
         $('#network').hide();
-        $('#networklist').hide();
+        //$('#networklist').hide();
         $("#networklistheader").hide();
         $('#settings').hide();
         $("#settingsheader").hide();
@@ -2878,12 +3343,12 @@ function UI() {
                 $('#qrcontscan').qrcode(options);
 
 
-
-                setInterval(function () {
+                window.updateUIInterval = setInterval(function () {
 
                     updateUI();
 
                 }, 10000);
+
 
 
             });
@@ -3111,6 +3576,26 @@ function UI() {
 
     }
 
+    function formatCoinAmount(amount) {
+
+        var fmamt = '';
+
+        if (COINUNIT == "BTC") {
+            fmamt = accounting.formatNumber(amount, 8, ",", ".");
+        } else {
+            fmamt = accounting.formatNumber(amount, 2, ",", ".");
+        }
+
+        //if there is a dp then trim any 0 off the end
+        //if the last char is a dot then trim also
+
+        fmamt = fmamt.replace(/0+$/, '');
+        fmamt = fmamt.replace(/\.+$/, '');
+        return fmamt;
+    }
+
+
+
     function convertFromSatoshis(amount, toUnit) {
 
         if (toUnit == 'BTC') {
@@ -3156,7 +3641,58 @@ function UI() {
     }
 
 
+
+    var balanceDisplayType = "coin"; //currency
     var previousBalance = 0;
+
+    $("#homebalancearea, #calcbalancearea").bind("touchstart", function () {
+
+        if (balanceDisplayType == "coin") {
+            balanceDisplayType = "currency";
+
+
+
+        } else {
+            balanceDisplayType = "coin";
+
+
+        }
+
+        if (balanceDisplayType == "coin") {
+            var fbal = '';
+            if (COINUNIT == "BTC") {
+                fbal = accounting.formatMoney(currentBalance, "", 4);
+            } else if (COINUNIT == "Bits") {
+                fbal = accounting.formatMoney(currentBalance, "", 0);
+            } else {
+                fbal = accounting.formatMoney(currentBalance, "", 2);
+            }
+
+            $("#homebalance").text(fbal);
+            $("#homecoinunit").text(COINUNIT);
+
+            $("#calcbalance").text(fbal);
+            $("#calccoinunit").text(COINUNIT);
+
+        } else {
+
+
+            var fbal = convertToLocalCurrency(currentBalance);
+
+            $("#homebalance").html(fbal);
+            $("#homecoinunit").text(Engine.m_settings.LocalCurrency);
+
+            $("#calcbalance").html(fbal);
+            $("#calccoinunit").text(Engine.m_settings.LocalCurrency);
+
+
+        }
+
+
+        //updateBalance();
+
+    });
+
 
     function updateBalance(callback) {
 
@@ -3164,25 +3700,43 @@ function UI() {
 
             if (!err) {
 
-                //get in BTC units
+                //get in units
                 var balance = convertFromSatoshis(result.TotalBalance, COINUNIT);
 
                 currentBalance = balance;
 
-                var fbal = '';
-                if (COINUNIT == "BTC") {
-                    fbal = accounting.formatMoney(balance, "", 4);
-                } else if (COINUNIT == "Bits") {
-                    fbal = accounting.formatMoney(balance, "", 0);
+
+                if (balanceDisplayType == "coin") {
+                    var fbal = '';
+                    if (COINUNIT == "BTC") {
+                        fbal = accounting.formatMoney(balance, "", 4);
+                    } else if (COINUNIT == "Bits") {
+                        fbal = accounting.formatMoney(balance, "", 0);
+                    } else {
+                        fbal = accounting.formatMoney(balance, "", 2);
+                    }
+
+                    $("#homebalance").text(fbal);
+                    $("#homecoinunit").text(COINUNIT);
+
+                    $("#calcbalance").text(fbal);
+                    $("#calccoinunit").text(COINUNIT);
+
                 } else {
-                    fbal = accounting.formatMoney(balance, "", 2);
+
+
+                    var fbal = convertToLocalCurrency(balance);
+
+                    $("#homebalance").html(fbal);
+                    $("#homecoinunit").text(Engine.m_settings.LocalCurrency);
+
+                    $("#calcbalance").html(fbal);
+                    $("#calccoinunit").text(Engine.m_settings.LocalCurrency);
+
                 }
 
-                $("#homebalance").text(fbal);
-                $("#homecoinunit").text(COINUNIT);
 
-                $("#calcbalance").text(fbal);
-                $("#calccoinunit").text(COINUNIT);
+
 
                 var template = '';
                 if (result.UnconfirmedBalance > 0) {
@@ -3312,6 +3866,16 @@ function UI() {
 
 
                 if (!err) {
+
+
+
+                    if (friends.length == 0) {
+                        $('#welcomenet').show();
+                    } else {
+                        $('#welcomenet').hide();
+                    }
+
+
 
                     //$("#nfriends").text(friends.length);
 
@@ -3471,7 +4035,7 @@ function UI() {
 
                                 });
 
-                                //console.log("added click " + k + " for " + friends[i].userName);
+                                ////console.log("added click " + k + " for " + friends[i].userName);
 
                                 k++;
                             }
@@ -3746,6 +4310,7 @@ function UI() {
 
         $("#contactrequest").hide();
         $("#mainWallet").show();
+        $("#network").show();
         $("#networklistheader").show();
         $(".footer").show();
         $("#friendrequestp1").show();
@@ -3758,6 +4323,7 @@ function UI() {
 
         $("#contactrequest").hide();
         $("#mainWallet").show();
+        $("#network").show();
         $("#networklistheader").show();
         $(".footer").show();
         $("#friendrequestp1").show();
@@ -3778,6 +4344,7 @@ function UI() {
                 $("#friendrequestusername").text('');
                 $("#contactrequest").hide();
                 $("#mainWallet").show();
+                $("#network").show();
                 $("#networklistheader").show();
                 $(".footer").show();
             }
@@ -3796,153 +4363,165 @@ function UI() {
         Engine.getTransactionRecords(function (err, transactions) {
 
 
-            allTransactions = transactions;
-            transactionCache = transactions;
-
-            if (transactions.length != prevtransfeed) {
-
-
-                for (var i = 0; i < allTransactions.length; i++) {
-                    var d1 = new Date(allTransactions[i].TransDateTime);
-                    allTransactions[i].JsDate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
-                    transactionIndex[allTransactions[i].TransactionId] = i;
+            if (!err) {
+                if (transactions.length == 0) {
+                    $('#welcometran').show();
+                } else {
+                    $('#welcometran').hide();
                 }
 
 
+                allTransactions = transactions;
+                transactionCache = transactions;
 
-                prevtransfeed = transactions.length;
+                if (transactions.length != prevtransfeed) {
 
-                $('#transfeed').empty();
 
-                var template = '';
-
-                for (var i = 0; i < transactions.length && i < 51; i++) {
-
-                    var length = transactions[i].UserName.length;
-                    if (length > 20) {
-                        length = 20;
+                    for (var i = 0; i < allTransactions.length; i++) {
+                        var d1 = new Date(allTransactions[i].TransDateTime);
+                        allTransactions[i].JsDate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
+                        transactionIndex[allTransactions[i].TransactionId] = i;
                     }
 
-                    var imageSrcSmall = "images/avatar/32px/Avatar-" + pad(length) + ".png";
 
-                    if (transactions[i].UserName != 'External') {
-                        if (FRIENDSLIST[transactions[i].UserName]) {
-                            if (FRIENDSLIST[transactions[i].UserName].profileImage != '') {
-                                imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(FRIENDSLIST[transactions[i].UserName].profileImage) + "?crop=faces&fit=crop&h=128&w=128&mask=ellipse&border=1,d0d0d0";
+
+                    prevtransfeed = transactions.length;
+
+                    $('#transfeed').empty();
+
+                    var template = '';
+
+                    for (var i = 0; i < transactions.length && i < 51; i++) {
+
+                        var length = transactions[i].UserName.length;
+                        if (length > 20) {
+                            length = 20;
+                        }
+
+                        var imageSrcSmall = "images/avatar/32px/Avatar-" + pad(length) + ".png";
+
+                        if (transactions[i].UserName != 'External') {
+                            if (FRIENDSLIST[transactions[i].UserName]) {
+                                if (FRIENDSLIST[transactions[i].UserName].profileImage != '') {
+                                    imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(FRIENDSLIST[transactions[i].UserName].profileImage) + "?crop=faces&fit=crop&h=128&w=128&mask=ellipse&border=1,d0d0d0";
+                                }
                             }
                         }
-                    }
 
-                    var amountLabel = "";
-                    var friendLabel = "";
+                        var amountLabel = "";
+                        var friendLabel = "";
 
-                    if (transactions[i].TransType == 'S') {
-                        amountLabel = "sent " + convertFromSatoshis(transactions[i].Amount, COINUNIT) + " " + _.escape(COINUNIT);
-                        friendLabel = "to " + _.escape(transactions[i].UserName);
-                    }
-
-                    if (transactions[i].TransType == 'R') {
-                        amountLabel = "received " + convertFromSatoshis(transactions[i].Amount, COINUNIT) + " " + _.escape(COINUNIT);
-                        friendLabel = "from " + _.escape(transactions[i].UserName);
-                    }
-
-
-                    var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
-                    var timeLabel = prettydate.format(trdate);
-
-                    template += '<a href="#" class="list-group-item clearfix">';
-                    template += '<span class="pull-left thumb-sm avatar m-r">';
-                    template += '<img src="';
-                    template += imageSrcSmall;
-                    template += '" alt="...">';
-
-                    template += '</span>';
-                    template += '<span class="clear">';
-                    template += '<span id="dtran' + i + '">'
-                    template += amountLabel;
-                    template += '</span>';
-
-                    template += '<span class="pull-right">';
-                    template += '<div class="trntime">';
-                    template += timeLabel;
-                    template += '</div>';
-                    template += '</span>';
-
-                    template += '<span class="clear">';
-                    template += '<span><div class="conf">';
-                    if (transactions[i].Confirmations < 6) {
-                        template += '<span class="badge bg-warning pull-right">';
-                        template += transactions[i].Confirmations;
-                        template += '</span>';
-                    }
-                    template += '</div>';
-                    template += '<small class="text-muted clear text-ellipsis">';
-                    template += friendLabel;
-                    template += '</small>';
-                    template += '</span>';
-                    template += '</a>';
-
-                }
-
-                $('#transfeed').html(template);
-
-                for (var i = 0; i < transactions.length && i < 51; i++) {
-
-
-                    $('#dtran' + i).hammer(null).bind("tap", {
-                        index: i
-                    }, function (event) {
-
-                        if (!scrolling) {
-
-                            displayTransactionDetails(transactions[event.data.index], "dashboard");
-
-
+                        if (transactions[i].TransType == 'S') {
+                            amountLabel = "sent " + formatCoinAmount(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + " " + _.escape(COINUNIT);
+                            friendLabel = "to " + _.escape(transactions[i].UserName);
                         }
 
+                        if (transactions[i].TransType == 'R') {
+                            amountLabel = "received " + formatCoinAmount(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + " " + _.escape(COINUNIT);
+                            friendLabel = "from " + _.escape(transactions[i].UserName);
+                        }
+
+
+                        var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
+                        var timeLabel = prettydate.format(trdate);
+
+                        template += '<a href="#" class="list-group-item clearfix" id="dtran' + i + '">';
+                        template += '<span class="pull-left thumb-sm avatar m-r">';
+                        template += '<img src="';
+                        template += imageSrcSmall;
+                        template += '" alt="...">';
+
+                        template += '</span>';
+                        template += '<span class="clear">';
+                        template += '<span>';
+                        template += amountLabel;
+                        template += '</span>';
+
+                        template += '<span class="pull-right">';
+                        template += '<div class="trntime">';
+                        template += timeLabel;
+                        template += '</div>';
+                        template += '</span>';
+
+                        template += '<span class="clear">';
+                        template += '<span><div class="conf">';
+                        if (transactions[i].Confirmations < 6) {
+                            template += '<span class="badge bg-warning pull-right">';
+                            template += _.escape(transactions[i].Confirmations);
+                            template += '</span>';
+                        }
+                        template += '</div>';
+                        template += '<small class="text-muted clear text-ellipsis">';
+                        template += friendLabel;
+                        template += '</small>';
+                        template += '</span>';
+                        template += '</a>';
+
+                    }
+
+                    $('#transfeed').html(template);
+
+                    for (var i = 0; i < transactions.length && i < 51; i++) {
+
+
+                        $('#dtran' + i).hammer(null).bind("tap", {
+                            index: i
+                        }, function (event) {
+
+                            if (!scrolling) {
+
+                                displayTransactionDetails(transactions[event.data.index], "dashboard");
+
+
+                            }
+
+                        });
+                    }
+
+
+                } else {
+
+                    //optimise
+
+                    $('#transfeed .conf').each(function (index, elem) {
+
+                        var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
+
+                        var template = '';
+                        if (tran.Confirmations < 6) {
+                            template += '<span class="badge bg-warning pull-right">';
+                            template += _.escape(tran.Confirmations);
+                            template += '</span>';
+                        }
+
+                        $(elem).html(template);
+
                     });
+
+                    $('#transfeed .trntime').each(function (index, elem) {
+
+                        var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
+
+                        var trdate = new Date(tran.TransDateTime.match(/\d+/)[0] * 1);
+
+                        var timeLabel = prettydate.format(trdate);
+
+                        $(elem).html(timeLabel);
+
+                    });
+
                 }
 
+                return callback(err, "ok");
 
             } else {
 
-                //optimise
-
-                $('#transfeed .conf').each(function (index, elem) {
-
-                    var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
-
-                    var template = '';
-                    if (tran.Confirmations < 6) {
-                        template += '<span class="badge bg-warning pull-right">';
-                        template += _.escape(tran.Confirmations);
-                        template += '</span>';
-                    }
-
-                    $(elem).html(template);
-
-                });
-
-                $('#transfeed .trntime').each(function (index, elem) {
-
-                    var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
-
-                    var trdate = new Date(tran.TransDateTime.match(/\d+/)[0] * 1);
-
-                    var timeLabel = prettydate.format(trdate);
-
-                    $(elem).html(timeLabel);
-
-                });
-
+                return callback(err, transactions);
             }
-
-            return callback(err, "ok");
 
         });
 
     }
-
 
     var prevNetworkTransCount = 0;
 
@@ -3962,12 +4541,12 @@ function UI() {
                 var friendLabel = "";
 
                 if (transactions[i].TransType == 'S') {
-                    amountLabel = "sent " + convertFromSatoshis(transactions[i].Amount, COINUNIT) + " " + _.escape(COINUNIT);
+                    amountLabel = "sent " + formatCoinAmount(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + " " + _.escape(COINUNIT);
                     friendLabel = "to " + _.escape(transactions[i].UserName);
                 }
 
                 if (transactions[i].TransType == 'R') {
-                    amountLabel = "received " + convertFromSatoshis(transactions[i].Amount, COINUNIT) + " " + _.escape(COINUNIT);
+                    amountLabel = "received " + formatCoinAmount(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + " " + _.escape(COINUNIT);
                     friendLabel = "from " + _.escape(transactions[i].UserName);
                 }
 
@@ -3975,10 +4554,10 @@ function UI() {
                 var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
                 var timeLabel = prettydate.format(trdate);
 
-                template += '<a href="#" class="list-group-item clearfix">';
+                template += '<a style=\"border-top-left-radius: 0px;border-top-right-radius: 0px\" href="#" class="list-group-item clearfix" id="ntran' + i + '">';
                 template += '<span class="clear">';
 
-                template += '<span id="ntran' + i + '">';
+                template += '<span>';
                 template += amountLabel;
                 template += '</span>';
 
@@ -3992,7 +4571,7 @@ function UI() {
                 template += '<span><div class="conf">';
                 if (transactions[i].Confirmations < 6) {
                     template += '<span class="badge bg-warning pull-right">';
-                    template += transactions[i].Confirmations;
+                    template += _.escape(transactions[i].Confirmations);
                     template += '</span>';
                 }
                 template += '</div>';
@@ -4039,7 +4618,7 @@ function UI() {
 
                 $(elem).html(template);
 
-                console.log('updating 1');
+                //console.log('updating 1');
 
             });
 
@@ -4053,7 +4632,7 @@ function UI() {
 
                 $(elem).html(timeLabel);
 
-                console.log('updating 2');
+                //console.log('updating 2');
 
             });
 
@@ -4070,61 +4649,33 @@ function UI() {
 
         var trdate = new Date(tran.TransDateTime.match(/\d+/)[0] * 1).toString("yyyy-MM-dd HH:mm tt");
 
-
-        var tranhtml = '';
-
+        $(".footer").hide();
 
 
-        tranhtml += '<div class=""><span class="font-bold">Date:</span>';
-        tranhtml += '</div>';
-        tranhtml += '<div class="allowcopy">';
-        tranhtml += _.escape(trdate);
-        tranhtml += '</div>';
-
-        tranhtml += '<div class="m-t-sm">';
-        tranhtml += '<div class="font-bold">Transaction Id:</div>';
-        tranhtml += '</div>';
-
-        tranhtml += '<div style="word-break: break-all;" class="allowcopy">';
-        tranhtml += _.escape(tran.TransactionId);
-        tranhtml += '</div>';
+        $("#infotrandate").text(_.escape(trdate));
+        $("#infotranid").text(_.escape(tran.TransactionId.substring(0, 30) + '...'));
+        $("#infotranaddress").text(_.escape(tran.Address));
+        $("#infotranamount").text(_.escape(formatCoinAmount(convertFromSatoshis(tran.Amount, COINUNIT)) + ' ' + COINUNIT));
+        $("#infotransent").text(_.escape(tran.TransType));
 
 
-        tranhtml += '<div class="m-t-sm">';
-        tranhtml += '<div class="font-bold">Address:</div>';
-        tranhtml += '</div>';
-
-        tranhtml += '<div class="allowcopy">';
-        tranhtml += _.escape(tran.Address);
-        tranhtml += '</div>';
-
-        tranhtml += '<div class="m-t-sm"><span class="font-bold">Amount:</span>'
-        tranhtml += '</div>';
-
-        tranhtml += '<div class="allowcopy">';
-        tranhtml += convertFromSatoshis(tran.Amount, COINUNIT) + ' ' + COINUNIT;
-        tranhtml += '</div>';
-
-        tranhtml += '<div class="m-t-sm">';
-        tranhtml += '<span class="font-bold">Send/Receive:</span>'
-        tranhtml += '</div>';
-
-        tranhtml += '<div class="allowcopy">';
-        tranhtml += _.escape(tran.TransType);
-        tranhtml += '</div>';
-
-
+        $("#infofulltran").val(_.escape(tran.TransactionId));
 
         if (transactionDetailMode == 'dashboard') {
+            profilepagestate = "trans";
             $("#dashheader").hide();
         } else {
+            //networkpagestate = "trans";
             $("#friendheader").hide();
         }
 
         $("#mainWallet").hide();
-        $(".footer").hide();
+
+
+        $("#transview").show();
+        $("#transview").removeClass("invis");
         $("#transview").addClass("slideUp");
-        $('#transdets').html(tranhtml);
+
 
     }
 
@@ -4151,12 +4702,17 @@ function UI() {
                 //$('#requestaddress').text(tempate);
                 $("#newaddrspinner").hide();
                 $('#requestaddress').show();
+                $('#addresspanel').show();
 
             } else {
                 $('#requestaddressqr').hide();
                 $('#requestaddress').show();
                 $("#newaddrspinner").hide();
-                $('#requestaddresstxt').text(newAddress);
+                $('#addresspanel').hide();
+
+
+                bootbox.alert(newAddress);
+
             }
         });
 
@@ -4213,7 +4769,12 @@ function UI() {
                                 $('#textMessageSendStd').text('You sent ' + convertFromSatoshis(amount, COINUNIT) + ' ' + COINUNIT + ' to ' + friend);
 
 
-                                updateUI();
+                                prevNetworkTransCount = -1;
+                                prevtransfeed = -1;
+
+                                showTransactionFeed(function (err, res) {
+                                    showTransactionNetwork();
+                                });
 
                                 sendAmount = '';
 
@@ -4235,7 +4796,7 @@ function UI() {
                                 $('#sendstdprognum').text('0%');
 
                                 if (transactionid == "ErrInsufficientFunds") {
-                                    $('#textMessageSendStd').text('Transaction Failed: Waiting for funds to clear');
+                                    $('#textMessageSendStd').text('Transaction Failed: Insufficient funds');
                                 }
 
                                 //return to send screen
@@ -4341,7 +4902,13 @@ function UI() {
 
                             if (!err) {
 
-                                $('#textMessageSendStd').html('You sent ' + _.escape(convertFromSatoshis(amount, COINUNIT)) + ' ' + _.escape(COINUNIT) + ' to <span style="word-wrap:break-word;">' + address + '</span>');
+                                $('#textMessageSendStd').html('You sent ' + _.escape(convertFromSatoshis(amount, COINUNIT)) + ' ' + _.escape(COINUNIT) + ' to <span style="word-wrap:break-word;">' + _.escape(address) + '</span>');
+
+
+
+                                prevtransfeed = -1;
+
+                                showTransactionFeed();
 
                                 updateUI();
 
@@ -4365,7 +4932,7 @@ function UI() {
                                 $('#sendstdprognum').text('0%');
 
                                 if (transactionid == "ErrInsufficientFunds") {
-                                    $('#textMessageSendStd').text('Transaction Failed: Waiting for funds to clear');
+                                    $('#textMessageSendStd').text('Transaction Failed: Insufficient funds');
                                 }
 
                                 setTimeout(function () {
@@ -4542,16 +5109,19 @@ function UI() {
 
     var checkAndValidateTimer = null;
 
+    var checkAndValidateTimerExpired = null;
+
 
     function clearCheckAndValidateTimer() {
-        console.log('clearing timer');
+        //console.log('clearing timer');
         clearInterval(checkAndValidateTimer);
     }
 
 
     function checkAndValidateFriendRequests() {
 
-        console.log('checking...');
+
+        //console.log('checking...');
 
         $("#textAddContact").text('Verifying request...');
 
@@ -4560,7 +5130,7 @@ function UI() {
 
         Engine.getFriendRequests(function (err, ofriends) {
 
-            console.log('found ' + ofriends.length);
+            //console.log('found ' + ofriends.length);
 
             if (ofriends.length > 0) {
                 $("#contaddprog").show();
@@ -4614,11 +5184,14 @@ function UI() {
                         $("#textAddContact").text(mess)
 
 
+
                     }
 
                     , function (err, result) {
 
                         if (!err) {
+
+                            clearTimeout(checkAndValidateTimerExpired);
 
                             $("#addcontactprognum").text("100%");
                             $("#addcontactprogstatus").width("100%");
@@ -4629,10 +5202,12 @@ function UI() {
 
                                 $("#dashcontact").addClass("invis");
                                 $("#dashcontact").removeClass("slideUp");
+                                $("#dashcontact").hide();
 
                                 $("#contactrequest").hide();
 
                                 $("#mainWallet").show();
+                                $("#network").show();
                                 $("#networklistheader").show();
                                 $(".footer").show();
                                 $("#friendrequestp1").show();
@@ -4728,307 +5303,377 @@ function UI() {
     });
 
 
+
+
+    $("#tapcancelscan").bind("touchstart", function () {
+
+        clearCheckAndValidateTimer();
+
+        //timed out so return the user to screen
+
+        clearTimeout(checkAndValidateTimerExpired);
+
+        $("#addcontactmodal").hide();
+
+        $("#dashcontact").addClass("invis");
+        $("#dashcontact").removeClass("slideUp");
+        $("#dashcontact").hide();
+
+        $("#contactrequest").hide();
+
+        $("#mainWallet").show();
+        $("#network").show();
+        $("#networklistheader").show();
+
+        if ($("#isactive").val() == 1) {
+            $(".footer").show();
+
+        } else {
+            $("#footermode").val(1);
+        }
+
+
+        $("#friendrequestp1").show();
+        $("#friendrequestp2").hide();
+
+    });
+
     var currentContactExchange = '';
 
     //function when connecting from main add contact screen
     $("#hdqrcontact").change(function () {
 
-        console.log('event triggered');
-        console.log($("#hdqrcontact").val());
+
+        $("#btnAddContactDone").hide();
+
+        //console.log('event triggered');
+        //console.log($("#hdqrcontact").val());
 
         var res = $("#hdqrcontact").val();
-        var sres = res.split(',');
-        var phrase = sres[0];
-        var username = sres[1];
-
-        console.log(phrase);
-        console.log(username);
-
-        currentContactExchange = username;
-
-        registerCode(username, phrase);
-
-        $("#addcontactmodal").show();
-
-        $("#dashcontact").addClass("invis");
-        $("#dashcontact").removeClass("slideUp");
 
 
-        //$("#imgaddcontactwaiting").show();
+        if (res.indexOf(",") > -1) {
 
-        //var target = document.getElementById('imgaddcontactwaiting');
-        //var spinner = new Spinner(spinneropts).spin(target);
+            var sres = res.split(',');
+            var phrase = sres[0];
+            var username = sres[1];
 
+            //console.log(phrase);
+            //console.log(username);
 
+            currentContactExchange = username;
 
-        //$("#qrcontactupd").show();
+            registerCode(username, phrase);
 
-        $("#textAddContact").text('Verifying user...');
+            $("#addcontactmodal").show();
 
-
-        $("#addcontactprog").show();
-
-        $("#addcontactprognum").text("10%");
-        $("#addcontactprogstatus").width("10%");
-
-
-        Engine.doesUsernameExist(username, function (err, usernameExistsOnServer) {
-
-            //also check if friend already
-
-            if (usernameExistsOnServer) {
+            $("#dashcontact").addClass("invis");
+            $("#dashcontact").removeClass("slideUp");
+            $("#dashcontact").hide();
 
 
-                console.log('username exists');
-
-                $("#addcontactprognum").text("30%");
-                $("#addcontactprogstatus").width("30%");
-
-                $("#textAddContact").text('Verifying network...');
-
-                //if no friendrequest- create one and wait
-                //if it exists, then accept and validate
-                //if alread accepted then just validate
-
-                Engine.getFriendRequests(function (err, ofriends) {
-
-                    console.log("logging friend request filter...");
-                    console.log(ofriends);
-
-                    var friends = _.filter(ofriends, function (frn) { return frn.userName == username; });
-
-                    console.log(friends);
-
-                    if (friends.length == 0) {
-
-                        console.log('friend request does not exist');
-
-                        //if network doesnt exist create friend
-
-                        Engine.isNetworkExist(username, function (err, result) {
-
-                            if (!err) {
-
-                                if (!result) {
+            $("#textAddContact").text('Verifying user...');
 
 
-                                    console.log('network does not exist');
+            $("#addcontactprog").show();
 
-                                    $("#textAddContact").text('Deriving addresses...');
-
-                                    $("#addcontactprognum").text("60%");
-                                    $("#addcontactprogstatus").width("60%");
-
-                                    console.log('creating friend...');
-
-                                    Engine.createFriend(username, "#qrcontactmess", function (err, result) {
+            $("#addcontactprognum").text("10%");
+            $("#addcontactprogstatus").width("10%");
 
 
-                                        console.log('create friend ' + result);
+            Engine.doesUsernameExist(username, function (err, usernameExistsOnServer) {
 
-                                        if (err) {
+                //also check if friend already
 
-                                            //$("#addcontactmodal").hide();
-                                            //$("#imgaddcontactwaiting").hide();
-                                            //$("#qrcontactalert").show();
-                                            $("#textAddContact").text("Error adding contact");
+                if (usernameExistsOnServer) {
 
 
-                                        } else {
+                    //console.log('username exists');
+
+                    $("#addcontactprognum").text("30%");
+                    $("#addcontactprogstatus").width("30%");
+
+                    $("#textAddContact").text('Verifying network...');
+
+                    //if no friendrequest- create one and wait
+                    //if it exists, then accept and validate
+                    //if alread accepted then just validate
+
+                    Engine.getFriendRequests(function (err, ofriends) {
 
 
-                                            //if there is a pending friend request
-                                            //skip this bit
+                        if (!err) {
 
-                                            console.log('added timer for check and validate');
-                                            //here we go to - now you friend should scan this code
-                                            checkAndValidateTimer = setInterval(function () {
-                                                checkAndValidateFriendRequests();
-                                            }
+                            //console.log("logging friend request filter...");
+                            //console.log(ofriends);
+
+                            var friends = _.filter(ofriends, function (frn) { return frn.userName == username; });
+
+                            //console.log(friends);
+
+                            if (friends.length == 0) {
+
+                                //console.log('friend request does not exist');
+
+                                //if network doesnt exist create friend
+
+                                Engine.isNetworkExist(username, function (err, result) {
+
+                                    if (!err) {
+
+                                        if (!result) {
+
+
+                                            //console.log('network does not exist');
+
+                                            $("#textAddContact").text('Deriving addresses...');
+
+                                            $("#addcontactprognum").text("60%");
+                                            $("#addcontactprogstatus").width("60%");
+
+                                            //console.log('creating friend...');
+
+                                            Engine.createFriend(username, "#qrcontactmess", function (err, result) {
+
+
+                                                //console.log('create friend ' + result);
+
+                                                if (err) {
+
+                                                    //$("#addcontactmodal").hide();
+                                                    //$("#imgaddcontactwaiting").hide();
+                                                    //$("#qrcontactalert").show();
+                                                    $("#textAddContact").text("Error adding contact");
+                                                    $("#btnAddContactDone").show();
+
+                                                } else {
+
+
+                                                    //if there is a pending friend request
+                                                    //skip this bit
+
+                                                    //console.log('added timer for check and validate');
+                                                    //here we go to - now you friend should scan this code
+                                                    checkAndValidateTimer = setInterval(function () {
+                                                        checkAndValidateFriendRequests();
+                                                    }
                                              , 2000);
 
-                                            //listen for 2 minutes
-                                            setTimeout(function () {
-                                                clearCheckAndValidateTimer();
-
-                                                //timed out so return the user to screen
+                                                    //listen for 2 minutes
+                                                    checkAndValidateTimerExpired = setTimeout(function () {
 
 
-                                                $("#addcontactmodal").hide();
+                                                        clearCheckAndValidateTimer();
 
-                                                $("#dashcontact").addClass("invis");
-                                                $("#dashcontact").removeClass("slideUp");
-
-                                                $("#contactrequest").hide();
-
-                                                $("#mainWallet").show();
-                                                $("#networklistheader").show();
-                                                $(".footer").show();
-                                                $("#friendrequestp1").show();
-                                                $("#friendrequestp2").hide();
+                                                        //timed out so return the user to screen
 
 
-                                            }, 60000);
+                                                        $("#addcontactmodal").hide();
 
-                                            $("#addcontactprognum").text("100%");
-                                            $("#addcontactprogstatus").width("100%");
+                                                        $("#dashcontact").addClass("invis");
+                                                        $("#dashcontact").removeClass("slideUp");
+                                                        $("#dashcontact").hide();
 
-                                            //$("#imgaddcontactwaiting").hide();
-                                            //$("#addcontactmodal").hide();
+                                                        $("#contactrequest").hide();
 
-                                            setTimeout(function () {
+                                                        $("#mainWallet").show();
+                                                        $("#network").show();
+                                                        $("#networklistheader").show();
 
-                                                $("#contaddprog").hide();
-                                                $("#contaddscan").show();
-
-                                                $("#scancontqrmess").text("Now ask " + username + " to scan the QR code below:");
-
-                                            }, 1000);
-
-                                            //$("#textAddContact").text("Now scan the QR code from " + username);
-                                        }
-                                    });
-                                } else {
-
-                                    acceptAndValidateFriend(username, function (message) {
-
-                                        var prog = "";
-                                        var mess = "";
-
-                                        if (message == "AcceptFriendRequest") {
-                                            mess = "Accepting request...";
-                                            prog = "50%";
-                                        }
-
-                                        if (message == "CreateFriend") {
-                                            mess = "Creating contact...";
-                                            prog = "60%";
-                                        }
-
-                                        if (message == "ValidateContact") {
-                                            mess = "Validating contact...";
-                                            prog = "80%";
-                                        }
-
-                                        $("#addcontactprognum").text(prog);
-                                        $("#addcontactprogstatus").width(prog);
-                                        $("#textAddContact").text(mess)
+                                                        if ($("#isactive").val() == 1) {
+                                                            $(".footer").show();
+                                                        } else {
+                                                            $("#footermode").val(1);
+                                                        }
 
 
-                                    }, function (err, result) {
+                                                        $("#friendrequestp1").show();
+                                                        $("#friendrequestp2").hide();
 
 
-                                        if (!err) {
+                                                    }, 60000);
 
-                                            setTimeout(function () {
-                                                $("#addcontactmodal").hide();
+                                                    $("#addcontactprognum").text("100%");
+                                                    $("#addcontactprogstatus").width("100%");
 
-                                                $("#dashcontact").addClass("invis");
-                                                $("#dashcontact").removeClass("slideUp");
+                                                    //$("#imgaddcontactwaiting").hide();
+                                                    //$("#addcontactmodal").hide();
 
-                                                $("#contactrequest").hide();
+                                                    setTimeout(function () {
 
-                                                $("#mainWallet").show();
-                                                $("#networklistheader").show();
-                                                $(".footer").show();
-                                                $("#friendrequestp1").show();
-                                                $("#friendrequestp2").hide();
+                                                        $("#contaddprog").hide();
+                                                        $("#contaddscan").show();
 
-                                            }, 1000);
+                                                        $("#scancontqrmess").text("Now ask " + username + " to scan the QR code below:");
 
+                                                    }, 1000);
 
-
+                                                    //$("#textAddContact").text("Now scan the QR code from " + username);
+                                                }
+                                            });
                                         } else {
 
-                                            $("#textAddContact").text(result);
-                                            $("#btnAddContactDone").show();
+                                            acceptAndValidateFriend(username, function (message) {
+
+                                                var prog = "";
+                                                var mess = "";
+
+                                                if (message == "AcceptFriendRequest") {
+                                                    mess = "Accepting request...";
+                                                    prog = "50%";
+                                                }
+
+                                                if (message == "CreateFriend") {
+                                                    mess = "Creating contact...";
+                                                    prog = "60%";
+                                                }
+
+                                                if (message == "ValidateContact") {
+                                                    mess = "Validating contact...";
+                                                    prog = "80%";
+                                                }
+
+                                                $("#addcontactprognum").text(prog);
+                                                $("#addcontactprogstatus").width(prog);
+                                                $("#textAddContact").text(mess)
+
+
+                                            }, function (err, result) {
+
+
+                                                if (!err) {
+
+                                                    setTimeout(function () {
+                                                        $("#addcontactmodal").hide();
+
+                                                        $("#dashcontact").addClass("invis");
+                                                        $("#dashcontact").removeClass("slideUp");
+                                                        $("#dashcontact").hide();
+
+                                                        $("#contactrequest").hide();
+
+                                                        $("#mainWallet").show();
+                                                        $("#network").show();
+                                                        $("#networklistheader").show();
+                                                        $(".footer").show();
+                                                        $("#friendrequestp1").show();
+                                                        $("#friendrequestp2").hide();
+
+                                                    }, 1000);
+
+
+
+                                                } else {
+
+                                                    $("#textAddContact").text(result);
+                                                    $("#btnAddContactDone").show();
+
+                                                }
+
+
+                                            });
 
                                         }
 
+                                    } else {
 
-                                    });
+                                        $("#textAddContact").text(result);
+                                        $("#btnAddContactDone").show();
+                                    }
 
-                                }
+                                });
+
+                            } else if (friends.length == 1) {
+
+
+                                //validate using the fingerprint
+                                acceptAndValidateFriend(username, function (message) {
+
+                                    var prog = "";
+                                    var mess = "";
+
+                                    if (message == "AcceptFriendRequest") {
+                                        mess = "Accepting request...";
+                                        prog = "50%";
+                                    }
+
+                                    if (message == "CreateFriend") {
+                                        mess = "Creating contact...";
+                                        prog = "60%";
+                                    }
+
+                                    if (message == "ValidateContact") {
+                                        mess = "Validating contact...";
+                                        prog = "80%";
+                                    }
+
+                                    $("#addcontactprognum").text(prog);
+                                    $("#addcontactprogstatus").width(prog);
+                                    $("#textAddContact").text(mess)
+
+
+                                }, function (err, result) {
+
+                                    if (!err) {
+
+                                        $("#addcontactprognum").text("100%");
+                                        $("#addcontactprogstatus").width("100%");
+
+                                        setTimeout(function () {
+
+                                            $("#addcontactmodal").hide();
+
+                                            $("#dashcontact").addClass("invis");
+                                            $("#dashcontact").removeClass("slideUp");
+                                            $("#dashcontact").hide();
+
+                                            $("#contactrequest").hide();
+
+                                            $("#mainWallet").show();
+                                            $("#network").show();
+                                            $("#networklistheader").show();
+                                            $(".footer").show();
+                                            $("#friendrequestp1").show();
+                                            $("#friendrequestp2").hide();
+
+                                        }, 1000);
+
+
+
+                                    } else {
+
+                                        $("#textAddContact").text(result);
+                                        $("#btnAddContactDone").show();
+
+                                    }
+
+
+                                });
 
                             }
+                        } else {
 
-                        });
+                            //error so handle gracefully
 
-                    } else if (friends.length == 1) {
+                            $("#textAddContact").text("Error adding contact");
+                            $("#btnAddContactDone").show();
 
+                        }
+                    });
 
-                        //validate using the fingerprint
-                        acceptAndValidateFriend(username, function (message) {
-
-                            var prog = "";
-                            var mess = "";
-
-                            if (message == "AcceptFriendRequest") {
-                                mess = "Accepting request...";
-                                prog = "50%";
-                            }
-
-                            if (message == "CreateFriend") {
-                                mess = "Creating contact...";
-                                prog = "60%";
-                            }
-
-                            if (message == "ValidateContact") {
-                                mess = "Validating contact...";
-                                prog = "80%";
-                            }
-
-                            $("#addcontactprognum").text(prog);
-                            $("#addcontactprogstatus").width(prog);
-                            $("#textAddContact").text(mess)
-
-
-                        }, function (err, result) {
-
-                            if (!err) {
-
-                                $("#addcontactprognum").text("100%");
-                                $("#addcontactprogstatus").width("100%");
-
-                                setTimeout(function () {
-
-                                    $("#addcontactmodal").hide();
-
-                                    $("#dashcontact").addClass("invis");
-                                    $("#dashcontact").removeClass("slideUp");
-
-                                    $("#contactrequest").hide();
-
-                                    $("#mainWallet").show();
-                                    $("#networklistheader").show();
-                                    $(".footer").show();
-                                    $("#friendrequestp1").show();
-                                    $("#friendrequestp2").hide();
-
-                                }, 1000);
+                } else {
 
 
 
-                            } else {
+                }
+            });
 
-                                $("#textAddContact").text(result);
-                                $("#btnAddContactDone").show();
+        } else {
 
-                            }
+            bootbox.alert("There was an error scanning the QR code, please try again.");
 
+        }
 
-                        });
-
-
-                    }
-                });
-
-            } else {
-
-
-
-            }
-        });
 
     });
 
@@ -5036,84 +5681,98 @@ function UI() {
 
     $("#hdvalcontact").change(function () {
 
-        console.log('caught event...');
+
+        $("#btnAddContactDone").hide();
+
+        //console.log('caught event...');
 
         var res = $("#hdvalcontact").val();
-        var sres = res.split(',');
-        var phrase = sres[0];
-        var username = sres[1];
 
-        $("#netvalidp2").show();
-        $("#netvalidp1").hide();
+        if (res.indexOf(",") > -1) {
 
+            var sres = res.split(',');
+            var phrase = sres[0];
+            var username = sres[1];
 
-        registerCode(username, phrase);
-
-        acceptAndValidateFriend(username, function (message) {
-
-            var prog = "";
-            var mess = "";
-
-            if (message == "AcceptFriendRequest") {
-                mess = "Accepting request...";
-                prog = "30%";
-            }
-
-            if (message == "CreateFriend") {
-                mess = "Creating contact...";
-                prog = "60%";
-            }
-
-            if (message == "ValidateContact") {
-                mess = "Validating contact...";
-                prog = "80%";
-            }
-
-            $("#netvalidprognum").text(prog);
-            $("#netvalidprog").width(prog);
-            $("#netvalidprogmess").text(mess)
+            $("#netvalidp2").show();
+            $("#netvalidp1").hide();
 
 
-        }, function (err, result) {
+            registerCode(username, phrase);
 
-            if (!err) {
+            acceptAndValidateFriend(username, function (message) {
 
-                selectedFriend.validated = true;
-                FRIENDSLIST[selectedFriend.userName].validated = true;
-                updateSelectedFriend();
+                var prog = "";
+                var mess = "";
 
-                $("#netvalidprognum").text('100%');
-                $("#netvalidprogmess").text('Contact validated');
-                $("#netvalidprog").width('100%');
+                if (message == "AcceptFriendRequest") {
+                    mess = "Accepting request...";
+                    prog = "30%";
+                }
 
-                setTimeout(function () {
+                if (message == "CreateFriend") {
+                    mess = "Creating contact...";
+                    prog = "60%";
+                }
 
-                    //$("#validateform").hide();
-                    //$("#validatesuccess").show();
-                    $("#txtCode").val('');
+                if (message == "ValidateContact") {
+                    mess = "Validating contact...";
+                    prog = "80%";
+                }
 
-                    $("#networkvalidate").hide();
-                    $("#friendheader").show();
-                    $("#mainWallet").show();
-                    $(".footer").show();
+                $("#netvalidprognum").text(prog);
+                $("#netvalidprog").width(prog);
+                $("#netvalidprogmess").text(mess)
 
-                    $("#netvalidp2").hide();
-                    $("#netvalidp1").show();
-                    //update list also
 
-                    //find friend in list and update the validated icon
-                    $("#myfriends #seltarget" + selectedFriend.userName).html('<div class="pull-right text-success m-t-sm"><i class="fa fa-check-square" style="font-size:1.5em"></i></div>');
+            }, function (err, result) {
 
-                }, 1000);
+                if (!err) {
 
-            } else {
+                    selectedFriend.validated = true;
+                    FRIENDSLIST[selectedFriend.userName].validated = true;
+                    updateSelectedFriend();
 
-                $("#netvalidprogmess").text(result);
-                $("#btnNetValidDone").show();
+                    $("#netvalidprognum").text('100%');
+                    $("#netvalidprogmess").text('Contact validated');
+                    $("#netvalidprog").width('100%');
 
-            }
+                    setTimeout(function () {
 
-        });
+                        //$("#validateform").hide();
+                        //$("#validatesuccess").show();
+                        $("#txtCode").val('');
+
+                        $("#networkvalidate").hide();
+                        $("#friendheader").show();
+                        $("#mainWallet").show();
+                        $(".footer").show();
+
+                        $("#netvalidp2").hide();
+                        $("#netvalidp1").show();
+                        //update list also
+
+                        //find friend in list and update the validated icon
+                        $("#myfriends #seltarget" + selectedFriend.userName).html('<div class="pull-right text-success m-t-sm"><i class="fa fa-check-square" style="font-size:1.5em"></i></div>');
+
+                    }, 1000);
+
+                } else {
+
+                    $("#netvalidprogmess").text(result);
+                    $("#btnNetValidDone").show();
+
+                }
+
+
+
+            });
+
+        } else {
+
+            bootbox.alert("There was an error scanning the QR code, please try again.");
+
+        }
     });
 
 
@@ -5153,6 +5812,7 @@ function UI() {
 
                         $("#dashcontact").addClass("invis");
                         $("#dashcontact").removeClass("slideUp");
+                        $("#dashcontact").hide();
 
                         //$("#imgaddcontactwaiting").show();
                         //var target = document.getElementById('imgaddcontactwaiting');
@@ -5196,10 +5856,12 @@ function UI() {
 
                                     $("#dashcontact").addClass("invis");
                                     $("#dashcontact").removeClass("slideUp");
+                                    $("#dashcontact").hide();
 
                                     $("#contactrequest").hide();
 
                                     $("#mainWallet").show();
+                                    $("#network").show();
                                     $("#networklistheader").show();
                                     $(".footer").show();
                                     $("#friendrequestp1").show();

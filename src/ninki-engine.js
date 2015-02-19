@@ -743,7 +743,7 @@ function Engine() {
                                     hckey: hchkey
                                 };
 
-                                //console.log(coldHash, hotHash);
+                           
 
                                 return callback(err, walletInformation);
 
@@ -1469,14 +1469,14 @@ function Engine() {
 
     function deriveKeys(mpk, nodes, cdcallback) {
 
-        if (m_this.Device.isCordova()) {
+        if (m_this.Device.isiOS()) {
 
             var mkpder = [];
 
             corNodesToProcess = nodes.length;
             cordovaDeriveKey(mpk, nodes, mkpder, function (result) {
 
-                console.log(mkpder);
+             
 
                 return cdcallback(mkpder);
 
@@ -1495,45 +1495,32 @@ function Engine() {
 
     function cordovaDeriveKey(mpk, nodes, mkpder, derfinished) {
 
-        console.log("entered cordoveDeriveKey...");
-        console.log(mkpder);
 
         if (corNodesDone == corNodesToProcess) {
 
-            console.log("returning...");
+           
             return derfinished(mkpder)
 
         } else {
-
 
             var nls = nodes[corNodesDone].split("/");
             var tnode = nls[2] * 1;
             var leaf = nls[3] * 1;
 
-
-            console.log("calling exec...");
-
             cordova.exec(
                 function callback(data) {
 
-
                     corNodesDone++;
 
-                    console.log("pushing data...");
-
                     mkpder.push(data);
-
-                    console.log(mkpder);
-
-                    console.log("key added...");
 
                     cordovaDeriveKey(mpk, nodes, mkpder, derfinished);
 
 
                 },
                 function errorHandler(err) {
-                    //alert('Error');
-                    console.log("error");
+       
+           
                 },
                 'ECPlugin',
                 'cordovaECDerKey',
@@ -1688,7 +1675,7 @@ function Engine() {
                     }
 
 
-                    console.log("resume now...");
+                  
                     //call to cordova plugin for private key derivation
 
 
@@ -1719,22 +1706,20 @@ function Engine() {
                     //if we are sending money to a contact or paying an invoice
                     //we need to derive addresses on their behalf
 
-                    console.log(nodeLevels);
+                   
 
 
                     deriveKeys(bipHot, nodeLevels, function (ret) {
 
-                        console.log("got here...");
-                        console.log(ret);
 
-                        if (m_this.Device.isCordova()) {
-                            console.log("is cordova...");
+                        if (m_this.Device.isiOS()) {
+                           
                             for (var i = 0; i < ret.length; i++) {
-                                console.log("new key...");
+                          
                                 var nkey = new Bitcoin.ECKey(ret[i]);
-                                console.log(nkey);
+                         
                                 userHotPrivKeys.push(nkey);
-                                console.log(userHotPrivKeys);
+                        
                             }
 
                         } else {
@@ -1743,7 +1728,7 @@ function Engine() {
                         }
 
 
-                        console.log(userHotPrivKeys);
+                  
 
 
                         if (sendType == 'friend' || sendType == 'invoice') {
@@ -1757,7 +1742,7 @@ function Engine() {
                             //generate the address for the contact
                             //this must be done on the client
 
-                            console.log('Creating address...');
+                        
                             statuscallback('creating address...', '30%');
                             createAddressForFriend(friendUserName, function (err, address) {
 
@@ -1770,14 +1755,12 @@ function Engine() {
 
                                     //create the change address, this must be done on the client
                                     statuscallback('Creating change address...', '40%');
-                                    console.log("start create address..");
+                             
 
                                     createAddress('m/0/1', changeAmount, function (err, changeaddress) {
 
                                         if (!err) {
-                                            console.log("end create address...");
-
-
+                                           
                                             if (changeAmount > 0) {
                                                 addressToSend.push(changeaddress);
                                             }
@@ -2106,7 +2089,7 @@ function Engine() {
                     var path = nodePath + '/' + leaf;
 
 
-                    if (m_this.Device.isCordova()) {
+                    if (m_this.Device.isiOS()) {
 
                         var tnode = snode[2] * 1;
 
@@ -2122,7 +2105,6 @@ function Engine() {
                             function callback(data) {
 
                                 hhotKey = data;
-                                console.log("hot key=" + data);
 
                                 hotKey = Bitcoin.convert.hexToBytes(data);
 
@@ -2131,7 +2113,7 @@ function Engine() {
                                     function callback(data) {
 
                                         hcoldKey = data;
-                                        console.log("cold key=" + data);
+                            
 
                                         coldKey = Bitcoin.convert.hexToBytes(data);
 
@@ -2140,7 +2122,7 @@ function Engine() {
 
                                                 hninkiKey = data;
 
-                                                console.log("ninki key=" + data);
+                                   
 
                                                 ninkiKey = Bitcoin.convert.hexToBytes(data);
 
@@ -2170,7 +2152,7 @@ function Engine() {
                                                     pk3: hninkiKey
                                                 };
                                                 API.post("/api/1/u/createaddress", postData, function (err, result) {
-                                                    console.log(result);
+                                       
                                                     if (!err) {
                                                         return cacallback(err, address);
                                                     } else {
@@ -2216,13 +2198,13 @@ function Engine() {
                         var bipCold = Bitcoin.HDWallet.fromBase58(m_this.m_walletinfo.coldPub);
                         var bipNinki = Bitcoin.HDWallet.fromBase58(m_this.m_walletinfo.ninkiPubKey);
 
-                        console.log("deriving hot");
+                 
                         var hotKey = deriveChild(path, bipHot);
-                        console.log("deriving cold");
+                   
                         var coldKey = deriveChild(path, bipCold);
-                        console.log("deriving ninki");
+                    
                         var ninkiKey = deriveChild(path, bipNinki);
-                        console.log("keys derived");
+                     
                         //now create the multisig address
                         var script = [0x52];
 
@@ -2308,7 +2290,7 @@ function Engine() {
                             var path = 'm/' + leaf;
 
 
-                            if (m_this.Device.isCordova()) {
+                            if (m_this.Device.isiOS()) {
 
 
                                 var nleaf = leaf * 1;
@@ -2325,8 +2307,7 @@ function Engine() {
                                     function callback(data) {
 
                                         hhotKey = data;
-                                        console.log("hot key=" + data);
-
+                                    
                                         hotKey = Bitcoin.convert.hexToBytes(data);
 
 
@@ -2334,7 +2315,6 @@ function Engine() {
                                             function callback(data) {
 
                                                 hcoldKey = data;
-                                                console.log("cold key=" + data);
 
                                                 coldKey = Bitcoin.convert.hexToBytes(data);
 
@@ -2342,8 +2322,6 @@ function Engine() {
                                                     function callback(data) {
 
                                                         hninkiKey = data;
-
-                                                        console.log("ninki key=" + data);
 
                                                         ninkiKey = Bitcoin.convert.hexToBytes(data);
 
@@ -2602,7 +2580,7 @@ function Engine() {
 
         API.post("/api/1/u/getnextnodeforfriend", postData, function (err, node) {
 
-            if (m_this.Device.isCordova()) {
+            if (m_this.Device.isiOS()) {
 
                 var nls = node.split("/");
                 var tnode = nls[2] * 1;
@@ -2617,25 +2595,16 @@ function Engine() {
 
                     hotKey = Bitcoin.HDWallet.fromHex(data).toString();
 
-                    console.log(hotKey);
-
                     cordova.exec(function callback(data) {
 
                         coldKey = Bitcoin.HDWallet.fromHex(data).toString();
-
-                        console.log(coldKey);
 
                         cordova.exec(function callback(data) {
 
                             ninkiKey = Bitcoin.HDWallet.fromHex(data).toString();
 
-                            console.log(ninkiKey);
-
-                            console.log("getting rsa key");
 
                             API.post("/api/1/u/getrsakey", postData, function (err, rsaKey) {
-
-                                console.log("got rsa key");
 
                                 var publicKeys = openpgp.key.readArmored(rsaKey);
 
@@ -2643,11 +2612,7 @@ function Engine() {
 
                                 var message = hotKey + coldKey + ninkiKey;
 
-                                console.log("encrypting");
-
-                                var encrypted = openpgp.signAndEncryptMessage([pubKey], m_this.m_privKey, message);
-
-                                console.log("encrypting done");
+                                var encrypted = openpgp.signAndEncryptMessage([pubKey], m_this.m_privKey, message)
 
                                 var result = "";
 
@@ -2660,16 +2625,7 @@ function Engine() {
                                     validationHash: ''
                                 };
 
-                                console.log(postFriendData);
-
-                                console.log("calling createfriend");
-
                                 API.post("/api/1/u/createfriend", postFriendData, function (err, result) {
-
-                                    console.log("done");
-
-                                    console.log(err);
-                                    console.log(result);
 
                                     return cbcallback(err, result);
 
@@ -2771,23 +2727,28 @@ function Engine() {
 
                 m_this.isNetworkExist(username, function (err, result) {
 
-                    if (!result) {
+                    //if (!err) {
 
-                        m_this.createFriend(username, '', function (err, result) {
+                        if (!result) {
+                        
+                            m_this.createFriend(username, '', function (err, result) {
 
-                            if (err) {
+                                if (err) {
 
-                                return callback(err, result);
-                            } else {
+                                    return callback(err, result);
+                                } else {
 
-                                return callback(err, result);
-                            }
-                        });
+                                    return callback(err, result);
+                                }
+                            });
 
-                    } else {
+                        } else {
 
-                        return callback(err, result);
-                    }
+                            return callback(err, result);
+                        }
+                    //} else {
+                    //    return callback(err, result);
+                    //}
 
                 });
             }

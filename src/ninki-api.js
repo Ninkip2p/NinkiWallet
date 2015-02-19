@@ -137,14 +137,8 @@ function lpost(url, postData, callback) {
 
     } else {
 
-
-
-        //https://10.0.1.42:1111
-
-        //https://testnet.ninkip2p.com:443
-
     $.ajax({
-        url: "https://api.ninkip2p.com:443" + url,
+        url: "https://api.ninkip2p.com" + url,
         type: "POST",
         timeout: 10000,
         data: JSON.stringify(postData),
@@ -182,10 +176,16 @@ function lpost(url, postData, callback) {
 
             if (data.statusText == "timeout") {
 
-                return callback(true, "Could not connect.");
+                return callback(true, "Could not connect to the Ninki server. Please try again. If the problem persists email support@ninkip2p.com.");
 
             }
 
+
+            if (data.status == 0) {
+
+                return callback(true, "Could not connect to the network. Please check that you are connected to the internet.");
+
+            }
 
             if (data.status == 403) {
                 //session has been lost

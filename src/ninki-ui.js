@@ -982,7 +982,7 @@ function UI() {
 
                                     var data = encdata.toString() + '|' + encdata.iv.toString() + '|' + Engine.m_oguid + '|' + currentDevice.DeviceName + '|' + jresult.RegToken;
 
-                                    var options = { text: data, width: 256, height: 256, ecLevel: 'H' };
+                                    var options = { text: data, width: 384, height: 384, ecLevel: 'H' };
 
                                     $('#qrdevice').text(data);
                                     $('#qrdevice').qrcode(options);
@@ -2522,7 +2522,7 @@ function UI() {
 
             chrome.app.window.create('printwindow.html', { 'bounds': {
                 'width': Math.round(window.screen.availWidth * 0.25),
-                'height': Math.round(window.screen.availHeight * 0.25)
+                'height': Math.round(window.screen.availHeight * 0.35)
             }
             },
             function (createdWindow) {
@@ -3575,149 +3575,153 @@ function UI() {
         Engine.getInvoiceList(function (err, invoices) {
 
 
-            if (lastInvoiceToPayCount < invoices.length) {
+            if (!err) {
 
-            } else {
+                if (lastInvoiceToPayCount < invoices.length) {
 
-                return callback(false, "done");
+                } else {
 
-            }
+                    return callback(false, "done");
 
-            for (var i = 0; i < invoices.length; i++) {
-                var d1 = new Date(invoices[i].InvoiceDate);
-                invoices[i].JsDate = d1;
-            }
-
-            invoices = _.sortBy(invoices, function (inv) { return -inv.JsDate; });
-
-            filteredForMeInvoices = invoices;
-
-            //perform all filters then set back to invoices
-
-            if (currentInvoiceFilter == "Pending") {
-
-                filteredForMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 0; });
-            }
-
-            if (currentInvoiceFilter == "Paid") {
-
-                filteredForMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 1; });
-            }
-
-            if (currentInvoiceFilter == "Rejected") {
-
-                filteredForMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 2; });
-            }
-
-
-            if (currentInvoiceFilter == "Search") {
-                var search = $('#txtSearchInvForMe').val();
-                filteredForMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceFrom.search(search) > -1; });
-            }
-
-
-            var noofpages = Math.floor((filteredForMeInvoices.length / invoicesForMePerPage));
-
-            var indexFrom = currentForMeInvoicePageIndex * invoicesForMePerPage;
-            var indexTo = indexFrom + invoicesForMePerPage;
-
-            if (indexTo > filteredForMeInvoices.length) {
-                indexTo = filteredForMeInvoices.length;
-            }
-
-            $('#invbmpaglabel').text('Showing ' + (indexFrom + 1) + ' to ' + (indexTo) + ' of ' + filteredForMeInvoices.length);
-
-
-            invoices = filteredForMeInvoices;
-
-            if (lastInvoiceToPayCount < invoices.length) {
-
-
-
-
-
-                pagedForMeInvoices = filteredForMeInvoices.slice(indexFrom, indexTo);
-
-                invoices = pagedForMeInvoices;
-
-                cachedInvoices = [];
-
-                lastInvoiceToPayCount = invoices.length;
-
-                var s = '';
-                $('#tblinvoicepay tbody').empty();
-                for (var i = 0; i < invoices.length; i++) {
-
-                    cachedInvoices.push(invoices[i]);
-
-                    var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1).toLocaleString();
-                    var invpaydate = '';
-                    if (invoices[i].InvoicePaidDate) {
-                        invpaydate = new Date(invoices[i].InvoicePaidDate.match(/\d+/)[0] * 1).toLocaleString();
-                    }
-
-                    var statusbox = '';
-                    if (invoices[i].InvoiceStatus == 0) {
-                        statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
-                    }
-                    else if (invoices[i].InvoiceStatus == 1) {
-                        statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
-                    }
-                    else if (invoices[i].InvoiceStatus == 2) {
-                        statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
-                    }
-
-                    s += "<tr><td><label class=\"checkbox m-n i-checks\"><input type=\"checkbox\" name=\"post[]\"><i></i></label></td><td>" + _.escape(invdate) + "</td>";
-
-                    s += "<td><span class=\"thumb-sm\"><img id=\"imginvoice" + i + "\" alt=\"\" class=\"img-circle\"></span><span class=\"m-s\"> ";
-
-                    s += _.escape(invoices[i].InvoiceFrom) + "</span></td>";
-
-                    s += "<td><a href=\"#\" class=\"active\">" + statusbox + "</a></td><td>" + _.escape(invpaydate) + "</td><td><button type=\"button\" class=\"btn btn-sm btn-default\" id=\"viewinvoice" + i + "\">View</button></td></tr>";
                 }
 
-                $('#tblinvoicepay tbody').append(s);
-
                 for (var i = 0; i < invoices.length; i++) {
+                    var d1 = new Date(invoices[i].InvoiceDate);
+                    invoices[i].JsDate = d1;
+                }
 
-                    $("#tblinvoicepay #viewinvoice" + i).click({
-                        index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
-                    }, function (event) {
-                        displayInvoice(event.data.index, event.data.username, 'forme', function (err, res) {
-                            uiInvoiceReturnToNetwork = false;
-                            //$('#hinvoices').click();
+                invoices = _.sortBy(invoices, function (inv) { return -inv.JsDate; });
+
+                filteredForMeInvoices = invoices;
+
+                //perform all filters then set back to invoices
+
+                if (currentInvoiceFilter == "Pending") {
+
+                    filteredForMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 0; });
+                }
+
+                if (currentInvoiceFilter == "Paid") {
+
+                    filteredForMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 1; });
+                }
+
+                if (currentInvoiceFilter == "Rejected") {
+
+                    filteredForMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 2; });
+                }
+
+
+                if (currentInvoiceFilter == "Search") {
+                    var search = $('#txtSearchInvForMe').val();
+                    filteredForMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceFrom.search(search) > -1; });
+                }
+
+
+                var noofpages = Math.floor((filteredForMeInvoices.length / invoicesForMePerPage));
+
+                var indexFrom = currentForMeInvoicePageIndex * invoicesForMePerPage;
+                var indexTo = indexFrom + invoicesForMePerPage;
+
+                if (indexTo > filteredForMeInvoices.length) {
+                    indexTo = filteredForMeInvoices.length;
+                }
+
+                $('#invbmpaglabel').text('Showing ' + (indexFrom + 1) + ' to ' + (indexTo) + ' of ' + filteredForMeInvoices.length);
+
+
+                invoices = filteredForMeInvoices;
+
+                if (lastInvoiceToPayCount < invoices.length) {
+
+
+
+
+
+                    pagedForMeInvoices = filteredForMeInvoices.slice(indexFrom, indexTo);
+
+                    invoices = pagedForMeInvoices;
+
+                    cachedInvoices = [];
+
+                    lastInvoiceToPayCount = invoices.length;
+
+                    var s = '';
+                    $('#tblinvoicepay tbody').empty();
+                    for (var i = 0; i < invoices.length; i++) {
+
+                        cachedInvoices.push(invoices[i]);
+
+                        var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1).toLocaleString();
+                        var invpaydate = '';
+                        if (invoices[i].InvoicePaidDate) {
+                            invpaydate = new Date(invoices[i].InvoicePaidDate.match(/\d+/)[0] * 1).toLocaleString();
+                        }
+
+                        var statusbox = '';
+                        if (invoices[i].InvoiceStatus == 0) {
+                            statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
+                        }
+                        else if (invoices[i].InvoiceStatus == 1) {
+                            statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
+                        }
+                        else if (invoices[i].InvoiceStatus == 2) {
+                            statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
+                        }
+
+                        s += "<tr><td><label class=\"checkbox m-n i-checks\"><input type=\"checkbox\" name=\"post[]\"><i></i></label></td><td>" + _.escape(invdate) + "</td>";
+
+                        s += "<td><span class=\"thumb-sm\"><img id=\"imginvoice" + i + "\" alt=\"\" class=\"img-circle\"></span><span class=\"m-s\"> ";
+
+                        s += _.escape(invoices[i].InvoiceFrom) + "</span></td>";
+
+                        s += "<td><a href=\"#\" class=\"active\">" + statusbox + "</a></td><td>" + _.escape(invpaydate) + "</td><td><button type=\"button\" class=\"btn btn-sm btn-default\" id=\"viewinvoice" + i + "\">View</button></td></tr>";
+                    }
+
+                    $('#tblinvoicepay tbody').append(s);
+
+                    for (var i = 0; i < invoices.length; i++) {
+
+                        $("#tblinvoicepay #viewinvoice" + i).click({
+                            index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
+                        }, function (event) {
+                            displayInvoice(event.data.index, event.data.username, 'forme', function (err, res) {
+                                uiInvoiceReturnToNetwork = false;
+                                //$('#hinvoices').click();
+                            });
                         });
-                    });
 
 
-                    var length = invoices[i].InvoiceFrom.length;
-                    if (length > 20) {
-                        length = 20;
+                        var length = invoices[i].InvoiceFrom.length;
+                        if (length > 20) {
+                            length = 20;
+                        }
+
+                        var imageSrcSmall = "images/avatar/64px/Avatar-" + pad(length) + ".png";
+
+
+                        if (FRIENDSLIST[invoices[i].InvoiceFrom].profileImage != '') {
+                            imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(FRIENDSLIST[invoices[i].InvoiceFrom].profileImage) + "?crop=faces&fit=crop&h=64&w=64&mask=ellipse&border=1,d0d0d0";
+                        }
+
+
+                        if (Engine.Device.isChromeApp()) {
+                            var xhrsm = new XMLHttpRequest();
+                            xhrsm.open('GET', imageSrcSmall, true);
+                            xhrsm.responseType = 'blob';
+                            xhrsm.index = i;
+                            xhrsm.onload = function (e) {
+                                $("#tblinvoicepay #imginvoice" + this.index).attr("src", window.URL.createObjectURL(this.response));
+                            };
+                            xhrsm.send();
+                        } else {
+
+                            //can we use chrome method here?
+                            $("#tblinvoicepay #imginvoice" + i).attr("src", imageSrcSmall);
+                        }
+
+
                     }
-
-                    var imageSrcSmall = "images/avatar/64px/Avatar-" + pad(length) + ".png";
-
-
-                    if (FRIENDSLIST[invoices[i].InvoiceFrom].profileImage != '') {
-                        imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(FRIENDSLIST[invoices[i].InvoiceFrom].profileImage) + "?crop=faces&fit=crop&h=64&w=64&mask=ellipse&border=1,d0d0d0";
-                    }
-
-
-                    if (Engine.Device.isChromeApp()) {
-                        var xhrsm = new XMLHttpRequest();
-                        xhrsm.open('GET', imageSrcSmall, true);
-                        xhrsm.responseType = 'blob';
-                        xhrsm.index = i;
-                        xhrsm.onload = function (e) {
-                            $("#tblinvoicepay #imginvoice" + this.index).attr("src", window.URL.createObjectURL(this.response));
-                        };
-                        xhrsm.send();
-                    } else {
-
-                        //can we use chrome method here?
-                        $("#tblinvoicepay #imginvoice" + i).attr("src", imageSrcSmall);
-                    }
-
 
                 }
 
@@ -3884,171 +3888,176 @@ function UI() {
 
         Engine.getInvoiceByUserList(function (err, invoices) {
 
-            for (var i = 0; i < invoices.length; i++) {
-                var d1 = new Date(invoices[i].InvoiceDate);
-                invoices[i].JsDate = d1;
-            }
-
-            invoices = _.sortBy(invoices, function (inv) { return -inv.JsDate; });
-
-            filteredByMeInvoices = invoices;
-
-            //perform all filters then set back to invoices
-
-            if (currentByMeInvoiceFilter == "Pending") {
-
-                filteredByMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 0; });
-            }
-
-            if (currentByMeInvoiceFilter == "Paid") {
-
-                filteredByMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 1; });
-            }
-
-            if (currentByMeInvoiceFilter == "Rejected") {
-
-                filteredByMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 2; });
-            }
-
-            if (currentByMeInvoiceFilter == "Search") {
-                var search = $('#txtSearchInvByMe').val();
-                filteredByMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceFrom.search(search) > -1; });
-            }
-
-            var noofpages = Math.floor((filteredByMeInvoices.length / invoicesByMePerPage));
-
-            var indexFrom = currentByMeInvoicePageIndex * invoicesByMePerPage;
-            var indexTo = indexFrom + invoicesByMePerPage;
-
-            if (indexTo > filteredByMeInvoices.length) {
-                indexTo = filteredByMeInvoices.length;
-            }
-
-            $('#invbmpaglabel').text('Showing ' + (indexFrom + 1) + ' to ' + (indexTo) + ' of ' + filteredByMeInvoices.length);
-
-            invoices = filteredByMeInvoices;
+            if (!err) {
 
 
-            if (lastInvoiceByUserCount < invoices.length) {
-
-
-                pagedByMeInvoices = filteredByMeInvoices.slice(indexFrom, indexTo);
-
-                invoices = pagedByMeInvoices;
-
-                cachedInvoicesByUser = [];
-
-                lastInvoiceByUserCount = invoices.length;
-
-                var s = '';
-                $('#tblinvoicebyme tbody').empty();
                 for (var i = 0; i < invoices.length; i++) {
-
-                    var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1).toLocaleString();
-                    var invpaydate = '';
-                    if (invoices[i].InvoicePaidDate) {
-                        invpaydate = new Date(invoices[i].InvoicePaidDate.match(/\d+/)[0] * 1).toLocaleString();
-                    }
-
-                    cachedInvoicesByUser.push(invoices[i]);
-
-                    var statusbox = '';
-                    if (invoices[i].InvoiceStatus == 0) {
-                        statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
-                    }
-                    else if (invoices[i].InvoiceStatus == 1) {
-                        statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
-                    }
-                    else if (invoices[i].InvoiceStatus == 2) {
-                        statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
-                    }
-
-
-                    s += "<tr><td><label class=\"checkbox m-n i-checks\"><input type=\"checkbox\" name=\"post[]\"><i></i></label></td><td>" + _.escape(invdate) + "</td><td><span class=\"thumb-sm\"><img alt=\"\"  id=\"imginvoicebyuser" + i + "\" class=\"img-circle\"></span><span class=\"m-s\"> " +
-                                 _.escape(invoices[i].InvoiceFrom) + "</span></td><td><a href=\"#\" class=\"active\">" + statusbox + "</a></td><td><span class=\"paid\">" + _.escape(invpaydate) + "</span></td><td><button type=\"button\" class=\"btn btn-sm btn-default\" id=\"viewinvoicebyuser" + i + "\">View</button></td></tr>";
+                    var d1 = new Date(invoices[i].InvoiceDate);
+                    invoices[i].JsDate = d1;
                 }
 
-                $('#tblinvoicebyme tbody').append(s);
+                invoices = _.sortBy(invoices, function (inv) { return -inv.JsDate; });
 
-                for (var i = 0; i < invoices.length; i++) {
+                filteredByMeInvoices = invoices;
 
-                    $("#tblinvoicebyme #viewinvoicebyuser" + i).click({
-                        index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
-                    }, function (event) {
-                        displayInvoiceByUser(event.data.index, event.data.username, 'byme', function (err, res) {
+                //perform all filters then set back to invoices
+
+                if (currentByMeInvoiceFilter == "Pending") {
+
+                    filteredByMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 0; });
+                }
+
+                if (currentByMeInvoiceFilter == "Paid") {
+
+                    filteredByMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 1; });
+                }
+
+                if (currentByMeInvoiceFilter == "Rejected") {
+
+                    filteredByMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 2; });
+                }
+
+                if (currentByMeInvoiceFilter == "Search") {
+                    var search = $('#txtSearchInvByMe').val();
+                    filteredByMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceFrom.search(search) > -1; });
+                }
+
+                var noofpages = Math.floor((filteredByMeInvoices.length / invoicesByMePerPage));
+
+                var indexFrom = currentByMeInvoicePageIndex * invoicesByMePerPage;
+                var indexTo = indexFrom + invoicesByMePerPage;
+
+                if (indexTo > filteredByMeInvoices.length) {
+                    indexTo = filteredByMeInvoices.length;
+                }
+
+                $('#invbmpaglabel').text('Showing ' + (indexFrom + 1) + ' to ' + (indexTo) + ' of ' + filteredByMeInvoices.length);
+
+                invoices = filteredByMeInvoices;
 
 
+                if (lastInvoiceByUserCount < invoices.length) {
+
+
+                    pagedByMeInvoices = filteredByMeInvoices.slice(indexFrom, indexTo);
+
+                    invoices = pagedByMeInvoices;
+
+                    cachedInvoicesByUser = [];
+
+                    lastInvoiceByUserCount = invoices.length;
+
+                    var s = '';
+                    $('#tblinvoicebyme tbody').empty();
+                    for (var i = 0; i < invoices.length; i++) {
+
+                        var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1).toLocaleString();
+                        var invpaydate = '';
+                        if (invoices[i].InvoicePaidDate) {
+                            invpaydate = new Date(invoices[i].InvoicePaidDate.match(/\d+/)[0] * 1).toLocaleString();
+                        }
+
+                        cachedInvoicesByUser.push(invoices[i]);
+
+                        var statusbox = '';
+                        if (invoices[i].InvoiceStatus == 0) {
+                            statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
+                        }
+                        else if (invoices[i].InvoiceStatus == 1) {
+                            statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
+                        }
+                        else if (invoices[i].InvoiceStatus == 2) {
+                            statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
+                        }
+
+
+                        s += "<tr><td><label class=\"checkbox m-n i-checks\"><input type=\"checkbox\" name=\"post[]\"><i></i></label></td><td>" + _.escape(invdate) + "</td><td><span class=\"thumb-sm\"><img alt=\"\"  id=\"imginvoicebyuser" + i + "\" class=\"img-circle\"></span><span class=\"m-s\"> " +
+                                 _.escape(invoices[i].InvoiceFrom) + "</span></td><td><a href=\"#\" class=\"active\">" + statusbox + "</a></td><td><span class=\"paid\">" + _.escape(invpaydate) + "</span></td><td><button type=\"button\" class=\"btn btn-sm btn-default\" id=\"viewinvoicebyuser" + i + "\">View</button></td></tr>";
+                    }
+
+                    $('#tblinvoicebyme tbody').append(s);
+
+                    for (var i = 0; i < invoices.length; i++) {
+
+                        $("#tblinvoicebyme #viewinvoicebyuser" + i).click({
+                            index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
+                        }, function (event) {
+                            displayInvoiceByUser(event.data.index, event.data.username, 'byme', function (err, res) {
+
+
+                            });
                         });
+
+
+
+                        var length = invoices[i].InvoiceFrom.length;
+                        if (length > 20) {
+                            length = 20;
+                        }
+
+                        var imageSrcSmall = "images/avatar/64px/Avatar-" + pad(length) + ".png";
+
+
+                        if (FRIENDSLIST[invoices[i].InvoiceFrom].profileImage != '') {
+                            imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(FRIENDSLIST[invoices[i].InvoiceFrom].profileImage) + "?crop=faces&fit=crop&h=64&w=64&mask=ellipse&border=1,d0d0d0";
+                        }
+
+
+
+                        if (Engine.Device.isChromeApp()) {
+                            var xhrsm = new XMLHttpRequest();
+                            xhrsm.open('GET', imageSrcSmall, true);
+                            xhrsm.responseType = 'blob';
+                            xhrsm.index = i;
+                            xhrsm.onload = function (e) {
+                                $("#tblinvoicebyme #imginvoicebyuser" + this.index).attr("src", window.URL.createObjectURL(this.response));
+                            };
+                            xhrsm.send();
+                        } else {
+                            $("#tblinvoicebyme #imginvoicebyuser" + i).attr("src", imageSrcSmall);
+                        }
+
+
+                    }
+
+                    if (callback) {
+                        callback(false, "ok");
+                    }
+
+                } else {
+
+                    //no new invoices, but lets check for invoices with changed status
+                    cachedInvoicesByUser = invoices;
+
+                    $('#tblinvoicebyme tbody tr .active').each(function (index, elem) {
+                        var statusbox = '';
+                        if (cachedInvoicesByUser[index].InvoiceStatus == 0) {
+                            statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
+                        }
+                        else if (cachedInvoicesByUser[index].InvoiceStatus == 1) {
+                            statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
+                        }
+                        else if (cachedInvoicesByUser[index].InvoiceStatus == 2) {
+                            statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
+                        }
+                        //$(elem).text('');
+                        $(elem).html(statusbox);
                     });
 
+                    $('#tblinvoicebyme tbody tr .paid').each(function (index, elem) {
 
+                        if (cachedInvoicesByUser[index].InvoiceStatus == 1 || cachedInvoicesByUser[index].InvoiceStatus == 1) {
 
-                    var length = invoices[i].InvoiceFrom.length;
-                    if (length > 20) {
-                        length = 20;
-                    }
-
-                    var imageSrcSmall = "images/avatar/64px/Avatar-" + pad(length) + ".png";
-
-
-                    if (FRIENDSLIST[invoices[i].InvoiceFrom].profileImage != '') {
-                        imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(FRIENDSLIST[invoices[i].InvoiceFrom].profileImage) + "?crop=faces&fit=crop&h=64&w=64&mask=ellipse&border=1,d0d0d0";
-                    }
-
-
-
-                    if (Engine.Device.isChromeApp()) {
-                        var xhrsm = new XMLHttpRequest();
-                        xhrsm.open('GET', imageSrcSmall, true);
-                        xhrsm.responseType = 'blob';
-                        xhrsm.index = i;
-                        xhrsm.onload = function (e) {
-                            $("#tblinvoicebyme #imginvoicebyuser" + this.index).attr("src", window.URL.createObjectURL(this.response));
-                        };
-                        xhrsm.send();
-                    } else {
-                        $("#tblinvoicebyme #imginvoicebyuser" + i).attr("src", imageSrcSmall);
-                    }
-
-
-                }
-
-                if (callback) {
-                    callback(false, "ok");
-                }
-
-            } else {
-
-                //no new invoices, but lets check for invoices with changed status
-                cachedInvoicesByUser = invoices;
-
-                $('#tblinvoicebyme tbody tr .active').each(function (index, elem) {
-                    var statusbox = '';
-                    if (cachedInvoicesByUser[index].InvoiceStatus == 0) {
-                        statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
-                    }
-                    else if (cachedInvoicesByUser[index].InvoiceStatus == 1) {
-                        statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
-                    }
-                    else if (cachedInvoicesByUser[index].InvoiceStatus == 2) {
-                        statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
-                    }
-                    //$(elem).text('');
-                    $(elem).html(statusbox);
-                });
-
-                $('#tblinvoicebyme tbody tr .paid').each(function (index, elem) {
-
-                    if (cachedInvoicesByUser[index].InvoiceStatus == 1 || cachedInvoicesByUser[index].InvoiceStatus == 1) {
-
-                        var invpaydate = '';
-                        if (cachedInvoicesByUser[index].InvoicePaidDate) {
-                            invpaydate = new Date(cachedInvoicesByUser[index].InvoicePaidDate.match(/\d+/)[0] * 1).toLocaleString();
+                            var invpaydate = '';
+                            if (cachedInvoicesByUser[index].InvoicePaidDate) {
+                                invpaydate = new Date(cachedInvoicesByUser[index].InvoicePaidDate.match(/\d+/)[0] * 1).toLocaleString();
+                            }
+                            $(elem).text(invpaydate);
                         }
-                        $(elem).text(invpaydate);
-                    }
 
-                });
+                    });
+
+                }
 
             }
 
@@ -4473,8 +4482,11 @@ function UI() {
 
                     readAccountSettings();
 
-
-                    setAwayTimeout(600000);
+                    if (Engine.m_settings.Inactivity) {
+                        setAwayTimeout((Engine.m_settings.Inactivity * 60 * 1000));
+                    } else {
+                        setAwayTimeout(600000);
+                    }
 
                     $('#stdselcu').click();
                     $('#netselcu').click();
@@ -5286,18 +5298,20 @@ function UI() {
 
         Engine.getPendingUserRequests(function (err, friends) {
 
+            if (!err) {
 
-            if (friends.length != previousReqByMe) {
-                previousReqByMe = friends.length;
-                $("#requestssent").text('');
-                for (var i = 0; i < friends.length; i++) {
 
-                    var length = friends[i].userName.length;
-                    if (length > 20) {
-                        length = 20;
-                    }
+                if (friends.length != previousReqByMe) {
+                    previousReqByMe = friends.length;
+                    $("#requestssent").text('');
+                    for (var i = 0; i < friends.length; i++) {
 
-                    var template = '<li class="list-group-item">' +
+                        var length = friends[i].userName.length;
+                        if (length > 20) {
+                            length = 20;
+                        }
+
+                        var template = '<li class="list-group-item">' +
                                 '<a href="#" class="media list-group-item" id="friend' + i + '"><div class="media">' +
                                 '<span class="pull-left thumb-sm"><img src="images/avatar/64px/Avatar-' + pad(length) + '.png" alt="" class="img-circle"></span>' +
                                 '<div class="pull-right text-success m-t-sm">' +
@@ -5310,14 +5324,15 @@ function UI() {
                                 '</div></a>' +
                                 '</li>';
 
-                    $("#requestssent").append(template);
+                        $("#requestssent").append(template);
+                    }
                 }
-            }
 
-            if (friends.length > 0) {
-                $("#requestsentpanel").show();
-            } else {
-                $("#requestsentpanel").hide();
+                if (friends.length > 0) {
+                    $("#requestsentpanel").show();
+                } else {
+                    $("#requestsentpanel").hide();
+                }
             }
 
             if (callback) {
@@ -5851,217 +5866,221 @@ function UI() {
 
         Engine.getTransactionRecords(function (err, transactions) {
 
-            allTransactions = transactions;
+            if (!err) {
 
-            if (allTransactions.length != lastNoOfTrans) {
+                allTransactions = transactions;
 
-            } else {
+                if (allTransactions.length != lastNoOfTrans) {
 
-                transactions = pagedTransactions;
+                } else {
 
-                //we ony need to update the confirmations
+                    transactions = pagedTransactions;
 
-                $('#tbltran tbody tr .bcconf').each(function (index, elem) {
+                    //we ony need to update the confirmations
 
-                    var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
+                    $('#tbltran tbody tr .bcconf').each(function (index, elem) {
 
-                    if (tran.Confirmations < 6) {
-                        $(elem).html('<div class="btn btn-warning btn-icon btn-rounded"><i class="fa fa-clock-o">' + _.escape(tran.Confirmations) + '</i></div>');
-                    } else {
-                        $(elem).html('<div class="btn btn-success btn-icon btn-rounded"><i class="fa fa-check"></i></div>');
+                        var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
+
+                        if (tran.Confirmations < 6) {
+                            $(elem).html('<div class="btn btn-warning btn-icon btn-rounded"><i class="fa fa-clock-o">' + _.escape(tran.Confirmations) + '</i></div>');
+                        } else {
+                            $(elem).html('<div class="btn btn-success btn-icon btn-rounded"><i class="fa fa-check"></i></div>');
+                        }
+
+                    });
+
+                    if (callback) {
+
+                        return callback(false, "ok");
+
                     }
-
-                });
-
-                if (callback) {
-
-                    return callback(false, "ok");
-
                 }
-            }
 
 
-            for (var i = 0; i < allTransactions.length; i++) {
-                var d1 = new Date(allTransactions[i].TransDateTime);
-                allTransactions[i].JsDate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
-                transactionIndex[allTransactions[i].TransactionId] = i;
-            }
-            //first convert to javascript dates
+                for (var i = 0; i < allTransactions.length; i++) {
+                    var d1 = new Date(allTransactions[i].TransDateTime);
+                    allTransactions[i].JsDate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
+                    transactionIndex[allTransactions[i].TransactionId] = i;
+                }
+                //first convert to javascript dates
 
-            filteredTransactions = allTransactions;
-            //apply current filter currentTransactionFilter
+                filteredTransactions = allTransactions;
+                //apply current filter currentTransactionFilter
 
-            if (currentTransactionFilter == "Day") {
-                var lastDay = new Date();
-                lastDay = lastDay.setDate(lastDay.getDate() - 1);
-                filteredTransactions = _.filter(allTransactions, function (trans) { return trans.JsDate > lastDay; });
-            }
+                if (currentTransactionFilter == "Day") {
+                    var lastDay = new Date();
+                    lastDay = lastDay.setDate(lastDay.getDate() - 1);
+                    filteredTransactions = _.filter(allTransactions, function (trans) { return trans.JsDate > lastDay; });
+                }
 
-            if (currentTransactionFilter == "Week") {
-                var lastWeek = new Date();
-                lastWeek = lastWeek.setDate(lastWeek.getDate() - 7);
-                filteredTransactions = _.filter(allTransactions, function (trans) { return trans.JsDate > lastWeek; });
-            }
+                if (currentTransactionFilter == "Week") {
+                    var lastWeek = new Date();
+                    lastWeek = lastWeek.setDate(lastWeek.getDate() - 7);
+                    filteredTransactions = _.filter(allTransactions, function (trans) { return trans.JsDate > lastWeek; });
+                }
 
-            if (currentTransactionFilter == "Month") {
-                var lastMonth = new Date();
-                lastMonth = lastMonth.setDate(lastMonth.getDate() - 31);
-                filteredTransactions = _.filter(allTransactions, function (trans) { return trans.JsDate > lastMonth; });
-            }
+                if (currentTransactionFilter == "Month") {
+                    var lastMonth = new Date();
+                    lastMonth = lastMonth.setDate(lastMonth.getDate() - 31);
+                    filteredTransactions = _.filter(allTransactions, function (trans) { return trans.JsDate > lastMonth; });
+                }
 
-            if (currentTransactionFilter == "Search") {
-                var search = $('#txttransearch').val();
-                filteredTransactions = _.filter(allTransactions, function (trans) { return trans.UserName.toLowerCase().search(search.toLowerCase()) > -1; });
-            }
+                if (currentTransactionFilter == "Search") {
+                    var search = $('#txttransearch').val();
+                    filteredTransactions = _.filter(allTransactions, function (trans) { return trans.UserName.toLowerCase().search(search.toLowerCase()) > -1; });
+                }
 
-            if (currentTransactionSort == 'DateDesc') {
-                filteredTransactions = _.sortBy(filteredTransactions, function (trans) { return -trans.JsDate; });
-            }
+                if (currentTransactionSort == 'DateDesc') {
+                    filteredTransactions = _.sortBy(filteredTransactions, function (trans) { return -trans.JsDate; });
+                }
 
-            if (currentTransactionSort == 'DateAsc') {
-                filteredTransactions = _.sortBy(filteredTransactions, function (trans) { return trans.JsDate; });
-            }
+                if (currentTransactionSort == 'DateAsc') {
+                    filteredTransactions = _.sortBy(filteredTransactions, function (trans) { return trans.JsDate; });
+                }
 
-            if (currentTransactionSort == 'ContactAsc') {
-                filteredTransactions = _.sortBy(filteredTransactions, function (trans) { return trans.UserName; });
-            }
+                if (currentTransactionSort == 'ContactAsc') {
+                    filteredTransactions = _.sortBy(filteredTransactions, function (trans) { return trans.UserName; });
+                }
 
-            if (currentTransactionSort == 'ContactDesc') {
-                filteredTransactions = _.sortBy(filteredTransactions, function (trans) { return trans.UserName; });
-                filteredTransactions.reverse();
-            }
+                if (currentTransactionSort == 'ContactDesc') {
+                    filteredTransactions = _.sortBy(filteredTransactions, function (trans) { return trans.UserName; });
+                    filteredTransactions.reverse();
+                }
 
-            var noofpages = Math.floor((filteredTransactions.length / transactionsPerPage));
+                var noofpages = Math.floor((filteredTransactions.length / transactionsPerPage));
 
-            var indexFrom = currentPageIndex * transactionsPerPage;
-            var indexTo = indexFrom + transactionsPerPage;
+                var indexFrom = currentPageIndex * transactionsPerPage;
+                var indexTo = indexFrom + transactionsPerPage;
 
-            if (indexTo > filteredTransactions.length) {
-                indexTo = filteredTransactions.length;
-            }
+                if (indexTo > filteredTransactions.length) {
+                    indexTo = filteredTransactions.length;
+                }
 
-            $('#tranpaglabel').text('Showing ' + (indexFrom + 1) + ' to ' + (indexTo) + ' of ' + filteredTransactions.length);
+                $('#tranpaglabel').text('Showing ' + (indexFrom + 1) + ' to ' + (indexTo) + ' of ' + filteredTransactions.length);
 
-            transactions = filteredTransactions;
+                transactions = filteredTransactions;
 
-            if (allTransactions.length != lastNoOfTrans) {
+                if (allTransactions.length != lastNoOfTrans) {
 
-                pagedTransactions = filteredTransactions.slice(indexFrom, indexTo);
+                    pagedTransactions = filteredTransactions.slice(indexFrom, indexTo);
 
-                transactions = pagedTransactions;
+                    transactions = pagedTransactions;
 
-                lastNoOfTrans = allTransactions.length;
+                    lastNoOfTrans = allTransactions.length;
 
-                var template = '';
-                $('#tbltran tbody').empty();
-                for (var i = 0; i < transactions.length; i++) {
+                    var template = '';
+                    $('#tbltran tbody').empty();
+                    for (var i = 0; i < transactions.length; i++) {
 
-                    var dirTemplate = "";
-                    if (transactions[i].TransType == 'S') {
-                        dirTemplate = '<td><span class="m-s">' + _.escape(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + ' ' + _.escape(COINUNIT) + '</span></td><td></td>';
-                    }
-                    if (transactions[i].TransType == 'R') {
-                        dirTemplate = '<td></td><td><span class="m-s">' + _.escape(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + ' ' + _.escape(COINUNIT) + '</span></td>';
-                    }
+                        var dirTemplate = "";
+                        if (transactions[i].TransType == 'S') {
+                            dirTemplate = '<td><span class="m-s">' + _.escape(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + ' ' + _.escape(COINUNIT) + '</span></td><td></td>';
+                        }
+                        if (transactions[i].TransType == 'R') {
+                            dirTemplate = '<td></td><td><span class="m-s">' + _.escape(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + ' ' + _.escape(COINUNIT) + '</span></td>';
+                        }
 
-                    var tref = transactions[i].UserName;
+                        var tref = transactions[i].UserName;
 
-                    if (transactions[i].UserName == 'External') {
-                        tref = _.escape(transactions[i].Address.substring(0, 7)) + '...';
-                    }
+                        if (transactions[i].UserName == 'External') {
+                            tref = _.escape(transactions[i].Address.substring(0, 7)) + '...';
+                        }
 
-                    if (transactions[i].InvoiceId > 0) {
-                        tref += ' <i class="fa fa-list-alt text-success i-1x i-s"></i>';
-                    }
-
-
-
-                    var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1).toLocaleString();
+                        if (transactions[i].InvoiceId > 0) {
+                            tref += ' <i class="fa fa-list-alt text-success i-1x i-s"></i>';
+                        }
 
 
-                    template += '<tr>' +
+
+                        var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1).toLocaleString();
+
+
+                        template += '<tr>' +
                                 '<td><label class="checkbox m-n i-checks"><input type="checkbox" name="post[]"><i></i></label></td>' +
                                 '<td><span class="m-s">' + _.escape(trdate) + '</span>';
 
-                    template += '</td><td colspan="2">' +
+                        template += '</td><td colspan="2">' +
                                 '<span class="thumb-sm"><img id="imgtran' + i + '" alt="John said" class="img-circle"></span><span class="m-s"> ' +
                                  tref + '</span></td>' +
                                 dirTemplate +
                                 '<td>';
 
-                    if (transactions[i].Confirmations < 6) {
-                        template += '<div class="bcconf"><div class="btn btn-warning btn-icon btn-rounded"><i class="fa fa-clock-o">' + _.escape(transactions[i].Confirmations) + '</i></div></div>';
-                    } else {
-                        template += '<div class="bcconf"><div class="btn btn-success btn-icon btn-rounded"><i class="fa fa-check"></i></div></div>';
-                    }
-                    template += '</td><td>';
-                    template += '<div id ="btnpop' + i + '"><div class="btn btn-info btn-icon btn-rounded"><i class="fa fa-info-circle"></i></div></div>';
-
-                    template += '</td></tr>';
-
-                }
-
-                $('#tbltran tbody').append(template);
-
-                for (var i = 0; i < transactions.length; i++) {
-
-                    var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1).toLocaleString();
-
-                    var popcontent = '';
-
-                    popcontent += '<p><strong>Date:</strong> ';
-                    popcontent += _.escape(trdate);
-                    popcontent += '</p>';
-
-                    popcontent += '<p><strong>TransactionId</strong></p>';
-                    popcontent += '<p><a target="_new" href="https://btc.blockr.io/tx/info/' + transactions[i].TransactionId + '">';
-                    popcontent += _.escape(transactions[i].TransactionId);
-                    popcontent += '</a></p>';
-
-                    popcontent += '<p><strong>Address:</strong> ';
-                    popcontent += _.escape(transactions[i].Address);
-                    popcontent += '</p>';
-
-                    popcontent += '<p><strong>Amount:</strong> ';
-                    popcontent += _.escape(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + ' ';
-                    popcontent += _.escape(COINUNIT) + '</p>';
-
-                    popcontent += '<p><strong>Send/Receive:</strong> ';
-                    popcontent += _.escape(transactions[i].TransType);
-                    popcontent += '</p>';
-
-                    $("#btnpop" + i).popover({
-                        placement: 'left', // top, bottom, left or right
-                        title: 'Transaction Details<button type="button" class="close pull-right" data-dismiss="popover"><i class="i i-cross2"></i></button>',
-                        html: 'true',
-                        content: '<div>' + popcontent + '</div>'
-                    });
-
-                    var length = transactions[i].UserName.length;
-                    if (length > 20) {
-                        length = 20;
-                    }
-
-                    var imageSrcSmall = "images/avatar/64px/Avatar-" + pad(length) + ".png";
-
-                    if (transactions[i].UserName != 'External') {
-                        if (FRIENDSLIST[transactions[i].UserName].profileImage != '') {
-                            imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(FRIENDSLIST[transactions[i].UserName].profileImage) + "?crop=faces&fit=crop&h=64&w=64&mask=ellipse&border=1,d0d0d0";
+                        if (transactions[i].Confirmations < 6) {
+                            template += '<div class="bcconf"><div class="btn btn-warning btn-icon btn-rounded"><i class="fa fa-clock-o">' + _.escape(transactions[i].Confirmations) + '</i></div></div>';
+                        } else {
+                            template += '<div class="bcconf"><div class="btn btn-success btn-icon btn-rounded"><i class="fa fa-check"></i></div></div>';
                         }
-                    }
-                    if (Engine.Device.isChromeApp()) {
-                        var xhrsm = new XMLHttpRequest();
-                        xhrsm.open('GET', imageSrcSmall, true);
-                        xhrsm.responseType = 'blob';
-                        xhrsm.index = i;
-                        xhrsm.onload = function (e) {
-                            $("#tbltran #imgtran" + this.index).attr("src", window.URL.createObjectURL(this.response));
-                        };
-                        xhrsm.send();
-                    } else {
-                        $("#tbltran #imgtran" + i).attr("src", imageSrcSmall);
+                        template += '</td><td>';
+                        template += '<div id ="btnpop' + i + '"><div class="btn btn-info btn-icon btn-rounded"><i class="fa fa-info-circle"></i></div></div>';
+
+                        template += '</td></tr>';
+
                     }
 
+                    $('#tbltran tbody').append(template);
+
+                    for (var i = 0; i < transactions.length; i++) {
+
+                        var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1).toLocaleString();
+
+                        var popcontent = '';
+
+                        popcontent += '<p><strong>Date:</strong> ';
+                        popcontent += _.escape(trdate);
+                        popcontent += '</p>';
+
+                        popcontent += '<p><strong>TransactionId</strong></p>';
+                        popcontent += '<p><a target="_new" href="https://btc.blockr.io/tx/info/' + transactions[i].TransactionId + '">';
+                        popcontent += _.escape(transactions[i].TransactionId);
+                        popcontent += '</a></p>';
+
+                        popcontent += '<p><strong>Address:</strong> ';
+                        popcontent += _.escape(transactions[i].Address);
+                        popcontent += '</p>';
+
+                        popcontent += '<p><strong>Amount:</strong> ';
+                        popcontent += _.escape(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + ' ';
+                        popcontent += _.escape(COINUNIT) + '</p>';
+
+                        popcontent += '<p><strong>Send/Receive:</strong> ';
+                        popcontent += _.escape(transactions[i].TransType);
+                        popcontent += '</p>';
+
+                        $("#btnpop" + i).popover({
+                            placement: 'left', // top, bottom, left or right
+                            title: 'Transaction Details<button type="button" class="close pull-right" data-dismiss="popover"><i class="i i-cross2"></i></button>',
+                            html: 'true',
+                            content: '<div>' + popcontent + '</div>'
+                        });
+
+                        var length = transactions[i].UserName.length;
+                        if (length > 20) {
+                            length = 20;
+                        }
+
+                        var imageSrcSmall = "images/avatar/64px/Avatar-" + pad(length) + ".png";
+
+                        if (transactions[i].UserName != 'External') {
+                            if (FRIENDSLIST[transactions[i].UserName].profileImage != '') {
+                                imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(FRIENDSLIST[transactions[i].UserName].profileImage) + "?crop=faces&fit=crop&h=64&w=64&mask=ellipse&border=1,d0d0d0";
+                            }
+                        }
+                        if (Engine.Device.isChromeApp()) {
+                            var xhrsm = new XMLHttpRequest();
+                            xhrsm.open('GET', imageSrcSmall, true);
+                            xhrsm.responseType = 'blob';
+                            xhrsm.index = i;
+                            xhrsm.onload = function (e) {
+                                $("#tbltran #imgtran" + this.index).attr("src", window.URL.createObjectURL(this.response));
+                            };
+                            xhrsm.send();
+                        } else {
+                            $("#tbltran #imgtran" + i).attr("src", imageSrcSmall);
+                        }
+
+
+                    }
 
                 }
 
