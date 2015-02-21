@@ -982,9 +982,9 @@ function UI() {
 
                                     var data = encdata.toString() + '|' + encdata.iv.toString() + '|' + Engine.m_oguid + '|' + currentDevice.DeviceName + '|' + jresult.RegToken;
 
-                                    var options = { text: data, width: 384, height: 384, ecLevel: 'H' };
+                                    var options = { text: data, width: 256, height: 256, ecLevel: 'H' };
 
-                                    $('#qrdevice').text(data);
+                                    //$('#qrdevice').text(data);
                                     $('#qrdevice').qrcode(options);
 
                                     $('#pairqr2fa').hide();
@@ -1022,6 +1022,8 @@ function UI() {
 
 
                         } else {
+
+
                             $('#pairerror').show();
                             $('#pairerrormess').text(result);
 
@@ -5267,6 +5269,7 @@ function UI() {
                                 $('#pairqrscan').hide();
                                 $("#pairdevicemodal").modal('show');
                                 $("#pairdeviceqr").show();
+                                $('#pairqr2fa').show();
                                 $("#pairheading").text("Unpair " + event.data.device.DeviceName);
                                 $("#btnShowPairQr").text("Unpair");
                                 $('#qrdevice').text('');

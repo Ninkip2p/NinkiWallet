@@ -1,3 +1,7 @@
+//Nini Wallet
+//Mobile UI
+
+
 var Bitcoin = require('bitcoinjs-lib');
 var BIP39 = require('./bip39');
 var prettydate = require("pretty-date");
@@ -138,6 +142,13 @@ function UI() {
     }
 
 
+
+
+    //loginPIN
+    //this function takes the user's input PIN number 
+    //and authenticates the user
+    //if the user has not previosuly authenticated it downloads and decrypts
+    //all the relevant wallet data
     var pinlock = false;
     function loginPIN() {
 
@@ -168,14 +179,19 @@ function UI() {
                 Engine.getDeviceKey(pin, function (err, ekeyv) {
 
                     //decrypt the passcode
-
+                    //if no error the PIN is valid
                     if (!err) {
 
                         if (!(typeof window.app === 'undefined')) {
                             app.isScanning = true;
                         }
 
+                        //is the app previosuly intialised
+                        
                         if (Engine.m_appInitialised) {
+
+                            //if so simply change the UI state
+                            //a session with the server has been established
 
                             $('.numdone').attr("style", "background-color:white");
 
@@ -227,6 +243,7 @@ function UI() {
 
                         } else {
 
+                            //if the app has not been initialised then we need to download the wallet data
 
                             $("#pairspinner").show();
                             var target = document.getElementById('pairspinner');
@@ -241,27 +258,31 @@ function UI() {
                             $("#pinloginmessage").text("Enter your PIN number");
 
 
-
+                            //get the encrypted user's password from local storage
                             Engine.Device.getStorageItem("ninki_p", function (result) {
 
+                                //decrypt the password using the encryption key sent from the server
+                                //and set the password
                                 var enc = JSON.parse(result);
                                 result = '';
                                 Engine.setStretchPass(Engine.decryptNp(enc.ct, ekeyv.DeviceKey, enc.iv));
 
+                                //get the encrypted 2fa override token from local storage
                                 Engine.Device.getStorageItem("ninki_rem", function (res) {
 
                                     if (res.length > 0) {
+
+                                        //decrypt the 2fa overide token
                                         var enc = JSON.parse(res);
                                         var fatoken = Engine.decryptNp(enc.ct, ekeyv.DeviceKey, enc.iv);
 
-                                        //get the two factor token
-
-                                        //do we need to open wallet ?
-
+                                        
+                                        //use the token to open the wallet
                                         Engine.openWallet(guid, fatoken, function (err, result) {
 
                                             if (!err) {
 
+                                                //if this is true it means the 2fa token has expired
                                                 if (result.TwoFactorOnLogin) {
 
                                                     $("#pairspinner").hide();
@@ -284,7 +305,7 @@ function UI() {
                                                 } else {
 
 
-
+                                                    //setup local settings
                                                     Engine.Device.getStorageItem("currency", function (res) {
 
                                                         if (res) {
@@ -329,6 +350,7 @@ function UI() {
                                                     });
 
 
+                                                    //initilaise the UI elements
                                                     initialiseDashboard(function () {
 
 
@@ -464,6 +486,7 @@ function UI() {
     var enck = '';
     var iv = '';
 
+    //the user scans a QR code containing data encrypted with the server generated encryption key
 
     function pairDevice() {
 
@@ -486,11 +509,17 @@ function UI() {
 
             var guid = splitBlob[2];
 
+            //encrypted hot key and 2fa override token
             enck = splitBlob[0];
             iv = splitBlob[1];
+
+            //device name eg. My iPhone
             deviceName = splitBlob[3];
+
+            //registration token for this pairing attempt
             regToken = splitBlob[4];
 
+            //password enetered by the user
             Engine.setPass(pwd, guid);
 
             var bytes = [];
@@ -519,8 +548,8 @@ function UI() {
 
                 } else {
 
-                    //decrypt packet
-
+                    //decrypt packet and set the secret
+                    //the user will be asked next to choose a PIN
                     var jpacket = JSON.parse(response);
 
                     secret = Engine.decryptNp(jpacket.packet, Engine.m_password, jpacket.IV);
@@ -580,7 +609,7 @@ function UI() {
 
     function regPIN() {
 
-
+        //the user has chosen a PIN and can now register the deive with the server
 
         $("#pairspinner").show();
         var target = document.getElementById('pairspinner');
@@ -603,6 +632,8 @@ function UI() {
         }
 
 
+        //hash the PIN with the device id
+        //this is used to validate the PIN and lookup the encryption key on our server
 
         var pin = $("#loginpinno").val();
 
@@ -634,6 +665,14 @@ function UI() {
             devmodel = window.device.model;
         }
 
+        //the device is registered with the server
+        //authentication via:
+        //generation of the pairing data required 2 factor authenticaton
+        //  guid as an identifier
+        //  registration token for this pairing session
+        //secret, which proves the user knows their password
+        //their chosen PIN number is registered with the server vi a hash of the PIN + Device uuid
+        //a 256 bit encryption key is generated on the server using a CSPRNG, this is used to encrypt data stored on the device
 
         Engine.registerDevice(Engine.m_guid, deviceName, devplatform, devmodel, pinhash, regToken, secret, function (err, result) {
 
@@ -643,13 +682,17 @@ function UI() {
 
                 if (dk.DeviceKey.length > 0) {
 
+                    //the server returns the encryption key
+                    //whcih is used to decrypt the hotkey and 2fa override token
+
                     var decblob = Engine.decryptNp(enck, dk.DeviceKey, iv);
 
                     //slice it up
-                    //64 64 64
+                    //64 64
                     var hk = decblob.substring(0, 64);
                     var fatoken = decblob.substring(64, 128);
 
+                    //encrypt the user's password with the encryption key
                     var encp = Engine.encryptNp(Engine.m_password, dk.DeviceKey);
                     result = '';
 
@@ -658,7 +701,7 @@ function UI() {
                     ptok.iv = encp.iv.toString();
                     var ptoken = JSON.stringify(ptok);
 
-
+                    //encrypt the 2fa override token with the device key
                     var enc = Engine.encryptNp(fatoken, dk.DeviceKey);
                     var ctok = {};
                     ctok.ct = enc.toString();
@@ -666,7 +709,7 @@ function UI() {
 
                     var ctoken = JSON.stringify(ctok);
 
-
+                    //encrypt the hotkey with the device key
                     var ench = Engine.encryptNp(hk, dk.DeviceKey);
                     var htok = {};
                     htok.ct = ench.toString();
@@ -676,19 +719,17 @@ function UI() {
 
                     dk.DeviceKey = '';
 
-                    //login using the credentials
-                    //get a session
-                    //then call register PIN
-                    //this will return the encryption key
-                    //encrypt the password and store in local storage
-
                     Engine.Device.setStorageItem("guid", Engine.m_oguid);
+
+                    //test opening the wallet
 
                     Engine.openWallet(Engine.m_oguid, fatoken, function (err, result) {
 
                         if (!err) {
 
                             if (!result.TwoFactorOnLogin) {
+
+                                //if succesfull store the encrypted data in local storage
 
                                 Engine.Device.setStorageItem("ninki_rem", ctoken);
                                 Engine.Device.setStorageItem("ninki_p", ptoken);
