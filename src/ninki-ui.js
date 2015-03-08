@@ -682,6 +682,7 @@ function UI() {
         $('#createWalletStart #cpassword').pwstrength(options);
 
 
+
         var optionschng = {};
         optionschng.ui = {
             container: "#newpwd-container",
@@ -984,7 +985,7 @@ function UI() {
 
                                     var options = { text: data, width: 256, height: 256, ecLevel: 'H' };
 
-                                    //$('#qrdevice').text(data);
+                                    $('#qrdevice').text(data);
                                     $('#qrdevice').qrcode(options);
 
                                     $('#pairqr2fa').hide();
@@ -1862,6 +1863,10 @@ function UI() {
                                 showTwoFactorQr();
 
                             }
+                        }, function (message) {
+
+                            $("#textMessageCreate").text(message);
+
                         });
                     }
 

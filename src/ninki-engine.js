@@ -31,6 +31,8 @@ function Engine() {
     this.m_invoiceTax = 0.1;
     this.m_privKey = '';
     this.m_pubKey = '';
+    this.m_privKeyRaw = '';
+    this.m_pubKeyRaw = '';
     this.m_APIToken = '';
     this.m_appInitialised = false;
     this.m_watchOnly = false;
@@ -52,6 +54,55 @@ function Engine() {
 
     }
 
+    this.serialize = serialize;
+    function serialize() {
+
+        var serTarget = {};
+        serTarget.m_walletinfo = m_this.m_walletinfo;
+        serTarget.m_sharedid = m_this.m_sharedid;
+        serTarget.m_twoFactorOnLogin = m_this.m_twoFactorOnLogin;
+        serTarget.m_nickname = m_this.m_nickname;
+        //serTarget.m_profileImage = m_this.m_profileImage;
+        //serTarget.m_statusText = m_this.m_statusText;
+        serTarget.m_guid = m_this.m_guid;
+        //serTarget.m_settings = m_this.m_settings;
+        serTarget.m_fingerprint = m_this.m_fingerprint;
+        //serTarget.m_secret = m_this.m_secret;
+        serTarget.m_invoiceTax = m_this.m_invoiceTax;
+
+        serTarget.m_privKeyRaw = m_this.m_privKeyRaw;
+        serTarget.m_pubKeyRaw = m_this.m_pubKeyRaw;
+
+        return JSON.stringify(serTarget);
+
+    }
+
+    this.initialize = initialize;
+    function initialize(cache) {
+
+        m_this.m_walletinfo = cache.m_walletinfo;
+        m_this.m_sharedid = cache.m_sharedid;
+        m_this.m_twoFactorOnLogin = cache.m_twoFactorOnLogin;
+        m_this.m_nickname = cache.m_nickname;
+        //m_this.m_profileImage = cache.m_profileImage;
+        //m_this.m_statusText = cache.m_statusText;
+        m_this.m_guid = cache.m_guid;
+        //m_this.m_settings = cache.m_settings;
+        m_this.m_fingerprint = cache.m_fingerprint;
+        //m_this.m_secret = cache.m_secret;
+        m_this.m_invoiceTax = cache.m_invoiceTax;
+
+        var privKeys = openpgp.key.readArmored(cache.m_privKeyRaw);
+        var publicKeys = openpgp.key.readArmored(cache.m_pubKeyRaw);
+
+        if (privKeys.keys[0].decrypt(m_this.m_sharedid)) {
+            m_this.m_privKey = privKeys.keys[0];
+        }
+
+        m_this.m_pubKey = publicKeys.keys[0];
+
+        cache = {};
+    }
 
     this.appHasLoaded = appHasLoaded;
     function appHasLoaded() {
@@ -94,6 +145,8 @@ function Engine() {
         var rng = new Uint8Array(b);
         if (typeof window === 'undefined') {
 
+            //this is to support the test scripts
+            //which are executed using node.js
             try {
                 var buf = crypto.randomBytes(256);
 
@@ -381,11 +434,17 @@ function Engine() {
 
                             m_this.Device.getStorageItem("ninki_rem", function (tft) {
 
-                                var jtft = JSON.parse(tft);
+                                if (tft != "") {
+                                    var jtft = JSON.parse(tft);
 
-                                var fatoken = decryptNp(jtft.ct, key, jtft.iv);
+                                    var fatoken = decryptNp(jtft.ct, key, jtft.iv);
 
-                                return callback(false, hothash, fatoken);
+                                    return callback(false, hothash, fatoken);
+                                } else {
+
+                                    return callback(false, hothash, "");
+
+                                }
 
                             });
 
@@ -431,8 +490,21 @@ function Engine() {
 
             var encHotHash = encryptNp(hotHash, m_this.m_password);
 
-            m_this.Device.setStorageItem('hk' + m_this.m_guid, encHotHash.toString());
-            m_this.Device.setStorageItem('hkiv' + m_this.m_guid, encHotHash.iv.toString());
+            if (m_this.Device.isChromeApp() || m_this.Device.isBrowser() || m_this.Device.isNode()) {
+
+                m_this.Device.setStorageItem('hk' + m_this.m_guid, encHotHash.toString());
+                m_this.Device.setStorageItem('hkiv' + m_this.m_guid, encHotHash.iv.toString());
+
+            } else {
+
+                var htok = {};
+                htok.ct = encHotHash.toString();
+                htok.iv = encHotHash.iv.toString();
+                var hkey = JSON.stringify(htok);
+
+                m_this.Device.setStorageItem('ninki_h', hkey);
+
+            }
 
             callback(false, "ok");
 
@@ -461,7 +533,7 @@ function Engine() {
     //create wallet
     //create a new wallet and save to the server
     this.createWallet = createWallet;
-    function createWallet(guid, password, username, emailAddress, callback) {
+    function createWallet(guid, password, username, emailAddress, callback, progress) {
 
         m_this.m_oguid = guid;
 
@@ -488,10 +560,11 @@ function Engine() {
             }
             else {
 
-                //$('#textMessageCreate').text('stretching password...');
+
+                progress('stretching password...');
+
 
                 setTimeout(function () {
-
 
                     //stretch the password with the local guid as a salt
                     m_this.m_password = pbkdf2(password, m_this.m_oguid);
@@ -522,10 +595,9 @@ function Engine() {
                             walletInformation.wallet.recPacketIV = recpacket.iv.toString();
 
                             //save the wallet to the server
-                            //$('#textMessageCreate').text('saving data...');
+                            progress('saving data...');
 
                             setTimeout(function () {
-
 
                                 API.post("/api/1/u/createaccount2", walletInformation.wallet, function (err, response) {
 
@@ -534,15 +606,21 @@ function Engine() {
                                         return callback(err, "ErrSavePacket");
 
                                     } else {
+
+                                        //set the session
+                                        API.registerToken(response);
+                                        m_this.m_APIToken = response;
+
                                         //pass back the wallet and info to the calling function
                                         return callback(false, walletInformation);
                                     }
                                 });
+
                             }, 50);
 
                         }
 
-                    });
+                    }, progress);
 
                 }, 50);
             }
@@ -554,14 +632,15 @@ function Engine() {
     //function makeNewWallet
     //this function calls the server which generates the Ninki key pair to be used for the wallet
     //the server returns the public key to the client so that it can be saved in the user's encrypted packet
-    function makeNewWallet(nickname, email, callback) {
+    function makeNewWallet(nickname, email, callback, progress) {
 
 
         //TODO add some more param checking
         //rename this function
         setTimeout(function () {
 
-            //$('#textMessageCreate').text('creating account...');
+
+            progress('creating account...');
 
             API.getMasterPublicKeyFromUpstreamServer(m_this.m_oguid, function (err, ninkiPubKey, userToken, secret) {
                 if (err) {
@@ -573,24 +652,24 @@ function Engine() {
                         } else {
                             return callback(err, walletInformation, userToken);
                         }
-                    });
+                    }, progress);
                 }
             });
         }, 50);
     }
 
 
-    function makeNewWalletPacket(nickname, emailAddress, ninkiPubKey, userToken, secret, callback) {
+    function makeNewWalletPacket(nickname, emailAddress, ninkiPubKey, userToken, secret, callback, progress) {
 
 
-        //$('#textMessageCreate').text('getting entropy...');
+        progress('getting entropy...');
 
         setTimeout(function () {
 
 
             //what to do if running in node
             // crypto provider module
-            var rngcold = getRandomValues(32);
+            var rngcold = getRandomValues(16);
 
             var coldKeyBytes = [];
             for (var i = 0; i < rngcold.length; ++i) {
@@ -598,40 +677,31 @@ function Engine() {
             }
 
             //get some random data for the hot key
-            var rnghot = getRandomValues(32);
+            var rnghot = getRandomValues(16);
 
             var hotKeyBytes = [];
             for (var i = 0; i < rnghot.length; ++i) {
                 hotKeyBytes[i] = rnghot[i];
             }
 
-            var bip39 = new BIP39();  // 'en' is the default language
-            var hotmnem = bip39.entropyToMnemonic(rnghot);
-            var coldmnem = bip39.entropyToMnemonic(rngcold);
-
-            //var seedtest = bip39.mnemonicToSeed(hotmnem, '');
-
-            //$('#textMessageCreate').text('creating cold keys...');
+            progress('creating cold keys...');
 
             setTimeout(function () {
 
-                //hash the random data to generate the seed for the cold key space
-                //Cold key space
-                var coldHash = Bitcoin.Crypto.SHA256(Bitcoin.convert.bytesToWordArray(coldKeyBytes)).toString();
+
+                var coldHash = Bitcoin.convert.bytesToHex(coldKeyBytes);
 
                 var coldWallet = Bitcoin.HDWallet.fromSeedHex(coldHash, m_this.m_network);
                 //get the keys as strings
                 var coldPriv = coldWallet.toString(" ");
                 var coldPub = coldWallet.toString();
 
-                //$('#textMessageCreate').text('creating hot keys...');
-
+                progress('creating hot keys...');
 
                 setTimeout(function () {
 
-                    //hash the random data to generate the seed for the hot key space
-                    //Hot key space
-                    var hotHash = Bitcoin.Crypto.SHA256(Bitcoin.convert.bytesToWordArray(hotKeyBytes)).toString();
+
+                    var hotHash = Bitcoin.convert.bytesToHex(hotKeyBytes);
 
                     var hotWallet = Bitcoin.HDWallet.fromSeedHex(hotHash, m_this.m_network);
                     //get the keys as strings
@@ -647,7 +717,7 @@ function Engine() {
                     var hcbkey = Bitcoin.convert.hexToBytes(hckey);
                     var hchkey = Bitcoin.Crypto.SHA256(Bitcoin.convert.bytesToWordArray(hcbkey)).toString();
 
-                    //$('#textMessageCreate').text('creating pgp keys...');
+                    progress('creating pgp keys...');
 
 
                     setTimeout(function () {
@@ -735,6 +805,7 @@ function Engine() {
 
                             saveHotHash(hotHash, function (err, res) {
 
+                                var bip39 = new BIP39();
                                 var walletInformation = {
                                     wallet: wallet,
                                     coldWalletPhrase: bip39.entropyToMnemonic(coldHash),
@@ -743,7 +814,6 @@ function Engine() {
                                     hckey: hchkey
                                 };
 
-                           
 
                                 return callback(err, walletInformation);
 
@@ -1246,6 +1316,10 @@ function Engine() {
                 var publicKeys = openpgp.key.readArmored(rsaKeyPair.RSAPub);
                 var privKeys = openpgp.key.readArmored(rsaKeyPair.RSAPriv);
 
+
+                m_this.m_pubKeyRaw = rsaKeyPair.RSAPub;
+                m_this.m_privKeyRaw = rsaKeyPair.RSAPriv;
+
                 m_this.m_privKey = privKeys.keys[0];
                 m_this.m_pubKey = publicKeys.keys[0];
 
@@ -1476,7 +1550,7 @@ function Engine() {
             corNodesToProcess = nodes.length;
             cordovaDeriveKey(mpk, nodes, mkpder, function (result) {
 
-             
+
 
                 return cdcallback(mkpder);
 
@@ -1498,7 +1572,7 @@ function Engine() {
 
         if (corNodesDone == corNodesToProcess) {
 
-           
+
             return derfinished(mkpder)
 
         } else {
@@ -1519,8 +1593,8 @@ function Engine() {
 
                 },
                 function errorHandler(err) {
-       
-           
+
+
                 },
                 'ECPlugin',
                 'cordovaECDerKey',
@@ -1675,7 +1749,7 @@ function Engine() {
                     }
 
 
-                  
+
                     //call to cordova plugin for private key derivation
 
 
@@ -1706,20 +1780,20 @@ function Engine() {
                     //if we are sending money to a contact or paying an invoice
                     //we need to derive addresses on their behalf
 
-                   
+
 
 
                     deriveKeys(bipHot, nodeLevels, function (ret) {
 
 
                         if (m_this.Device.isiOS()) {
-                           
+
                             for (var i = 0; i < ret.length; i++) {
-                          
+
                                 var nkey = new Bitcoin.ECKey(ret[i]);
-                         
+
                                 userHotPrivKeys.push(nkey);
-                        
+
                             }
 
                         } else {
@@ -1728,7 +1802,7 @@ function Engine() {
                         }
 
 
-                  
+
 
 
                         if (sendType == 'friend' || sendType == 'invoice') {
@@ -1742,7 +1816,7 @@ function Engine() {
                             //generate the address for the contact
                             //this must be done on the client
 
-                        
+
                             statuscallback('creating address...', '30%');
                             createAddressForFriend(friendUserName, function (err, address) {
 
@@ -1755,12 +1829,12 @@ function Engine() {
 
                                     //create the change address, this must be done on the client
                                     statuscallback('Creating change address...', '40%');
-                             
+
 
                                     createAddress('m/0/1', changeAmount, function (err, changeaddress) {
 
                                         if (!err) {
-                                           
+
                                             if (changeAmount > 0) {
                                                 addressToSend.push(changeaddress);
                                             }
@@ -2113,7 +2187,7 @@ function Engine() {
                                     function callback(data) {
 
                                         hcoldKey = data;
-                            
+
 
                                         coldKey = Bitcoin.convert.hexToBytes(data);
 
@@ -2122,7 +2196,7 @@ function Engine() {
 
                                                 hninkiKey = data;
 
-                                   
+
 
                                                 ninkiKey = Bitcoin.convert.hexToBytes(data);
 
@@ -2152,7 +2226,7 @@ function Engine() {
                                                     pk3: hninkiKey
                                                 };
                                                 API.post("/api/1/u/createaddress", postData, function (err, result) {
-                                       
+
                                                     if (!err) {
                                                         return cacallback(err, address);
                                                     } else {
@@ -2198,13 +2272,13 @@ function Engine() {
                         var bipCold = Bitcoin.HDWallet.fromBase58(m_this.m_walletinfo.coldPub);
                         var bipNinki = Bitcoin.HDWallet.fromBase58(m_this.m_walletinfo.ninkiPubKey);
 
-                 
+
                         var hotKey = deriveChild(path, bipHot);
-                   
+
                         var coldKey = deriveChild(path, bipCold);
-                    
+
                         var ninkiKey = deriveChild(path, bipNinki);
-                     
+
                         //now create the multisig address
                         var script = [0x52];
 
@@ -2307,7 +2381,7 @@ function Engine() {
                                     function callback(data) {
 
                                         hhotKey = data;
-                                    
+
                                         hotKey = Bitcoin.convert.hexToBytes(data);
 
 
@@ -2729,23 +2803,23 @@ function Engine() {
 
                     //if (!err) {
 
-                        if (!result) {
-                        
-                            m_this.createFriend(username, '', function (err, result) {
+                    if (!result) {
 
-                                if (err) {
+                        m_this.createFriend(username, '', function (err, result) {
 
-                                    return callback(err, result);
-                                } else {
+                            if (err) {
 
-                                    return callback(err, result);
-                                }
-                            });
+                                return callback(err, result);
+                            } else {
 
-                        } else {
+                                return callback(err, result);
+                            }
+                        });
 
-                            return callback(err, result);
-                        }
+                    } else {
+
+                        return callback(err, result);
+                    }
                     //} else {
                     //    return callback(err, result);
                     //}
@@ -2761,14 +2835,22 @@ function Engine() {
 
 
     this.acceptFriendRequest = acceptFriendRequest;
-    function acceptFriendRequest(username, callback) {
+    function acceptFriendRequest(username, callback, progress) {
 
+        if (progress) {
+            progress("Getting request..");
+        }
 
         var postData = { guid: m_this.m_guid, sharedid: m_this.m_sharedid, username: username };
         API.post("/api/1/u/getfriendrequestpacket", postData, function (err, packet) {
 
             //get the packet from friend containing the public key set to
             //be used for address generation
+
+
+            if (progress) {
+                progress("Encrypting data...");
+            }
 
             var message = packet;
 
@@ -2805,6 +2887,11 @@ function Engine() {
                         validated: false
                     };
 
+                    if (progress) {
+                        progress("Signing data...");
+                    }
+
+
                     var encrypted = openpgp.signAndEncryptMessage([m_this.m_pubKey], m_this.m_privKey, JSON.stringify(packet));
 
                     postData = {
@@ -2836,11 +2923,14 @@ function Engine() {
     }
 
     this.verifyFriendData = verifyFriendData;
-    function verifyFriendData(username, code, callback) {
+    function verifyFriendData(username, code, callback, progress) {
 
         //update packet with status as verified and log
         //the verification code
 
+        if (progress) {
+            progress("Getting packet...");
+        }
 
         var postData = { guid: m_this.m_guid, sharedid: m_this.m_sharedid, username: username };
         API.post("/api/1/u/getfriendpacket", postData, function (err, packet) {
@@ -2860,6 +2950,11 @@ function Engine() {
 
                     if (code == pubKeyUsed.primaryKey.fingerprint) {
 
+
+                        if (progress) {
+                            progress("Verifying...");
+                        }
+
                         var reencrypt = {
                             hotPub: payload.hotPub,
                             coldPub: payload.coldPub,
@@ -2877,6 +2972,11 @@ function Engine() {
                             packet: encryptedPayload,
                             validationHash: code
                         };
+
+
+                        if (progress) {
+                            progress("Updating...");
+                        }
 
                         API.post("/api/1/u/updatefriend", postData, function (err, result) {
 
@@ -3065,7 +3165,11 @@ function Engine() {
 
         API.post("/api/1/u/updatetwofactor", postData, function (err, result) {
 
-            API.registerToken(result);
+            if (!err) {
+
+                API.registerToken(result);
+
+            }
 
             callback(err, result);
 
@@ -3319,7 +3423,7 @@ function Engine() {
                                                                                 ctok.ct = tfso.toString();
                                                                                 ctok.iv = tfso.iv.toString();
                                                                                 m_this.Device.setStorageItem("tfso" + m_this.m_guid, JSON.stringify(ctok));
-                                                                              
+
                                                                             }
 
                                                                             m_this.m_password = newpassword;
@@ -3887,6 +3991,19 @@ function Engine() {
         });
     }
 
+    this.doesEmailExist = doesEmailExist;
+    function doesEmailExist(email, callback) {
+        API.doesAccountExist('', email, function (err, accExists) {
+
+            if (err) {
+                callback(err, accExists);
+            } else {
+                callback(err, accExists.EmailExists);
+            }
+
+        });
+    }
+
     this.sendWelcomeDetails = sendWelcomeDetails;
     function sendWelcomeDetails(callback) {
         API.sendWelcomeDetails(m_this.m_guid, m_this.m_sharedid, callback);
@@ -4007,6 +4124,18 @@ function Engine() {
         API.getTransactionRecords(m_this.m_guid, m_this.m_sharedid, callback);
     }
 
+    this.getTransactionFeed = getTransactionFeed;
+    function getTransactionFeed(callback) {
+        API.getTransactionFeed(m_this.m_guid, m_this.m_sharedid, callback);
+    }
+
+    this.getTransactionsForNetwork = getTransactionsForNetwork;
+    function getTransactionsForNetwork(username, callback) {
+        API.getTransactionsForNetwork(m_this.m_guid, m_this.m_sharedid, username, callback);
+    }
+
+
+
     this.getInvoiceList = getInvoiceList;
     function getInvoiceList(callback) {
         API.getInvoiceList(m_this.m_guid, m_this.m_sharedid, callback);
@@ -4016,6 +4145,18 @@ function Engine() {
     function getInvoiceByUserList(callback) {
         API.getInvoiceByUserList(m_this.m_guid, m_this.m_sharedid, callback);
     }
+
+
+    this.getInvoicesToPayNetwork = getInvoicesToPayNetwork;
+    function getInvoicesToPayNetwork(username, callback) {
+        API.getInvoicesToPayNetwork(m_this.m_guid, m_this.m_sharedid, username, callback);
+    }
+
+    this.getInvoicesByUserNetwork = getInvoicesByUserNetwork;
+    function getInvoicesByUserNetwork(username, callback) {
+        API.getInvoicesByUserNetwork(m_this.m_guid, m_this.m_sharedid, username, callback);
+    }
+
 
     this.updateInvoice = updateInvoice;
     function updateInvoice(username, invoiceId, transactionId, status, callback) {
@@ -4065,7 +4206,7 @@ function Engine() {
                             callback(err, jekey);
                         }
 
-                      
+
 
                     } else {
 
@@ -4125,6 +4266,11 @@ function Engine() {
         API.getDeviceToken(m_this.m_guid, m_this.m_sharedid, deviceName, twoFactorCode, callback);
     }
 
+    this.getDeviceTokenForApp = getDeviceTokenForApp;
+    function getDeviceTokenForApp(deviceName, callback) {
+        API.getDeviceTokenForApp(m_this.m_guid, m_this.m_sharedid, deviceName, callback);
+    }
+
     this.getLimitStatus = getLimitStatus;
     function getLimitStatus(callback) {
         API.getLimitStatus(m_this.m_guid, m_this.m_sharedid, function (err, res) {
@@ -4166,7 +4312,7 @@ function Engine() {
 
             if (res == "") {
 
-                return callback(false,"");
+                return callback(false, "");
 
             }
 

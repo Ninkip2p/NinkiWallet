@@ -133,8 +133,6 @@ function lpost(url, postData, callback) {
 
         req.end();
 
-
-
     } else {
 
     $.ajax({
@@ -205,10 +203,10 @@ function lpost(url, postData, callback) {
                         }
                         //return callback(true, data.statusText);
                     } else {
-                        location.reload();
+                        //location.reload();
                     }
                 } else {
-
+                    return callback(true, sanitizer.sanitize(data.statusText));
                 }
 
 
@@ -573,6 +571,41 @@ API.getTransactionRecords = function (guid, sharedid, callback) {
 
 };
 
+API.getTransactionFeed = function (guid, sharedid, callback) {
+
+    var postData = { guid: guid, sharedid: sharedid };
+
+    lpost("/api/1/u/gettransactionfeed", postData, function (err, transactions) {
+
+        if (!err) {
+            var jtran = JSON.parse(transactions);
+            return callback(err, jtran);
+        } else {
+            return callback(err, transactions);
+        }
+
+    });
+
+};
+
+API.getTransactionsForNetwork = function (guid, sharedid, username, callback) {
+
+    var postData = { guid: guid, sharedid: sharedid, username: username };
+
+    lpost("/api/1/u/gettransactionsfornetwork", postData, function (err, transactions) {
+
+        if (!err) {
+            var jtran = JSON.parse(transactions);
+            return callback(err, jtran);
+        } else {
+            return callback(err, transactions);
+        }
+
+    });
+
+};
+
+
 API.getInvoiceList = function (guid, sharedid, callback) {
 
     var postData = { guid: guid, sharedid: sharedid };
@@ -591,11 +624,46 @@ API.getInvoiceList = function (guid, sharedid, callback) {
 
 };
 
+API.getInvoicesToPayNetwork = function (guid, sharedid, username, callback) {
+
+    var postData = { guid: guid, sharedid: sharedid, username: username };
+
+    lpost("/api/1/u/getinvoicestopaynetwork", postData, function (err, invoices) {
+
+        if (!err) {
+            var jtran = JSON.parse(invoices);
+
+            return callback(err, jtran);
+        } else {
+            return callback(err, invoices);
+        }
+
+    });
+
+};
+
 API.getInvoiceByUserList = function (guid, sharedid, callback) {
 
     var postData = { guid: guid, sharedid: sharedid };
 
     lpost("/api/1/u/getinvoicesbyuser", postData, function (err, invoices) {
+
+        if (!err) {
+            var jtran = JSON.parse(invoices);
+            return callback(err, jtran);
+        } else {
+            return callback(err, invoices);
+        }
+
+    });
+
+};
+
+API.getInvoicesByUserNetwork = function (guid, sharedid, username, callback) {
+
+    var postData = { guid: guid, sharedid: sharedid, username: username };
+
+    lpost("/api/1/u/getinvoicesbyusernetwork", postData, function (err, invoices) {
 
         if (!err) {
             var jtran = JSON.parse(invoices);
@@ -680,6 +748,14 @@ API.getDeviceToken = function (guid, sharedid, deviceName, twoFactorCode, callba
         return callback(err, dataStr);
     });
 };
+
+API.getDeviceTokenForApp = function (guid, sharedid, deviceName, callback) {
+    var postData = { guid: guid, sharedid: sharedid, deviceName: deviceName};
+    return lpost("/api/1/u/getdevicetokenforapp", postData, function (err, dataStr) {
+        return callback(err, dataStr);
+    });
+};
+
 
 
 

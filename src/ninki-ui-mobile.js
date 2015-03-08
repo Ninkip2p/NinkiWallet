@@ -1,4 +1,4 @@
-//Nini Wallet
+//Ninki Wallet
 //Mobile UI
 
 
@@ -6,10 +6,7 @@ var Bitcoin = require('bitcoinjs-lib');
 var BIP39 = require('./bip39');
 var prettydate = require("pretty-date");
 
-
 function UI() {
-
-
 
     var Engine = new Ninki.Engine();
 
@@ -53,6 +50,7 @@ function UI() {
     var contactPhraseCache = {};
 
     var isPairing = false;
+    var isCreate = false;
 
 
     var ua = window.navigator.userAgent;
@@ -60,6 +58,83 @@ function UI() {
 
     var pintaps = 0;
     var prevpin = '';
+
+    var ONE_HOUR = 60 * 60 * 1000;
+
+    window.isSessionLive = function (callback) {
+
+        Ninki.API.getPrice(Engine.m_guid, Engine.m_settings.LocalCurrency, function (err, result) {
+
+            if (!err) {
+                return callback(true);
+            } else {
+                return callback(false);
+            }
+
+        });
+
+    }
+
+
+
+    window.showLoginPIN = function () {
+
+
+
+        if ($("#isactive").val() == 1) {
+
+            if ($(".footer").is(":visible")) {
+
+                $("#footermode").val(1);
+
+            } else {
+
+                $("#footermode").val(0);
+
+            }
+
+        }
+
+
+        if (window.cordova) {
+            cordova.plugins.Keyboard.close();
+        }
+
+        $("#isactive").val(0);
+
+
+
+        window.resetPin();
+
+
+
+        $("#paddel").hide();
+
+        $('.numdone').attr("style", "background-color:white");
+
+        $("#loginpinno").val('');
+
+        $("#pinloginmessage").text("Enter your PIN number");
+
+
+
+        $("#pinimage").show();
+
+        $("#pinpair").hide();
+
+        $("#pinrepeat").hide();
+
+
+
+        $("#loginpin").show();
+
+        $("#nonlogin").hide();
+
+
+
+        $(".footer").hide();
+
+    }
 
 
 
@@ -142,1095 +217,6 @@ function UI() {
     }
 
 
-
-
-    //loginPIN
-    //this function takes the user's input PIN number 
-    //and authenticates the user
-    //if the user has not previosuly authenticated it downloads and decrypts
-    //all the relevant wallet data
-    var pinlock = false;
-    function loginPIN() {
-
-
-        var pin = $("#loginpinno").val();
-
-        $("#enterpinalert").hide();
-
-        if (pin.length == 4 && !pinlock) {
-
-            pinlock = true;
-
-            Engine.Device.getStorageItem("guid", function (guid) {
-
-
-                if (!Engine.m_appInitialised) {
-
-                    Engine.m_oguid = guid;
-
-                    var bytes = [];
-                    for (var i = 0; i < guid.length; ++i) {
-                        bytes.push(guid.charCodeAt(i));
-                    }
-
-                    Engine.m_guid = Bitcoin.Crypto.SHA256(Bitcoin.convert.bytesToWordArray(bytes)).toString();
-                }
-
-                Engine.getDeviceKey(pin, function (err, ekeyv) {
-
-                    //decrypt the passcode
-                    //if no error the PIN is valid
-                    if (!err) {
-
-                        if (!(typeof window.app === 'undefined')) {
-                            app.isScanning = true;
-                        }
-
-                        //is the app previosuly intialised
-                        
-                        if (Engine.m_appInitialised) {
-
-                            //if so simply change the UI state
-                            //a session with the server has been established
-
-                            $('.numdone').attr("style", "background-color:white");
-
-                            //check state and display correct headers
-
-
-                            $("#paddel").hide();
-                            $('.numdone').attr("style", "background-color:white");
-                            $("#loginpin").hide();
-                            $("#pinloginmessage").text("Enter your PIN number");
-
-                            $("#nonlogin").show();
-
-                            $("#loginpinno").val('');
-                            pinlock = false;
-
-                            //do we show the footer or not?
-
-                            if ($("#footermode").val() == 1) {
-                                $(".footer").show();
-                            } else {
-                                $(".footer").hide();
-                            }
-
-                            //double check footer
-                            //bug workaround
-                            if (menustate == "profile" && profilepagestate == "") {
-
-                                $(".footer").show();
-
-                            }
-
-                            if (!(typeof window.app === 'undefined')) {
-                                app.isScanning = false;
-                            }
-
-                            $("#isactive").val(1);
-
-                            setTimeout(updateUI(), 200);
-
-
-                            window.updateUIInterval = setInterval(function () {
-
-                                updateUI();
-
-                            }, 10000);
-
-
-
-                        } else {
-
-                            //if the app has not been initialised then we need to download the wallet data
-
-                            $("#pairspinner").show();
-                            var target = document.getElementById('pairspinner');
-                            var spinner = new Spinner(spinneropts).spin(target);
-
-                            $("#pinspinner").hide();
-                            $('.numdone').attr("style", "background-color:white");
-                            $("#loginpin").hide();
-                            $("#loginpinno").val('');
-                            pinlock = false;
-                            $("#paddel").hide();
-                            $("#pinloginmessage").text("Enter your PIN number");
-
-
-                            //get the encrypted user's password from local storage
-                            Engine.Device.getStorageItem("ninki_p", function (result) {
-
-                                //decrypt the password using the encryption key sent from the server
-                                //and set the password
-                                var enc = JSON.parse(result);
-                                result = '';
-                                Engine.setStretchPass(Engine.decryptNp(enc.ct, ekeyv.DeviceKey, enc.iv));
-
-                                //get the encrypted 2fa override token from local storage
-                                Engine.Device.getStorageItem("ninki_rem", function (res) {
-
-                                    if (res.length > 0) {
-
-                                        //decrypt the 2fa overide token
-                                        var enc = JSON.parse(res);
-                                        var fatoken = Engine.decryptNp(enc.ct, ekeyv.DeviceKey, enc.iv);
-
-                                        
-                                        //use the token to open the wallet
-                                        Engine.openWallet(guid, fatoken, function (err, result) {
-
-                                            if (!err) {
-
-                                                //if this is true it means the 2fa token has expired
-                                                if (result.TwoFactorOnLogin) {
-
-                                                    $("#pairspinner").hide();
-                                                    $("#loginpinno").val('');
-                                                    pinlock = false;
-                                                    //$("#enterpinalert").show();
-                                                    //$("#enterpinalertmessage").text('Token has expired');
-
-                                                    bootbox.alert("Your token has expired. Please repair your device", function () {
-
-                                                        Engine.Device.deleteStorageItem("ninki_reg");
-                                                        Engine.Device.deleteStorageItem("ninki_p");
-                                                        Engine.Device.deleteStorageItem("ninki_rem");
-                                                        Engine.Device.deleteStorageItem("guid");
-
-                                                        location.reload();
-
-                                                    });
-
-                                                } else {
-
-
-                                                    //setup local settings
-                                                    Engine.Device.getStorageItem("currency", function (res) {
-
-                                                        if (res) {
-
-                                                            Engine.m_settings.LocalCurrency = res;
-
-                                                        } else {
-
-                                                            Engine.Device.setStorageItem("currency", Engine.m_settings.LocalCurrency);
-                                                        }
-
-                                                        //console.log(Engine.m_settings.LocalCurrency);
-                                                        //console.log(Engine.m_settings.CoinUnit);
-
-                                                        var t = Engine.m_settings.LocalCurrency;
-
-                                                        $('.sccy').filter(function () {
-                                                            return $(this).text().trim() == t;
-                                                        }).find("label").html('<i class="fa fa-check text-active"></i>');
-
-
-                                                        Engine.Device.getStorageItem("coinunit", function (res) {
-
-                                                            if (res) {
-
-                                                                Engine.m_settings.CoinUnit = res;
-
-                                                            } else {
-
-                                                                Engine.Device.setStorageItem("coinunit", Engine.m_settings.CoinUnit);
-                                                            }
-
-
-                                                            var tc = Engine.m_settings.CoinUnit;
-                                                            $('.scoinunit').filter(function () {
-                                                                return $(this).text().trim() == tc;
-                                                            }).find("label").html('<i class="fa fa-check text-active"></i>');
-
-                                                        });
-
-
-                                                    });
-
-
-                                                    //initilaise the UI elements
-                                                    initialiseDashboard(function () {
-
-
-                                                        Engine.m_appInitialised = true;
-
-                                                        $("#isactive").val(1);
-
-                                                        $("#pairspinner").hide();
-
-                                                        $('#dashboard').show();
-                                                        $('#dashheader').show();
-
-                                                        $("#mainWallet").show();
-                                                        $("#footermode").val(1);
-                                                        $(".footer").show();
-
-                                                        $("#nonlogin").show();
-
-                                                        if (!(typeof window.app === 'undefined')) {
-                                                            app.isScanning = false;
-                                                        }
-
-                                                    });
-
-
-                                                }
-
-                                            } else {
-
-
-                                                if (result == "ErrLocked") {
-
-                                                    bootbox.alert("Your account is locked. Please unlock your account using the Chrome App");
-
-                                                } else {
-
-                                                    bootbox.alert(result);
-
-                                                }
-
-
-                                                $("#pairspinner").hide();
-                                                $('.numdone').attr("style", "background-color:white");
-                                                $("#loginpin").show();
-                                                $("#loginpinno").val('');
-                                                pinlock = false;
-                                                $("#paddel").hide();
-                                                $("#pinloginmessage").text("Enter your PIN number");
-
-                                                if (!(typeof window.app === 'undefined')) {
-                                                    app.isScanning = false;
-                                                }
-
-                                            }
-
-                                        });
-
-                                    }
-
-                                });
-
-                            });
-
-                        }
-
-                    } else {
-
-                        $("#pinspinner").hide();
-
-                        if (ekeyv == "ErrDeviceDestroyed") {
-
-                            Engine.Device.deleteStorageItem("ninki_reg");
-                            Engine.Device.deleteStorageItem("ninki_p");
-                            Engine.Device.deleteStorageItem("ninki_rem");
-                            Engine.Device.deleteStorageItem("guid");
-
-                            bootbox.alert("Too many failed attempts. The device has been unpaired.", function () {
-
-                                $("#loginpin").hide();
-                                $("#mainWallet").hide();
-                                $("#pairDevice").show();
-
-                                location.reload();
-
-                            });
-
-                        } else {
-
-                            $("#loginpinno").val('');
-                            pinlock = false;
-                            $('.numdone').attr("style", "background-color:white");
-                            $("#paddel").hide();
-
-                            if (ekeyv.substring(0, 6) == "ErrPIN") {
-
-                                var attempts = ekeyv.substring(7, 8);
-
-                                $("#pinloginmessage").text("Incorrect PIN " + attempts + "/3 attempts");
-
-                                $("#pincounter").effect("shake");
-
-                            } else {
-
-                                bootbox.alert(ekeyv);
-
-                            }
-
-                            if (!(typeof window.app === 'undefined')) {
-                                app.isScanning = false;
-                            }
-                        }
-
-                    }
-
-                });
-
-            });
-
-        } else {
-
-            $("#pinspinner").hide();
-
-        }
-
-    }
-
-
-
-    //device paring
-    var deviceName = '';
-    var regToken = '';
-    var secret = '';
-    var enck = '';
-    var iv = '';
-
-    //the user scans a QR code containing data encrypted with the server generated encryption key
-
-    function pairDevice() {
-
-
-        $("#btnPairDevice").addClass("disabled");
-
-        var blob = $('#pairdeviceblob').val();
-        var pwd = $('#pairpwd').val();
-
-        var splitBlob = blob.split('|');
-
-        //console.log(splitBlob.length);
-
-        if (splitBlob.length == 5) {
-
-
-            if (!(typeof window.app === 'undefined')) {
-                app.isScanning = true;
-            }
-
-            var guid = splitBlob[2];
-
-            //encrypted hot key and 2fa override token
-            enck = splitBlob[0];
-            iv = splitBlob[1];
-
-            //device name eg. My iPhone
-            deviceName = splitBlob[3];
-
-            //registration token for this pairing attempt
-            regToken = splitBlob[4];
-
-            //password enetered by the user
-            Engine.setPass(pwd, guid);
-
-            var bytes = [];
-            for (var i = 0; i < guid.length; ++i) {
-                bytes.push(guid.charCodeAt(i));
-            }
-
-            var hashguid = Bitcoin.Crypto.SHA256(Bitcoin.convert.bytesToWordArray(bytes)).toString();
-
-
-            Engine.m_guid = hashguid;
-            Engine.m_oguid = guid;
-
-            //first validate the password with the secret
-
-            Engine.getRecoveryPacket(function (err, response) {
-
-                if (err) {
-
-                    if (!(typeof window.app === 'undefined')) {
-                        app.isScanning = false;
-                    }
-
-                    bootbox.alert("There was an error, please try again.");
-                    $("#btnPairDevice").removeClass("disabled");
-
-                } else {
-
-                    //decrypt packet and set the secret
-                    //the user will be asked next to choose a PIN
-                    var jpacket = JSON.parse(response);
-
-                    secret = Engine.decryptNp(jpacket.packet, Engine.m_password, jpacket.IV);
-
-                    Engine.validateSecret(secret, function (err, secvalid) {
-
-                        if (!err) {
-
-                            if (secvalid) {
-
-                                //show pin screen
-
-                                $('#pairDevice').hide();
-                                $("#btnPairDevice").removeClass("disabled");
-                                $('#loginpin').show();
-
-                                if (!(typeof window.app === 'undefined')) {
-                                    app.isScanning = false;
-                                }
-                            }
-
-                        } else {
-
-                            if (!(typeof window.app === 'undefined')) {
-                                app.isScanning = false;
-                            }
-
-                            $("#btnPairDevice").removeClass("disabled");
-
-                            if (secvalid == "ErrAccount") {
-                                bootbox.alert("Password not correct");
-                            } else if (secvalid == "ErrLocked") {
-                                bootbox.alert("The account is locked");
-                            } else {
-                                bootbox.alert("There was an error, please try again");
-                            }
-
-                        }
-
-                    });
-
-                }
-
-            });
-
-        } else {
-
-            $("#btnPairDevice").removeClass("disabled");
-            bootbox.alert("There was a pairing error, please try again.");
-
-            // $('#pairdevicealertmessage').text("There was a pairing error");
-            //$('#pairdevicealert').show();
-        }
-
-    }
-
-
-    function regPIN() {
-
-        //the user has chosen a PIN and can now register the deive with the server
-
-        $("#pairspinner").show();
-        var target = document.getElementById('pairspinner');
-        var spinner = new Spinner(spinneropts).spin(target);
-
-        $('#loginpin').hide();
-
-
-        if (!(typeof window.app === 'undefined')) {
-            app.isScanning = true;
-        }
-
-
-
-        //hash the pin and device id
-        var deviceid = "DEVICE123456789";
-
-        if (window.cordova) {
-            deviceid = window.device.uuid;
-        }
-
-
-        //hash the PIN with the device id
-        //this is used to validate the PIN and lookup the encryption key on our server
-
-        var pin = $("#loginpinno").val();
-
-        var pinhash = deviceid + pin;
-        bytes = [];
-        for (var i = 0; i < pinhash.length; ++i) {
-            bytes.push(pinhash.charCodeAt(i));
-        }
-
-        pinhash = Bitcoin.Crypto.SHA256(Bitcoin.convert.bytesToWordArray(bytes)).toString();
-
-
-        //new register device
-
-
-        //enter password
-        //stretch
-        //get validate
-        //if valid
-        //choose a PIN
-        //register
-
-
-        var devplatform = "platform";
-        var devmodel = "model";
-
-        if (window.cordova) {
-            devplatform = window.device.platform;
-            devmodel = window.device.model;
-        }
-
-        //the device is registered with the server
-        //authentication via:
-        //generation of the pairing data required 2 factor authenticaton
-        //  guid as an identifier
-        //  registration token for this pairing session
-        //secret, which proves the user knows their password
-        //their chosen PIN number is registered with the server vi a hash of the PIN + Device uuid
-        //a 256 bit encryption key is generated on the server using a CSPRNG, this is used to encrypt data stored on the device
-
-        Engine.registerDevice(Engine.m_guid, deviceName, devplatform, devmodel, pinhash, regToken, secret, function (err, result) {
-
-            if (!err) {
-
-                var dk = JSON.parse(result);
-
-                if (dk.DeviceKey.length > 0) {
-
-                    //the server returns the encryption key
-                    //whcih is used to decrypt the hotkey and 2fa override token
-
-                    var decblob = Engine.decryptNp(enck, dk.DeviceKey, iv);
-
-                    //slice it up
-                    //64 64
-                    var hk = decblob.substring(0, 64);
-                    var fatoken = decblob.substring(64, 128);
-
-                    //encrypt the user's password with the encryption key
-                    var encp = Engine.encryptNp(Engine.m_password, dk.DeviceKey);
-                    result = '';
-
-                    var ptok = {};
-                    ptok.ct = encp.toString();
-                    ptok.iv = encp.iv.toString();
-                    var ptoken = JSON.stringify(ptok);
-
-                    //encrypt the 2fa override token with the device key
-                    var enc = Engine.encryptNp(fatoken, dk.DeviceKey);
-                    var ctok = {};
-                    ctok.ct = enc.toString();
-                    ctok.iv = enc.iv.toString();
-
-                    var ctoken = JSON.stringify(ctok);
-
-                    //encrypt the hotkey with the device key
-                    var ench = Engine.encryptNp(hk, dk.DeviceKey);
-                    var htok = {};
-                    htok.ct = ench.toString();
-                    htok.iv = ench.iv.toString();
-
-                    var hkey = JSON.stringify(htok);
-
-                    dk.DeviceKey = '';
-
-                    Engine.Device.setStorageItem("guid", Engine.m_oguid);
-
-                    //test opening the wallet
-
-                    Engine.openWallet(Engine.m_oguid, fatoken, function (err, result) {
-
-                        if (!err) {
-
-                            if (!result.TwoFactorOnLogin) {
-
-                                //if succesfull store the encrypted data in local storage
-
-                                Engine.Device.setStorageItem("ninki_rem", ctoken);
-                                Engine.Device.setStorageItem("ninki_p", ptoken);
-                                Engine.Device.setStorageItem("ninki_reg", regToken);
-                                Engine.Device.setStorageItem("ninki_h", hkey);
-
-                                $("#loginpinno").val('');
-                                pinlock = false;
-                                $("#paddel").hide();
-                                $('.numdone').attr("style", "background-color:white");
-
-                                var t = Engine.m_settings.LocalCurrency;
-
-                                $('.sccy').filter(function () {
-                                    return $(this).text().trim() == t;
-                                }).find("label").html('<i class="fa fa-check text-active"></i>');
-
-
-                                var tc = Engine.m_settings.CoinUnit;
-                                $('.scoinunit').filter(function () {
-                                    return $(this).text().trim() == tc;
-                                }).find("label").html('<i class="fa fa-check text-active"></i>');
-
-
-                                isPairing = false;
-
-                                //callback here before displaying
-
-
-
-                                initialiseDashboard(function () {
-
-                                    Engine.m_appInitialised = true;
-
-                                    $("#pairspinner").hide();
-                                    $('#dashboard').show();
-                                    $('#dashheader').show();
-
-                                    $("#footermode").val(1);
-                                    $("#mainWallet").show();
-                                    $(".footer").show();
-
-                                    if (!(typeof window.app === 'undefined')) {
-                                        app.isScanning = false;
-                                    }
-
-                                });
-
-                            } else {
-
-                                if (!(typeof window.app === 'undefined')) {
-                                    app.isScanning = false;
-                                }
-
-                                $("#pairspinner").hide();
-                                bootbox.alert("Could not pair", function () {
-
-                                    location.reload();
-
-                                });
-
-                            }
-
-                        } else {
-
-                            if (!(typeof window.app === 'undefined')) {
-                                app.isScanning = false;
-                            }
-
-                            $("#pairspinner").hide();
-
-                            bootbox.alert(result, function () {
-
-                                location.reload();
-
-                            });
-
-                        }
-
-                    });
-                } else {
-
-                    if (!(typeof window.app === 'undefined')) {
-                        app.isScanning = false;
-                    }
-
-
-                    $("#pairspinner").hide();
-                    bootbox.alert("The pairing token has expired", function () {
-
-                        location.reload();
-
-                    });
-
-                }
-
-
-            } else {
-
-
-                if (!(typeof window.app === 'undefined')) {
-                    app.isScanning = false;
-                }
-
-                $("#pairspinner").hide();
-                bootbox.alert(result, function () {
-
-                    location.reload();
-
-                });
-
-            }
-
-        });
-
-        secret = '';
-
-    }
-
-
-
-
-    function closeSendNet() {
-
-
-
-        $("#dashsend").addClass("invis");
-        $("#dashsend").removeClass("slideUp");
-        $("#dashsend").hide();
-
-        $("#dashsendamt").addClass("invis");
-        $("#dashsendamt").removeClass("slideUp");
-        $("#dashsendamt").hide();
-
-        $("#mainWallet").show();
-
-        if (sendmode == "net" || sendmode == "inv") {
-            $("#friendheader").show();
-        } else {
-            $('#dashboard').show();
-            $('#dashheader').show();
-
-        }
-
-        $(".footer").show();
-
-
-        $("#dashreceive").addClass("invis");
-        $("#dashreceive").removeClass("slideUp");
-        $("#dashreceive").hide();
-
-        $("#dashcontact").addClass("invis");
-        $("#dashcontact").removeClass("slideUp");
-        $("#dashcontact").hide();
-
-        //$("#dashreceive").hide();
-        //$("#dashcontact").hide();
-
-        $("#pinconfirm").hide();
-
-        $("#btnStdSndDone").hide();
-
-
-        $('#toAddress').val('');
-
-        sendAmount = '';
-
-        updateStdAmount();
-
-    }
-
-
-    function closeSendStd() {
-
-
-        $("#dashsend").removeClass("slideUp");
-        $("#dashsend").addClass("invis");
-        $("#dashsend").hide();
-
-        $("#dashsendamt").removeClass("slideUp");
-        $("#dashsendamt").addClass("invis");
-        $("#dashsendamt").hide();
-
-        $('#dashboard').show();
-        $('#dashheader').show();
-
-        $("#mainWallet").show();
-        $(".footer").show();
-
-
-
-        $("#dashreceive").removeClass("slideUp");
-        $("#dashreceive").addClass("invis");
-        $("#dashreceive").hide();
-
-        $("#dashcontact").removeClass("slideUp");
-        $("#dashcontact").addClass("invis");
-        $("#dashcontact").hide();
-
-        $("#pinconfirm").hide();
-
-        $("#btnStdSndDone").hide();
-
-
-        //profilepagestate = "send";
-        //menustate = "profile"
-
-        $('#toAddress').val('');
-
-        sendAmount = '';
-
-        updateStdAmount();
-
-    }
-
-    var stdAmountConvCoin = true;
-    var netAmountConvCoin = true;
-
-    function convertToLocalCurrency(amount) {
-
-        var conv = amount;
-        conv = conv * 1.0;
-
-        var sats = convertToSatoshis(conv, COINUNIT);
-        var btc = convertFromSatoshis(sats, "BTC");
-
-        var cbtc = btc * price;
-
-        var loc = "en-US";
-        var ires = cbtc;
-
-        if (Engine.m_settings.LocalCurrency == "JPY") {
-            ires = (cbtc * 1.0).toFixed(0) * 1.0;
-        } else {
-            ires = (cbtc * 1.0).toFixed(2) * 1.0;
-        }
-
-        var loc = "en-US";
-        var cprc = "";
-        if (Engine.m_settings.LocalCurrency == "JPY" || Engine.m_settings.LocalCurrency == "CNY") {
-            cprc = accounting.formatMoney(ires, "&yen;", 0);
-        } else if (Engine.m_settings.LocalCurrency == "GBP") {
-            cprc = accounting.formatMoney(ires, "&pound;", 2);
-        } else if (Engine.m_settings.LocalCurrency == "EUR") {
-            cprc = accounting.formatMoney(ires, "&euro;", 2);
-        } else if (Engine.m_settings.LocalCurrency == "USD") {
-            cprc = accounting.formatMoney(ires, "&dollar;", 2);
-        } else if (Engine.m_settings.LocalCurrency == "CNY") {
-            cprc = accounting.formatMoney(ires, "&yen;", 2);
-        }
-
-        return cprc;
-
-    }
-
-
-    function convertFromLocalCurrency(amount, format) {
-
-        var conv = amount;
-        conv = conv * 1.0;
-
-
-
-
-        //convert to bitcoin
-        if (price > 0) {
-            var cbtc = conv / price;
-
-            var sats = convertToSatoshis(cbtc, "BTC");
-
-            var dp = 4;
-            if (sats > 0 && sats < 10000) {
-                dp = 8;
-            }
-
-
-            var btc = convertFromSatoshis(sats, COINUNIT);
-
-
-            if (format) {
-                if (COINUNIT == "BTC") {
-
-                    btc = accounting.formatMoney(btc, "", dp);
-
-                }
-
-                if (COINUNIT == "Bits") {
-
-                    btc = accounting.formatMoney(btc, "", 0);
-
-                }
-            } else {
-
-                if (COINUNIT == "BTC") {
-                    var dpr = 4;
-                    if (sats > 0 && sats < 10000) {
-                        dpr = 8;
-                    }
-
-                    btc = accounting.toFixed(btc, dpr);
-                }
-
-                if (COINUNIT == "Bits") {
-                    var dpr = 0;
-                    if (sats > 0 && sats < 10000) {
-                        dpr = 2;
-                    }
-
-                    btc = accounting.toFixed(btc, dpr);
-                }
-            }
-
-            return btc;
-
-        } else {
-
-            return 0;
-
-        }
-
-
-    }
-
-
-    var sendAmount = '';
-
-    function updateStdAmount() {
-
-        //vamout will track the value
-        //hdamount.val is the value actually used as an
-        // input to the transaction
-
-
-        //if the input value is decimal . or empty
-        //set to 0
-
-        var vAmount = 0;
-        if (sendAmount == '' || sendAmount == '.') {
-            vAmount = 0;
-        } else {
-            vAmount = sendAmount;
-        }
-
-        vAmount = vAmount * 1;
-
-        if (sendAmount == '') {
-
-            //default entry box and actual value in the case of no input
-            $('#amount').text('amount');
-            if (stdAmountConvCoin) {
-                $('#ccystdamt').html(convertToLocalCurrency(0));
-            } else {
-                $('#ccystdamt').html(convertFromLocalCurrency(0) + ' ' + COINUNIT);
-            }
-            $('#hdamount').val('0');
-
-        } else {
-
-            if (stdAmountConvCoin) {
-
-                //amounts are being input in a Bitcoin denomination
-                //so we convert to local currenct
-
-                $('#ccystdamt').html(convertToLocalCurrency(vAmount));
-                //convert bitcoin amount to number
-                $('#hdamount').val(vAmount * 1.0);
-
-                var cprc = 0;
-                if (COINUNIT == "Bits") {
-
-                    //default bits to 0 decimal places
-                    cprc = accounting.formatMoney(sendAmount, "", 0);
-
-                } else {
-
-
-                    var indot = sendAmount.indexOf('.');
-
-                    //if the input is the beginning of input entry
-                    //apply no formatting
-                    if (sendAmount == '.' || sendAmount == '0.' || sendAmount == '0') {
-
-                        cprc = sendAmount;
-
-                    }
-                    else if (indot == sendAmount.length - 1) {
-                        //if the user has just enetered a decimal point
-                        //format the number and add on the decimal for display
-                        cprc = accounting.formatMoney(sendAmount, "", 0) + '.';
-                    }
-                    else {
-                        //if there is no decimal point apply formatting
-                        //with 0 dp
-                        if (indot == -1) {
-
-                            cprc = accounting.formatMoney(sendAmount, "", 0);
-
-                        } else {
-
-                            //allow bitcoin entry up to 8 decimal places
-                            var ramt = Math.min(sendAmount.length - indot, 9);
-                            ramt = ramt - 1;
-                            cprc = accounting.formatMoney(sendAmount, "", ramt);
-                        }
-
-                    }
-
-
-                }
-
-                var fee = convertFromSatoshis(Engine.m_settings.MinersFee, COINUNIT);
-                if ((currentBalance >= (vAmount + fee) && vAmount > 0) && convertToSatoshis(vAmount, COINUNIT) >= 10000) {
-
-                    $('#btnsendmoneystd').removeClass("disabled");
-
-                } else {
-
-                    $('#btnsendmoneystd').removeClass("disabled");
-                    $('#btnsendmoneystd').addClass("disabled");
-                }
-
-                $('#amount').text(cprc);
-
-            }
-            else {
-
-                //entry is in local currency
-                //so we need to convert to coin units and also format
-                //the currency input
-
-                var amt = convertFromLocalCurrency(vAmount);
-                var amtfmt = convertFromLocalCurrency(vAmount, true);
-                amt = amt * 1.0;
-
-                $('#hdamount').val(amt);
-
-                $('#ccystdamt').text(amtfmt + ' ' + COINUNIT);
-
-                var symb = '';
-                if (Engine.m_settings.LocalCurrency == "JPY" || Engine.m_settings.LocalCurrency == "CNY") {
-                    symb = "&yen;";
-                } else if (Engine.m_settings.LocalCurrency == "GBP") {
-                    symb = "&pound;";
-                } else if (Engine.m_settings.LocalCurrency == "EUR") {
-                    symb = "&euro;";
-                } else if (Engine.m_settings.LocalCurrency == "USD") {
-                    symb = "&dollar;";
-                } else if (Engine.m_settings.LocalCurrency == "CNY") {
-                    symb = "&yen;";
-                }
-
-
-                var cprc = '';
-
-                var indot = sendAmount.indexOf('.');
-
-                if (sendAmount == '.' || sendAmount == '0.' || sendAmount == '0') {
-
-                    cprc = symb + sendAmount;
-
-                }
-                else if (indot == sendAmount.length - 1) {
-
-                    cprc = accounting.formatMoney(sendAmount, symb, 0) + '.';
-                }
-                else {
-
-                    if (indot == -1) {
-
-                        cprc = accounting.formatMoney(sendAmount, symb, 0);
-
-                    } else {
-
-                        var ramt = Math.min(sendAmount.length - indot, 2);
-
-                        cprc = symb + sendAmount
-
-                    }
-
-                }
-
-
-                var fee = convertFromSatoshis(Engine.m_settings.MinersFee, COINUNIT);
-                if (currentBalance >= (amt + fee) && amt > 0 && convertToSatoshis(amt, COINUNIT) >= 10000) {
-
-                    $('#btnsendmoneystd').removeClass("disabled");
-
-                } else {
-
-                    $('#btnsendmoneystd').removeClass("disabled");
-                    $('#btnsendmoneystd').addClass("disabled");
-                }
-
-
-                $('#amount').html(cprc);
-            }
-        }
-
-    }
-
-
     var profilepagestate = '';
     var networkpagestate = '';
     var friendpagestate = '';
@@ -1300,6 +286,984 @@ function UI() {
             }
 
         });
+
+
+        //create wallet area
+
+
+        Engine.fillElementWithGuid($("#createWalletStart input#guid"));
+
+        //$('#nickname').val($('#guid').val().substring(0, 7));
+        //$('#emailaddress').val($('#guid').val().substring(0, 7) + '@ninkip2p.com');
+
+        $('#createaccount').bind("touchstart", function () {
+
+            Engine.Device.deleteStorageItem("dataCache");
+            //Engine.Device.deleteStorageItem("balance");
+
+            if (window.cordova) {
+                cordova.plugins.Keyboard.disableScroll(true);
+            }
+
+            isCreate = true;
+            $("#pairDevice").hide();
+
+
+        });
+
+
+
+
+
+        $('#createaccount').bind("touchend", function () {
+
+            setTimeout(function () {
+
+                $("#createWalletStart").show();
+
+            }, 100);
+
+        });
+
+        $('#closetos').bind("touchstart", function () {
+            $("#tos").removeClass("slideUp");
+            $("#tos").addClass("invis");
+            $("#tos").hide();
+
+        });
+
+
+        $('#termslink').bind("click", function () {
+            $("#tos").removeClass("invis");
+            $("#tos").addClass("slideUp");
+            $('#tos').show();
+        });
+
+
+        var options = {};
+        options.ui = {
+            container: "#pwd-container",
+            showVerdictsInsideProgressBar: true,
+            showPopover: false,
+            showErrors: false,
+            viewports: {
+                progress: ".pwstrength_viewport_progress"
+            }
+        };
+        options.common = {
+            debug: true,
+            onLoad: function () {
+                $('#messages').text('Start typing password');
+            },
+            onKeyUp: function () {
+                $("#createwalletalert").fadeOut(100);
+            }
+        };
+
+        $('#createWalletStart #cpassword').pwstrength(options);
+
+        $("#cpassword").blur(function () {
+            $(".popover.fade.bottom.in").hide();
+            $("#pwdmeter").fadeOut(500);
+        });
+
+        $("#cpassword").focus(function (e) {
+
+            $(".popover.fade.bottom.in").show();
+            $("#pwdmeter").fadeIn(500);
+
+        });
+
+        $("#password1").blur(function () {
+
+        });
+
+        $("#password1").focus(function (e) {
+
+        });
+
+
+
+
+        //wallet security wizard
+
+        var step = 0;
+
+        $(".next").bind("touchstart", function () {
+
+            if (step == 2) {
+
+                $("#btnPairDevice").removeClass("disabled");
+
+                $('#btnUnpair').hide();
+                $('#loginpin').show();
+                $("#hotkeystep").hide();
+
+                setTimeout(function () {
+                    $("#hotkeystep").removeClass("fadeInRightBig");
+                    $("#hotkeystep").addClass("fadeInLeftBig");
+
+                }, 1000);
+
+
+                $(".next").hide();
+                $(".previous").show();
+                step++;
+            }
+
+            if (step == 1) {
+
+                $("#hotkeystep").show();
+                $("#coldkeystep").hide();
+
+                setTimeout(function () {
+                    $("#coldkeystep").removeClass("fadeInRightBig");
+                    $("#coldkeystep").addClass("fadeInLeftBig");
+                }, 1000);
+
+
+                $(".previous").show();
+
+                $(".next").hide();
+
+                step++;
+            }
+
+        });
+
+        $(".previous").bind("touchstart", function () {
+
+            if (step == 2) {
+
+                $("#coldkeystep").show();
+                $("#hotkeystep").hide();
+
+
+                $("#hotkeystep").removeClass("fadeInLeftBig");
+                $("#hotkeystep").addClass("fadeInRightBig");
+
+                $("#hotcheckicon").removeClass("fa-check-square");
+                $("#hotcheckicon").removeClass("text-success");
+                $("#hotcheckicon").addClass("fa-square-o");
+
+
+                $(".previous").hide();
+                $(".next").show();
+                step--;
+            }
+
+            if (step == 3) {
+
+                $("#hotkeystep").show();
+                $("#emailstep").hide();
+
+                $(".previous").show();
+                $(".next").show();
+                step--;
+            }
+
+            if (step == 4) {
+
+                $("#step3").show();
+                $("#step4").hide();
+
+                $(".previous").show();
+                step--;
+            }
+
+        });
+
+
+
+        $("#coldcheck").bind("touchstart", function () {
+
+            $("#coldcheckicon").removeClass("fa-square-o");
+            $("#coldcheckicon").addClass("fa-check-square");
+            $("#coldcheckicon").addClass("text-success");
+
+            $(".next").show();
+
+        });
+
+
+        $("#hotcheck").bind("touchstart", function () {
+
+            $("#hotcheckicon").removeClass("fa-square-o");
+            $("#hotcheckicon").addClass("fa-check-square");
+            $("#hotcheckicon").addClass("text-success");
+
+            $(".next").show();
+
+        });
+
+        $("#coldconf").change(function () {
+            if (this.checked) {
+                $(".next").show();
+            } else {
+                $(".next").hide();
+            }
+        });
+
+        $("#hotconf").change(function () {
+            if (this.checked) {
+                $(".next").show();
+            } else {
+                $(".next").hide();
+            }
+        });
+
+
+        $("#chkhotmig").change(function () {
+            if (this.checked) {
+                $("#hotmigcont").show();
+            } else {
+                $("#hotmigcont").hide();
+            }
+        });
+
+
+        //on blur email
+        //on blur username
+
+
+        var isCreateEmailValid = false
+        $("#emailaddress").blur(function () {
+
+            var emailaddr = $("#emailaddress").val();
+            //check email address valid
+
+            if (emailaddr.length > 2) {
+
+                if ($("#emailaddress").parsley().isValid()) {
+
+                    Engine.doesEmailExist(emailaddr, function (err, res) {
+
+                        if (res) {
+
+
+                            var specificField = $('#emailaddress').parsley();
+                            window.ParsleyUI.addError(specificField, "emailaddressError", "This email address is already taken");
+
+                            $("#btnCreate").prop('disabled', true);
+                            $("#btnCreate").addClass('disabled');
+                            $("#emailaddress").css("border-color", "#ffaaaa");
+                            isCreateEmailValid = false;
+
+                        } else {
+
+                            $("#emailaddress").css("border-color", "#ccc");
+                            isCreateEmailValid = true;
+
+                        }
+
+                        validateCreateForm();
+
+                    });
+                } else {
+
+                    $("#emailaddress").parsley().validate();
+
+                }
+
+            } else {
+
+                $("#emailaddress").parsley('reset');
+                isCreateNicknameValid = false;
+                validateCreateForm();
+            }
+
+        });
+
+        var isCreateNicknameValid = false
+
+        $("#nickname").focus(function () {
+
+            var specificField = $('#nickname').parsley();
+            window.ParsleyUI.removeError(specificField, "nicknameError");
+
+        });
+
+        $("#emailaddress").focus(function () {
+
+            var specificField = $('#emailaddress').parsley();
+            window.ParsleyUI.removeError(specificField, "emailaddressError");
+
+        });
+
+        $("#nickname").blur(function () {
+
+            var nicknme = $("#nickname").val();
+
+            if (nicknme.length > 2) {
+
+                if ($("#nickname").parsley().isValid()) {
+
+
+                    //check email address valid
+                    Engine.doesUsernameExist(nicknme, function (err, res) {
+
+                        if (res) {
+
+                            $("#btnCreate").prop('disabled', true);
+                            $("#btnCreate").addClass('disabled');
+                            $("#nickname").css("border-color", "#ffaaaa");
+
+                            var specificField = $('#nickname').parsley();
+                            window.ParsleyUI.addError(specificField, "nicknameError", "This username is already taken");
+
+                            isCreateNicknameValid = false;
+
+                        } else {
+
+                            $("#nickname").css("border-color", "#ccc");
+                            isCreateNicknameValid = true;
+                        }
+
+                        validateCreateForm();
+
+                    });
+
+
+                } else {
+
+                    $("#nickname").parsley().validate();
+                }
+
+            } else {
+
+
+                $("#nickname").parsley('reset');
+                isCreateNicknameValid = false;
+                validateCreateForm();
+                $("#nickname").css("border-color", "#ffaaaa");
+            }
+
+        });
+
+
+        $("#password1, #cpassword, #emailaddress").change(function () {
+
+            validateCreateForm();
+
+        });
+
+
+        var showlogo = true;
+        $("#password1, #cpassword, #nickname, #emailaddress").focus(function () {
+            showlogo = false;
+            $("#createheader").slideUp();
+            //$("#createheadermini").slideDown();
+            termslink
+            $("#termslink").fadeOut();
+            $("#createback").fadeOut();
+        });
+
+        $("#password1, #cpassword, #nickname, #emailaddress").blur(function () {
+            showlogo = true;
+            setTimeout(function () {
+                if (showlogo) {
+
+                    $("#termslink").fadeIn();
+                    $("#createback").fadeIn();
+
+                }
+            }, 50);
+        });
+
+        $("#createback").bind("touchstart", function () {
+
+            isCreate = false;
+            $("#pairDevice").show();
+            $("#createWalletStart").hide();
+
+        });
+
+
+        function validateCreateForm() {
+
+            if (($(".password-verdict").html() == 'Strong' || $(".password-verdict").html() == 'Very Strong')) {
+
+                if (isCreateNicknameValid && isCreateEmailValid) {
+
+                    $("#btnCreate").prop('disabled', false);
+                    $("#btnCreate").removeClass('disabled');
+
+                } else {
+
+                    $("#btnCreate").prop('disabled', true);
+                    $("#btnCreate").addClass('disabled');
+
+                }
+
+            } else {
+
+                $("#btnCreate").prop('disabled', true);
+                $("#btnCreate").addClass('disabled');
+
+            }
+
+        }
+
+
+        $("#btnCreate").bind("touchstart", function () {
+
+
+            showlogo = false;
+
+            if (isCreateNicknameValid && isCreateEmailValid) {
+
+                if ($("#frmcreate").parsley().isValid()) {
+
+                    //check password strength
+                    if (($(".password-verdict").html() == 'Strong' || $(".password-verdict").html() == 'Very Strong')) {
+
+                        var nicknme = $("#nickname").val();
+                        //check email address valid
+                        Engine.doesUsernameExist(nicknme, function (err, res) {
+
+                            if (!res) {
+
+                                var emailaddr = $("#emailaddress").val();
+                                //check email address valid
+                                Engine.doesEmailExist(emailaddr, function (err, res) {
+
+                                    if (!res) {
+
+
+                                        $("#imgcreatewaiting").show();
+                                        $("#btnCreate").prop('disabled', true);
+                                        $("#btnCreate").addClass('disabled');
+                                        $("#lnkOpenWallet").hide();
+
+                                        //error handling here?
+
+                                        var guid = $('#createWalletStart input#guid').val();
+                                        var username = $("#createWalletStart input#nickname").val();
+                                        var password = $('#createWalletStart input#cpassword').val();
+                                        var emailAddress = $('#createWalletStart input#emailaddress').val();
+
+
+                                        Engine.m_nickname = username;
+
+
+                                        $("#createWalletStart").hide();
+                                        $("#createWalletProgress").show();
+
+
+                                        setTimeout(function () {
+
+                                            Engine.createWallet(guid, password, username, emailAddress, function (err, result) {
+
+                                                //move error handling and ui elements to here
+                                                $("#createWalletStart input#nickname").css("border-color", "#ccc");
+                                                if (err) {
+
+                                                    if (result == "ErrUserExists") {
+
+                                                        $("#createWalletStart input#nickname").css("border-color", "#ffaaaa");
+                                                        $("#imgcreatewaiting").hide();
+
+                                                        $("#createwalletalert").show();
+                                                        $("#createwalletalertmessage").text("The username already exists");
+
+                                                        $("#btnCreate").prop('disabled', false);
+                                                        $("#btnCreate").removeClass('disabled');
+                                                        $("#lnkOpenWallet").show();
+                                                    }
+                                                    if (result == "ErrEmailExists") {
+
+                                                        $("#createWalletStart input#emailaddress").css("border-color", "#ffaaaa");
+                                                        $("#imgcreatewaiting").hide();
+
+                                                        $("#createwalletalert").show();
+                                                        $("#createwalletalertmessage").text("The email address is already in use");
+
+                                                        $("#btnCreate").prop('disabled', false);
+                                                        $("#btnCreate").removeClass('disabled');
+                                                        $("#lnkOpenWallet").show();
+                                                    }
+
+                                                    if (result == "ErrCreateAccount") {
+
+                                                        $("#imgcreatewaiting").hide();
+                                                        $("#btnCreate").prop('disabled', false);
+                                                        $("#btnCreate").removeClass('disabled');
+                                                        $("#lnkOpenWallet").show();
+
+                                                        $("#createwalletalert").show();
+                                                        $("#createwalletalertmessage").text("Error");
+
+                                                    }
+
+                                                    if (result == "ErrSavePacket") {
+
+                                                        $("#imgcreatewaiting").hide();
+                                                        $("#btnCreate").prop('disabled', false);
+                                                        $("#btnCreate").removeClass('disabled');
+                                                        $("#lnkOpenWallet").show();
+
+                                                        $("#createwalletalert").show();
+                                                        $("#createwalletalertmessage").text("Error");
+
+                                                    }
+
+
+
+                                                } else {
+
+
+                                                    $("#hotWalletPhrase").text(result.hotWalletPhrase);
+                                                    $("#coldWalletPhrase").text(result.coldWalletPhrase);
+                                                    $("#coldWalletPhrasePrintText").text(result.coldWalletPhrase);
+
+                                                    if (Engine.Device.isiOS()) {
+                                                        deviceName = "My iPhone";
+                                                    } else {
+                                                        deviceName = "My Android";
+                                                    }
+
+                                                    //now we perform a pairing of the device with the account
+                                                    Engine.getDeviceTokenForApp(deviceName, function (err, response) {
+
+                                                        if (!err) {
+
+                                                            response = JSON.parse(response);
+
+                                                            //registration token for this pairing attempt
+                                                            regToken = response.RegToken;
+                                                            fatoken = response.DeviceToken;
+
+                                                            Engine.getHotHash(Engine.m_password, function (err, hothash) {
+
+                                                                if (!err) {
+
+                                                                    //encrypt the user's password with the encryption key
+
+                                                                    Engine.Device.setStorageItem("ninki_reg", response.RegToken);
+
+                                                                    Engine.Device.setSecureStorageObject("ninki_rem", response.DeviceToken, response.DeviceKey, Engine.encryptNp);
+                                                                    Engine.Device.setSecureStorageObject("ninki_p", Engine.m_password, response.DeviceKey, Engine.encryptNp);
+                                                                    Engine.Device.setSecureStorageObject("ninki_h", hothash, response.DeviceKey, Engine.encryptNp);
+
+                                                                    result = '';
+
+                                                                    //save all the tokens
+                                                                    //we should now be in the same state as if we have just
+                                                                    //scanned a qr code to pair the phone
+                                                                    //and entered a password
+
+                                                                    //initialiseUI();
+                                                                    //Engine.m_validate = false;
+
+                                                                    //set variables for the session
+                                                                    $("#createWalletStart").hide();
+                                                                    $("#createWalletProgress").hide();
+
+                                                                    $('#createWalletStart input#cpassword').val('');
+                                                                    $('#createWalletStart input#password1').val('');
+
+                                                                    //save the encrypted hot key in local storage
+
+                                                                    $("#walletGuid").text($('input#guid').val());
+                                                                    $("#showPhrases").show();
+                                                                    $("#securitywizard").show();
+
+                                                                    $(".next").hide();
+
+                                                                    $("#no2famessage").hide();
+
+                                                                    step = 1;
+                                                                    $("#coldkeystep").show();
+                                                                    $(".previous").hide();
+                                                                }
+
+                                                            });
+
+                                                        }
+
+                                                    });
+
+
+                                                    //showTwoFactorQr();
+
+                                                }
+                                            }, function (txtprogress) {
+
+                                                $("#progresstext").text(txtprogress);
+
+                                            });
+
+                                        }, 100);
+                                    } else {
+
+                                        isCreateEmailValid = false;
+                                        validateCreateForm();
+                                    }
+                                });
+
+                            } else {
+
+                                isCreateNicknameValid = false;
+                                validateCreateForm();
+                            }
+                        });
+
+                    } else {
+
+                        //password not strong
+                        $("#createwalletalert").show();
+                        $("#createwalletalertmessage").text("Password must be Strong- ideally Very Strong");
+                    }
+
+                } else {
+
+                    $("#frmcreate").parsley().validate();
+                }
+            }
+
+        });
+
+
+        $("#tfacopy").bind("touchstart", function () {
+
+
+            if (window.cordova) {
+                cordova.plugins.clipboard.copy($("#tfarawcode").text(), function () {
+
+                    $('#tfarawcode').addClass("backgroundAnimated");
+                    setTimeout(function () {
+                        $('#tfarawcode').removeClass("backgroundAnimated");
+                    }, 1000);
+
+
+                }, function () {
+
+                    console.log("copy error");
+
+                });
+            } else {
+
+                $('#tfarawcode').addClass("backgroundAnimated");
+                setTimeout(function () {
+                    $('#tfarawcode').removeClass("backgroundAnimated");
+                }, 1000);
+            }
+
+
+        });
+
+        $("#tfaoptsetup").bind("touchstart", function () {
+
+
+            showTwoFactorQr();
+
+            $("#tfaoption").hide();
+            $("#tfaoptionsetuppnl").show();
+
+
+        });
+
+
+        $("#tfaoptsetuplater, #tfaoptclose").bind("touchstart", function () {
+
+
+            if (!(typeof window.app === 'undefined')) {
+                app.isScanning = false;
+            }
+
+            $("#tfastep").hide();
+
+            $("#imgphrasewaiting").hide();
+
+
+            $("#welcome").removeClass("invis");
+            $("#welcome").addClass("slideUp");
+            $("#welcome").show();
+
+
+        });
+
+        $("#btnletsrock").bind("touchstart", function () {
+
+
+            $("#welcome").addClass("invis");
+            $("#welcome").removeClass("slideUp");
+            $("#welcome").hide();
+
+            $('#welcome').hide();
+            $('#dashboard').show();
+            $('#dashheader').show();
+
+            $("#footermode").val(1);
+            $("#mainWallet").show();
+            $(".footer").show();
+
+        });
+
+
+
+        $("#qrtab").bind('touchstart', function (e) {
+            $("#tabqr").show();
+            $("#tabman").hide();
+            $("#liman").removeClass('active');
+            $("#liqr").addClass('active');
+            $("#btnPassphraseLogin").text("Setup Authenticator");
+        });
+
+        $("#mantab").bind('touchstart', function (e) {
+            $("#tabman").show();
+            $("#tabqr").hide();
+            $("#liqr").removeClass('active');
+            $("#liman").addClass('active');
+            $("#btnPassphraseLogin").text("Paste from Clipboard");
+
+        });
+
+
+
+        var useClipboardTFA = true;
+
+        $("#twoFactorCodeCheck").focus(function () {
+
+            useClipboardTFA = false;
+            $("#btnPassphraseLogin").text("Setup Authenticator");
+
+            if ($("#liman").hasClass("active")) {
+                $("#tabman").slideUp();
+            }
+
+            if ($("#liqr").hasClass("active")) {
+                $("#tabqr").slideUp();
+            }
+        });
+
+        $("#twoFactorCodeCheck").blur(function () {
+
+
+            if ($("#liman").hasClass("active")) {
+                useClipboardTFA = true;
+                $("#btnPassphraseLogin").text("Paste from Clipboard");
+            }
+
+            if ($("#liman").hasClass("active")) {
+                $("#tabman").slideDown();
+            }
+
+            if ($("#liqr").hasClass("active")) {
+                $("#tabqr").slideDown();
+            }
+        });
+
+        $("#btnPassphraseLogin").bind("touchstart", function () {
+
+            var twoFactorCodeChk = $('#twoFactorCodeCheck').val();
+            if (useClipboardTFA) {
+
+                if (window.cordova) {
+
+                    cordova.plugins.clipboard.paste(function (text) {
+
+                        $("#twoFactorCodeCheck").val(text);
+                        setup2fa();
+
+
+                    }, function () {
+
+                        //console.log("paste error");
+
+                    });
+                }
+
+
+            } else {
+
+                setup2fa();
+
+            }
+
+
+        });
+
+
+        function setup2fa() {
+
+            var twoFactorCodeChk = $('#twoFactorCodeCheck').val();
+
+            //add basic validation
+
+            if (twoFactorCodeChk.length < 6) {
+
+                //add red border
+                $('#twoFactorCodeCheck').css("border-color", "#ffaaaa");
+                return;
+
+            }
+
+            $("#btnPassphraseLogin").prop('disabled', true);
+
+            Engine.SetupTwoFactor(twoFactorCodeChk, function (err, result) {
+
+                if (err) {
+
+                    $("#tfaerror").text("Invalid code");
+
+                    $("#btnPassphraseLogin").prop('disabled', false);
+
+                } else {
+
+                    $("#twoFactorCodeCheck").blur();
+                    $("#tfaerror").text('');
+
+                    if (!(typeof window.app === 'undefined')) {
+                        app.isScanning = false;
+                    }
+
+                    $("#tfastep").hide();
+
+                    $("#welcome").removeClass("invis");
+                    $("#welcome").addClass("slideUp");
+                    $("#welcome").show();
+
+                }
+
+
+            });
+
+        }
+
+
+
+        $("#btnEmailValidate").bind("touchstart", function () {
+
+            //app.isScanning = false;
+
+            if (window.cordova) {
+
+                cordova.plugins.clipboard.paste(function (text) {
+
+
+                    var ttext = text.trim().replace(" ", "");
+                    //$('#txtEmailToken').val('');
+                    $('#txtEmailToken').val(ttext);
+                    $("#txtEmailToken").trigger('change');
+
+                }, function () {
+
+                    //console.log("paste error");
+
+                });
+            }
+
+        });
+
+        $("#txtEmailToken").change(function () {
+
+            var token = $("#txtEmailToken").val();
+
+            $("#btnEmailValidate").prop('disabled', true);
+
+            Engine.getEmailValidation(token, function (err, response) {
+
+                if (err) {
+                    $("#btnEmailValidate").prop('disabled', false);
+                } else {
+
+                    if (response != "Valid") {
+
+                        if (response == "Expired") {
+                            $("#valemailerror").text('Your token has expired');
+                        }
+                        if (response == "Invalid") {
+                            $("#valemailerror").text('Your token is not valid');
+                        }
+
+                        $("#btnEmailValidate").prop('disabled', false);
+
+
+                        $("#valemailerror").show();
+                        $("#valemailerror").fadeOut(2000);
+
+                    } else {
+
+
+
+                        Engine.m_validate = false;
+
+
+                        $('#createWalletStart').hide();
+                        $('#emailstep').hide();
+
+                        // $("#btnPairDevice").removeClass("disabled");
+
+
+                        $("#tfastep").show();
+
+                        $("#pairspinner").hide();
+
+
+                        //$('#btnUnpair').hide();
+                        //$('#loginpin').show();
+
+
+                        $("#validateemail").hide();
+                        $("#valemailerror").hide();
+                        $("#btnEmailValidate").prop('disabled', false);
+
+
+
+                    }
+                }
+
+            });
+
+
+            //call to verify token
+
+        });
+
+
+        //after the user has chosen their PIN
+        //register the pin with the server
+
+
+        $("#emailresend").click(function () {
+
+            Engine.sendWelcomeDetails(function (err, result) {
+
+                if (!err) {
+
+                    $("#emailresendmessage").show();
+                    $("#emailresend").hide();
+                    //email has been resent, please check your email
+                }
+
+            });
+
+        });
+
+        function showTwoFactorQr() {
+
+            $("#twoFactorQr").show();
+            $("#2factor1").show();
+
+            Engine.getTwoFactorImg(function (err, twoFASecret) {
+
+                var nickname = $("#createWalletStart input#nickname").val();
+                var data = "otpauth://totp/Ninki:" + nickname + "?secret=" + twoFASecret + "&issuer=Ninki";
+                var options = { text: data, width: 128, height: 128 };
+
+                $('#tfarawcode').text(twoFASecret);
+
+                $('#twoFactorQrImg').text('');
+                $('#twoFactorQrImg').qrcode(options);
+
+            });
+
+        }
+
+
+        //end create wallet area
+
 
 
         $("#mainWallet").hide();
@@ -1416,14 +1380,140 @@ function UI() {
 
             Engine.m_settings.LocalCurrency = sel;
 
-            updateUI();
+            updatePrice();
 
         });
 
 
+
+        $('#tapunlock').bind('touchstart', function () {
+
+            $("#settingsheader").hide();
+            $(".footer").hide();
+            $("#secwarning").removeClass("invis");
+            $("#secwarning").addClass("slideUp");
+            $("#secwarning").show();
+            $("#secphrasepnl").hide();
+            $("#tapsecok").show();
+            $("#tapseccancel").text("Cancel");
+            $("#mainWallet").hide();
+            $("#secwarn").show();
+            $("#sechold").hide();
+
+        });
+
+        $('#tapseccancel').bind('touchstart', function () {
+
+
+            $("#secwarning").addClass("invis");
+            $("#secwarning").removeClass("slideUp");
+            $("#secwarning").hide();
+            $("#mainWallet").show();
+            $("#settingsheader").show();
+            $(".footer").show();
+
+
+
+            $("#secphrasepnl").hide();
+            $("#secphrase").text('');
+
+        });
+
+
+
+
+
+        $('#tapsecok').bind('touchstart', function () {
+
+
+            sendmode = "viewkey"
+            $("#mainWallet").hide();
+            $("#secwarning").hide();
+
+            $("#pinconfdets").hide();
+            $("#pinconfirm").show();
+
+        });
+
+        $("#secphrasepnl").hammer(null).bind("press", function () {
+            $("#secphrase").fadeIn();
+            setTimeout(function () {
+                $("#secphrase").fadeOut(2000);
+            }, 60000);
+        });
+
+
+        function displayKey() {
+
+            var pin = $('#sendstdpin').val();
+
+            Engine.getDeviceKey(pin, function (err, ekey) {
+
+                if (!err) {
+
+                    Engine.getHotHash(ekey.DeviceKey, function (err, hotHash) {
+
+                        if (!err) {
+                            var bip39 = new BIP39();  // 'en' is the default language
+                            var hotmnem = bip39.entropyToMnemonic(hotHash);
+                            $("#secphrase").text(hotmnem);
+                            $("#pinconfirm").hide();
+                            $("#pinconfdets").show();
+
+                            $("#secwarn").hide();
+                            $("#sechold").show();
+
+
+                            $("#secwarning").removeClass("slideUp");
+                            $("#secwarning").show();
+                            $("#secphrasepnl").show();
+                            $("#secphrase").hide();
+                            window.resetPin();
+
+                            $("#paddelconf").hide();
+
+                            $('.numdone').attr("style", "background-color:white");
+
+                            $("#sendstdpin").val('');
+
+                            $("#tapsecok").hide();
+                            $("#tapseccancel").text("Close");
+
+                        }
+
+                    });
+
+                } else {
+
+
+                    $('.numdone').attr("style", "background-color:white");
+
+                    $("#sendstdpin").val('');
+                    pintaps = 0;
+                    prevpin = '';
+
+
+                    if (ekey.substring(0, 6) == "ErrPIN") {
+
+                        var attempts = ekey.substring(7, 8);
+
+                        $("#pinconfcount").effect("shake");
+
+                    } else {
+
+                        bootbox.alert(ekey);
+
+                    }
+
+
+                }
+
+            });
+
+        }
+
+
         //add copy hook for cordova
-
-
         $('#copyvalphrase').bind('touchstart', function () {
 
             if (window.cordova) {
@@ -1704,10 +1794,14 @@ function UI() {
 
                             pintaps = 0;
 
-                            if (!isPairing) {
-                                loginPIN();
-                            } else {
+
+                            //if create account regPINCreate
+                            if (isCreate) {
+                                regPINCreate();
+                            } else if (isPairing) {
                                 regPIN();
+                            } else {
+                                loginPIN();
                             }
 
                             //only if fail
@@ -1822,6 +1916,10 @@ function UI() {
 
                         payInvoice(selectedInvoiceUserName, selectedInvoiceAmount, selectedInvoiceId);
 
+                    } else if (sendmode == 'viewkey') {
+
+                        displayKey();
+
                     }
 
 
@@ -1930,7 +2028,7 @@ function UI() {
 
                 });
 
-                loadInvoices();
+                //loadInvoices();
 
             }
 
@@ -2037,6 +2135,7 @@ function UI() {
                 $("#networklistheader").show();
 
                 networkpagestate = "";
+                SELECTEDFRIEND = '';
             }
 
         }
@@ -2326,11 +2425,30 @@ function UI() {
             $("#sendstdlabel").text('');
             $("#sendstds2add").text('');
             $("#sendstdlbli").hide();
+            $("#pinconfdets").show();
+
+
+
+            window.resetPin();
+
+            $("#paddelconf").hide();
+
+            $('.numdone').attr("style", "background-color:white");
+
+            $("#sendstdpin").val('');
+
+
 
             if (sendmode == "std") {
                 closeSendStd();
             } else if (sendmode == "net") {
                 closeSendNet();
+            } else if (sendmode == "viewkey") {
+                $("#settingsheader").show();
+                $(".footer").show();
+                $("#pinconfirm").hide();
+                $("#mainWallet").show();
+
             } else {
                 $("#pinconfirm").hide();
                 $("#invoices").show();
@@ -2447,6 +2565,9 @@ function UI() {
 
             sendmode = "net";
 
+
+            $("#btnsendmoneystd").addClass("disabled");
+
             $("#addressinvalid").hide();
             $("#sendstdlbli").hide();
 
@@ -2497,6 +2618,8 @@ function UI() {
         $("#tapsend").bind('touchstart', function () {
 
 
+
+            $("#btnsendmoneystd").addClass("disabled");
             $("#addressinvalid").hide();
             $("#sendstdlbli").hide();
 
@@ -2569,6 +2692,11 @@ function UI() {
 
         $("#taprequest").bind('touchstart', function () {
 
+
+            $("#friend").css("border-color", "#ccc");
+            $("#addcontactalert").hide();
+            $("#addcontactalertmessage").text("");
+
             $("#networklistheader").hide();
             //$("#networklist").hide();
             $("#network").hide();
@@ -2583,13 +2711,12 @@ function UI() {
 
         });
 
-    });
-
-
-    $(document).ready(function () {
 
         $("#pairdeviceblob").change(function () {
 
+
+            Engine.Device.deleteStorageItem("dataCache");
+            //Engine.Device.deleteStorageItem("balance");
 
             if ($("#pairdeviceblob").val().length > 10) {
 
@@ -2648,6 +2775,8 @@ function UI() {
                         });
 
                         //always destroy locally
+                        Engine.Device.deleteStorageItem("dataCache");
+                        //Engine.Device.deleteStorageItem("balance");
                         Engine.Device.deleteStorageItem("ninki_rem");
                         Engine.Device.deleteStorageItem("ninki_p");
                         Engine.Device.deleteStorageItem("ninki_reg");
@@ -2673,6 +2802,16 @@ function UI() {
             pairDevice();
 
 
+        });
+
+
+
+        $("#friend").focus(function () {
+            $("#addcontactqrslide").slideUp();
+        });
+
+        $("#friend").blur(function () {
+            $("#addcontactqrslide").slideDown();
         });
 
         $("#btnaddfriend").bind('touchstart', function () {
@@ -2714,33 +2853,108 @@ function UI() {
                 return;
             }
 
-            //get the hash to validate against
-            //this will confirm that my friend has the same keys
-            //i orginally packaged for him
 
-            Engine.verifyFriendData(SELECTEDFRIEND, code, function (err, result) {
-
-                if (result) {
-
-                    $("#txtCode").val('');
-                    selectedFriend.validated = true;
-                    FRIENDSLIST[selectedFriend.userName].validated = true;
-                    updateSelectedFriend();
-                    $("#networkvalidate").hide();
-                    $("#friendheader").show();
-                    $("#mainWallet").show();
-                    $(".footer").show();
-                    //update list also
-
-                    //find friend in list and update the validated icon
-                    $("#myfriends #seltarget" + selectedFriend.userName).html('<div class="pull-right text-success m-t-sm"><i class="fa fa-check-square" style="font-size:1.5em"></i></div>');
+            $("#btnVerify").addClass("disabled");
 
 
-                } else {
-                    $("#validatefail").show();
-                }
+            var isAccepted = false;
 
-            });
+            if (FRIENDSLIST[selectedFriend.userName].IsSend) {
+                isAccepted = true;
+            }
+
+            if (isAccepted) {
+
+
+                Engine.verifyFriendData(SELECTEDFRIEND, code, function (err, result) {
+
+                    if (result) {
+
+                        $("#txtCode").val('');
+                        $("#btnVerify").removeClass("disabled");
+                        selectedFriend.validated = true;
+                        FRIENDSLIST[selectedFriend.userName].validated = true;
+                        updateSelectedFriend();
+                        $("#networkvalidate").hide();
+                        $("#friendheader").show();
+                        $("#mainWallet").show();
+                        $(".footer").show();
+                        //update list also
+
+                        //find friend in list and update the validated icon
+                        $("#myfriends #seltarget" + selectedFriend.userName).html('<div class="pull-right text-success m-t-sm"><i class="fa fa-check-square" style="font-size:1.5em"></i></div>');
+
+
+                    } else {
+                        $("#btnVerify").removeClass("disabled");
+                        $("#validatefail").show();
+                    }
+
+                }, function (message) {
+
+                    $("#validateformmess").text(message);
+
+                });
+
+            } else {
+
+                Engine.acceptFriendRequest(SELECTEDFRIEND, function (err, res) {
+
+                    if (!err) {
+
+                        Engine.verifyFriendData(SELECTEDFRIEND, code, function (err, result) {
+
+                            if (!err) {
+
+                                if (result) {
+
+                                    $("#txtCode").val('');
+                                    $("#btnVerify").removeClass("disabled");
+                                    selectedFriend.validated = true;
+                                    FRIENDSLIST[selectedFriend.userName].validated = true;
+
+                                    updateSelectedFriend();
+                                    updateFriendRequests();
+
+                                    $("#validateformmess").text('');
+                                    $("#networkvalidate").hide();
+                                    $("#friendheader").show();
+                                    $("#mainWallet").show();
+                                    $(".footer").show();
+
+                                    //update list also
+
+                                    //find friend in list and update the validated icon
+                                    $("#myfriends #seltarget" + selectedFriend.userName).html('<div class="pull-right text-success m-t-sm"><i class="fa fa-check-square" style="font-size:1.5em"></i></div>');
+
+
+                                } else {
+
+                                    $("#btnVerify").removeClass("disabled");
+                                    $("#validateformmess").text('');
+                                    $("#validatefail").show();
+                                }
+
+                            }
+
+                        }, function (message) {
+
+                            $("#validateformmess").text(message);
+
+                        });
+
+                    }
+
+
+                }, function (message) {
+
+                    $("#validateformmess").text(message);
+
+                });
+
+            }
+
+
         });
 
 
@@ -2786,25 +3000,25 @@ function UI() {
             Engine.updateInvoice(selectedInvoiceUserName, selectedInvoiceId, '', 2, function (err, result) {
 
 
-                loadInvoices(function (err, res) {
+                //loadInvoices(function (err, res) {
 
-                    lastInvoiceToPayCount = 0;
+                lastInvoiceToPayCount = 0;
 
-                    showInvoiceListNetwork();
+                showInvoiceListNetwork();
 
-                    updateSelectedFriend();
+                updateSelectedFriend();
 
-                    networkpagestate = "friend";
+                networkpagestate = "friend";
 
-                    $("#invoices").hide();
-                    $("#mainWallet").show();
-                    $("#network").show();
-                    $("#pnlfriend").show();
-                    $("#friendheader").show();
-                    $(".footer").show();
+                $("#invoices").hide();
+                $("#mainWallet").show();
+                $("#network").show();
+                $("#pnlfriend").show();
+                $("#friendheader").show();
+                $(".footer").show();
 
-                });
             });
+            // });
 
         });
 
@@ -2838,106 +3052,29 @@ function UI() {
 
     function showInvoiceListNetwork() {
 
-        var invoices = _.filter(cachedInvoices, function (inv) { return inv.InvoiceFrom == SELECTEDFRIEND; });
+        //var invoices = _.filter(cachedInvoices, function (inv) { return inv.InvoiceFrom == SELECTEDFRIEND; });
+
+        Engine.getInvoicesToPayNetwork(SELECTEDFRIEND, function (err, invoices) {
 
 
-        if (invoices.length == 0) {
-            $('#invfornet').empty();
-            $('#invfornet').hide();
-        }
-
-
-        //if (lastInvoiceToPayNetCount < invoices.length) {
-
-        lastInvoiceToPayNetCount = invoices.length;
-
-        var s = '';
-        $('#invfornet').empty();
-
-        for (var i = 0; i < invoices.length; i++) {
-
-            var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1);
-
-            var timeLabel = prettydate.format(invdate);
-
-            var statusbox = '';
-            if (invoices[i].InvoiceStatus == 0) {
-                statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
-            }
-            else if (invoices[i].InvoiceStatus == 1) {
-                statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
-            }
-            else if (invoices[i].InvoiceStatus == 2) {
-                statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
+            if (invoices.length == 0) {
+                $('#invfornet').empty();
+                $('#invfornet').hide();
             }
 
-            s += "<a style=\"border-top-left-radius: 0px;border-top-right-radius: 0px\" id=\"viewinvoicenetfrom" + _.escape(invoices[i].InvoiceFrom) + _.escape(invoices[i].InvoiceId) + "\" class=\"media list-group-item\"><div class=\"pull-left\">" + _.escape(timeLabel) + "</div>" +
-                                 "<div class=\"pull-right m-t-xs\">" + statusbox + "</div></a>";
-        }
 
-        $('#invfornet').append(s);
+            //if (lastInvoiceToPayNetCount < invoices.length) {
 
-        for (var i = 0; i < invoices.length; i++) {
-
-            $("#invfornet #viewinvoicenetfrom" + invoices[i].InvoiceFrom + invoices[i].InvoiceId).hammer(null).bind("tap", {
-                index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
-            }, function (event) {
-
-                $("#invtapspinner").show();
-                var target = document.getElementById('invtapspinner');
-                var spinner = new Spinner(spinneropts).spin(target);
-
-                displayInvoice(event.data.index, event.data.username, 'forme', function (err, res) {
-                    uiInvoiceReturnToNetwork = true;
-
-                    networkpagestate = "invoice";
-                    friendpagestate = "invoice";
-
-                    $("#invtapspinner").hide();
-                    $('#pnlfriend').hide();
-                    $("#friendheader").hide();
-                    $(".footer").hide();
-                    $('#invoices').show();
-
-
-                });
-            });
-        }
-
-        $('#invfornet').show();
-
-
-        //}
-
-        // $('#pnlfriendinv').show();
-
-
-    }
-
-    var lastInvoiceByMeNetCount = 0;
-    function showInvoiceByMeListNetwork() {
-
-        var invoices = _.filter(cachedInvoicesByUser, function (inv) { return inv.InvoiceFrom == SELECTEDFRIEND; });
-
-        if (invoices.length == 0) {
-            $('#invbynet').empty();
-            $('#invbynet').hide();
-        }
-
-
-        if (lastInvoiceByMeNetCount < invoices.length) {
-
-            lastInvoiceByMeNetCount = invoices.length;
+            lastInvoiceToPayNetCount = invoices.length;
 
             var s = '';
-            $('#invbynet').empty();
+            $('#invfornet').empty();
 
             for (var i = 0; i < invoices.length; i++) {
 
                 var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1);
 
                 var timeLabel = prettydate.format(invdate);
-
 
                 var statusbox = '';
                 if (invoices[i].InvoiceStatus == 0) {
@@ -2950,24 +3087,26 @@ function UI() {
                     statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
                 }
 
-                s += "<a style=\"border-top-left-radius: 0px;border-top-right-radius: 0px\" id=\"viewinvoicenetby" + invoices[i].InvoiceFrom + invoices[i].InvoiceId + "\" class=\"media list-group-item\"><div class=\"pull-left\">" + _.escape(timeLabel) + "</div>" +
+                s += "<a style=\"border-top-left-radius: 0px;border-top-right-radius: 0px\" id=\"viewinvoicenetfrom" + _.escape(invoices[i].InvoiceFrom) + _.escape(invoices[i].InvoiceId) + "\" class=\"media list-group-item\"><div class=\"pull-left\">" + _.escape(timeLabel) + "</div>" +
                                  "<div class=\"pull-right m-t-xs\">" + statusbox + "</div></a>";
             }
-           
-            $('#invbynet').append(s);
+
+            cachedInvoices = invoices;
+
+            $('#invfornet').append(s);
 
             for (var i = 0; i < invoices.length; i++) {
 
-                $("#invbynet #viewinvoicenetby" + invoices[i].InvoiceFrom + invoices[i].InvoiceId).hammer(null).bind("tap", {
+                $("#invfornet #viewinvoicenetfrom" + invoices[i].InvoiceFrom + invoices[i].InvoiceId).hammer(null).bind("tap", {
                     index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
                 }, function (event) {
-
 
                     $("#invtapspinner").show();
                     var target = document.getElementById('invtapspinner');
                     var spinner = new Spinner(spinneropts).spin(target);
 
-                    displayInvoice(event.data.index, event.data.username, 'byme', function (err, res) {
+                    displayInvoice(event.data.index, event.data.username, 'forme', function (err, res) {
+                        uiInvoiceReturnToNetwork = true;
 
                         networkpagestate = "invoice";
                         friendpagestate = "invoice";
@@ -2975,17 +3114,100 @@ function UI() {
                         $("#invtapspinner").hide();
                         $('#pnlfriend').hide();
                         $("#friendheader").hide();
-                        $('.footer').hide();
+                        $(".footer").hide();
                         $('#invoices').show();
+
 
                     });
                 });
             }
 
-            $('#invbynet').show();
+            $('#invfornet').show();
 
 
-        }
+        });
+
+
+    }
+
+    var lastInvoiceByMeNetCount = 0;
+    function showInvoiceByMeListNetwork() {
+
+        //var invoices = _.filter(cachedInvoicesByUser, function (inv) { return inv.InvoiceFrom == SELECTEDFRIEND; });
+
+        Engine.getInvoicesByUserNetwork(SELECTEDFRIEND, function (err, invoices) {
+
+            if (invoices.length == 0) {
+                $('#invbynet').empty();
+                $('#invbynet').hide();
+            }
+
+
+            if (lastInvoiceByMeNetCount < invoices.length) {
+
+                lastInvoiceByMeNetCount = invoices.length;
+
+                var s = '';
+                $('#invbynet').empty();
+
+                for (var i = 0; i < invoices.length; i++) {
+
+                    var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1);
+
+                    var timeLabel = prettydate.format(invdate);
+
+
+                    var statusbox = '';
+                    if (invoices[i].InvoiceStatus == 0) {
+                        statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
+                    }
+                    else if (invoices[i].InvoiceStatus == 1) {
+                        statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
+                    }
+                    else if (invoices[i].InvoiceStatus == 2) {
+                        statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
+                    }
+
+                    s += "<a style=\"border-top-left-radius: 0px;border-top-right-radius: 0px\" id=\"viewinvoicenetby" + invoices[i].InvoiceFrom + invoices[i].InvoiceId + "\" class=\"media list-group-item\"><div class=\"pull-left\">" + _.escape(timeLabel) + "</div>" +
+                                 "<div class=\"pull-right m-t-xs\">" + statusbox + "</div></a>";
+                }
+
+                cachedInvoicesByUser = invoices;
+
+                $('#invbynet').append(s);
+
+                for (var i = 0; i < invoices.length; i++) {
+
+                    $("#invbynet #viewinvoicenetby" + invoices[i].InvoiceFrom + invoices[i].InvoiceId).hammer(null).bind("tap", {
+                        index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
+                    }, function (event) {
+
+
+                        $("#invtapspinner").show();
+                        var target = document.getElementById('invtapspinner');
+                        var spinner = new Spinner(spinneropts).spin(target);
+
+                        displayInvoice(event.data.index, event.data.username, 'byme', function (err, res) {
+
+                            networkpagestate = "invoice";
+                            friendpagestate = "invoice";
+
+                            $("#invtapspinner").hide();
+                            $('#pnlfriend').hide();
+                            $("#friendheader").hide();
+                            $('.footer').hide();
+                            $('#invoices').show();
+
+                        });
+                    });
+                }
+
+                $('#invbynet').show();
+
+
+            }
+
+        });
 
         // $('#pnlfriendinv').show();
 
@@ -3055,9 +3277,6 @@ function UI() {
         $("#tblinvdisplay tfoot th #dsubtotal").text(accounting.formatNumber(convertFromSatoshis(json.summary.subtotal, COINUNIT), dp, ",", "."));
         $("#tblinvdisplay tfoot th #dtax").text(accounting.formatNumber(convertFromSatoshis(json.summary.tax, COINUNIT), dp, ",", "."));
         $("#tblinvdisplay tfoot th #dtotal").text(accounting.formatNumber(convertFromSatoshis(json.summary.total, COINUNIT), dp, ",", "."));
-
-
-
 
 
         selectedInvoiceAmount = convertFromSatoshis(json.summary.total);
@@ -3210,9 +3429,8 @@ function UI() {
                                     prevNetworkTransCount = -1;
                                     prevtransfeed = -1;
 
-                                    showTransactionFeed(function (err, res) {
-                                        showTransactionNetwork();
-                                    });
+                                    showTransactionNetwork();
+                                    showTransactionFeed();
 
                                     updateUI();
 
@@ -3225,9 +3443,6 @@ function UI() {
                                     $('.numdone').attr("style", "background-color:white");
                                     pintaps = 0;
                                     prevpin = '';
-
-                                    updateBalance();
-
 
                                     //change status
                                     var statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
@@ -3248,7 +3463,7 @@ function UI() {
                         } else {
 
                             $('#sendstdprogstatus').width('0%');
-                            $('#sendstdprognum').text('0%'); 
+                            $('#sendstdprognum').text('0%');
 
                             if (transactionid == "ErrInsufficientFunds") {
                                 $('#textMessageSendStd').text('Transaction Failed: Insufficient funds');
@@ -3277,14 +3492,26 @@ function UI() {
 
             } else {
 
-                //display pin error
+
                 $('.numdone').attr("style", "background-color:white");
+
                 $("#sendstdpin").val('');
                 pintaps = 0;
                 prevpin = '';
 
-                $('#confpinalert').show();
-                $('#confpinalertmess').text(ekey);
+
+                if (ekey.substring(0, 6) == "ErrPIN") {
+
+                    var attempts = ekey.substring(7, 8);
+
+                    $("#pinconfcount").effect("shake");
+
+                } else {
+
+                    bootbox.alert(ekey);
+
+                }
+
 
             }
 
@@ -3294,6 +3521,152 @@ function UI() {
 
 
     //INVOICE FUNCTIONS END------------------------------------------
+
+
+    function initialiseLocalSettings(callback) {
+
+        //setup local settings
+        Engine.Device.getStorageItem("currency", function (res) {
+
+            if (res) {
+
+                Engine.m_settings.LocalCurrency = res;
+
+            } else {
+
+                Engine.Device.setStorageItem("currency", Engine.m_settings.LocalCurrency);
+            }
+
+            //console.log(Engine.m_settings.LocalCurrency);
+            //console.log(Engine.m_settings.CoinUnit);
+
+            var t = Engine.m_settings.LocalCurrency;
+
+            $('.sccy').filter(function () {
+                return $(this).text().trim() == t;
+            }).find("label").html('<i class="fa fa-check text-active"></i>');
+
+
+            Engine.Device.getStorageItem("coinunit", function (res) {
+
+                if (res) {
+
+                    Engine.m_settings.CoinUnit = res;
+
+                } else {
+
+                    Engine.Device.setStorageItem("coinunit", Engine.m_settings.CoinUnit);
+                }
+
+
+                var tc = Engine.m_settings.CoinUnit;
+                $('.scoinunit').filter(function () {
+                    return $(this).text().trim() == tc;
+                }).find("label").html('<i class="fa fa-check text-active"></i>');
+
+
+                if (callback) {
+
+                    callback();
+
+                }
+
+            });
+
+
+        });
+
+    }
+
+
+
+    function updateProfile() {
+
+        var length = Engine.m_nickname.length;
+
+        $("#usernameProfile").text(Engine.m_nickname);
+        $("#mystatus").text(Engine.m_statusText);
+
+
+        var imageSrc = "images/avatar/128px/Avatar-" + pad(length) + ".png";
+        var imageSrcSmall = "images/avatar/64px/Avatar-" + pad(length) + ".png";
+
+        if (Engine.m_profileImage != '') {
+            imageSrc = "https://ninkip2p.imgix.net/" + Engine.m_profileImage + "?crop=faces&fit=crop&h=128&w=128&mask=ellipse&border=1,d0d0d0";
+            imageSrcSmall = "https://ninkip2p.imgix.net/" + Engine.m_profileImage + "?crop=faces&fit=crop&h=64&w=64&mask=ellipse&border=1,d0d0d0";
+        }
+
+        $("#imgProfile").attr("src", imageSrc);
+
+    }
+
+
+    function initialiseDashboardFromCache(callback) {
+
+        $("#dashsend").addClass("invis");
+        $("#dashsend").removeClass("slideUp");
+        $("#dashsend").hide();
+
+        $("#dashreceive").addClass("invis");
+        $("#dashreceive").removeClass("slideUp");
+        $("#dashreceive").hide();
+
+        $("#dashcontact").addClass("invis");
+        $("#dashcontact").removeClass("slideUp");
+        $("#dashcontact").hide();
+
+        $('#invoices').hide();
+        $('#network').hide();
+        //$('#networklist').hide();
+        $("#networklistheader").hide();
+        $('#settings').hide();
+        $("#settingsheader").hide();
+
+        var length = Engine.m_nickname.length;
+        if (length > 20) {
+            length = 20;
+        }
+
+
+        initialiseLocalSettings(function () {
+
+            COINUNIT = Engine.m_settings.CoinUnit;
+
+            $("#mynickname").text(Engine.m_nickname);
+            $("#codeForFriend").text(Engine.m_fingerprint);
+
+            //prep the network tab
+            $("#networklist").show();
+
+            var data = Engine.m_fingerprint + ',' + Engine.m_nickname;
+            var options = { text: data, width: 172, height: 172 };
+
+            $('#fingerprintqr').text('');
+            $('#fingerprintqr').qrcode(options);
+            $('#qrcontscan').text('');
+            $('#qrcontscan').qrcode(options);
+
+            window.updateUIInterval = setInterval(function () {
+
+                updateUI();
+
+            }, 10000);
+
+
+            window.updatePriceInterval = setInterval(function () {
+
+                updatePrice();
+
+            }, 10000);
+
+
+            return callback("ok");
+
+
+        });
+
+    }
+
 
     function initialiseDashboard(callback) {
 
@@ -3343,59 +3716,55 @@ function UI() {
         $("#codeForFriend").text(Engine.m_fingerprint);
 
 
-        Engine.getUserNetwork(function (err, friends) {
+        //prep the network tab
+        $("#networklist").show();
+        //$("#networklistheader").show();
 
-            FRIENDSLIST = {};
+        showTransactionFeed(function (err, res) {
 
-            for (var i = 0; i < friends.length; i++) {
-                FRIENDSLIST[friends[i].userName] = friends[i];
-            }
+            updateBalance(function (err, hasChanged) {
 
-            //prep the network tab
-            $("#networklist").show();
-            //$("#networklistheader").show();
+                updatePrice(function () {
 
-            showTransactionFeed(function (err, res) {
+                    if (callback) {
 
+                        callback();
 
-                updateBalance(function (err, hasChanged) {
-
-                    updatePrice(function () {
-
-                        if (callback) {
-
-                            callback();
-
-                        }
-
-                    });
+                    }
 
                 });
 
+            });
+
+
+            //updateUI();
+
+            var data = Engine.m_fingerprint + ',' + Engine.m_nickname;
+            var options = { text: data, width: 172, height: 172 };
+
+            $('#fingerprintqr').text('');
+            $('#fingerprintqr').qrcode(options);
+            $('#qrcontscan').text('');
+            $('#qrcontscan').qrcode(options);
+
+
+            window.updateUIInterval = setInterval(function () {
 
                 updateUI();
 
-                var data = Engine.m_fingerprint + ',' + Engine.m_nickname;
-                var options = { text: data, width: 172, height: 172 };
+            }, 10000);
 
-                $('#fingerprintqr').text('');
-                $('#fingerprintqr').qrcode(options);
-                $('#qrcontscan').text('');
-                $('#qrcontscan').qrcode(options);
+            window.updatePriceInterval = setInterval(function () {
 
+                updatePrice();
 
-                window.updateUIInterval = setInterval(function () {
-
-                    updateUI();
-
-                }, 10000);
+            }, 10000);
 
 
-
-            });
 
         });
 
+        initialiseLocalSettings();
 
     }
 
@@ -3469,114 +3838,61 @@ function UI() {
     }
 
     function logout() {
-        location.reload();
+        //location.reload();
     }
 
-    UI.updateUITimer = function () {
-        updateUI();
-    };
+
+
 
 
     var prevBlock = 0;
 
     function updateUI(callback) {
 
-        //All background UI activity controlled from here
-        //The focus is on minimizing any activity
+        if (stdAmountConvCoin) {
+            $('#stdselunit').text(COINUNIT);
+        } else {
+            $('#stdselunit').text(Engine.m_settings.LocalCurrency);
+        }
+
+        $('#stdsendcunit').text(COINUNIT);
+
+        $('#stdsendlcurr').text(Engine.m_settings.LocalCurrency);
+
+        //Always
+        updateBalance();
+
+        showTransactionFeed();
+
+        updateSelectedFriend();
+
+        updateFriendRequests();
+
+        updateFriends();
+
+    }
 
 
-        //get version
-        //checks all infra
-        //if error we have a problem
+    function displayPrice(result) {
 
-        var newBlock = false;
+        result = _.escape(result);
+        price = result * 1.0;
 
-        Engine.getVersion(function (err, res) {
+        var loc = "en-US";
+        var cprc = "";
+        if (Engine.m_settings.LocalCurrency == "JPY" || Engine.m_settings.LocalCurrency == "CNY") {
+            cprc = accounting.formatMoney(result, "&yen;", 0);
+        } else if (Engine.m_settings.LocalCurrency == "GBP") {
+            cprc = accounting.formatMoney(result, "&pound;", 2);
+        } else if (Engine.m_settings.LocalCurrency == "EUR") {
+            cprc = accounting.formatMoney(result, "&euro;", 2);
+        } else if (Engine.m_settings.LocalCurrency == "USD") {
+            cprc = accounting.formatMoney(result, "&dollar;", 2);
+        } else if (Engine.m_settings.LocalCurrency == "CNY") {
+            cprc = accounting.formatMoney(result, "&yen;", 2);
+        }
 
-            if (!err) {
-
-                var stats = JSON.parse(res);
-
-                if (prevBlock != stats.BlockNumber) {
-                    newBlock = true;
-                }
-
-                prevBlock = stats.BlockNumber;
-
-
-
-                if (stdAmountConvCoin) {
-                    $('#stdselunit').text(COINUNIT);
-                } else {
-                    $('#stdselunit').text(Engine.m_settings.LocalCurrency);
-                }
-
-
-
-                $('#stdsendcunit').text(COINUNIT);
-
-                $('#stdsendlcurr').text(Engine.m_settings.LocalCurrency);
-
-
-                //Always
-
-                updateBalance(function (err, hasChanged) {
-
-
-                    //do we need to update transactions
-                    //1. is our balance different from the last request?
-                    //if it is immediately update transactions
-
-                    //2. do we have a new block?
-                    //if so then call updatetransactions
-
-                    //if (hasChanged || newBlock) {
-
-                    //update transactions?
-
-                    showTransactionFeed(function (err, result) {
-
-                        loadInvoices(function (err, result) {
-
-                            updateSelectedFriend();
-
-                        });
-
-
-
-                    });
-
-
-                    updateFriendRequests(function (err, res) {
-
-
-
-                    });
-
-
-                    updateFriends(function (err, res) {
-
-
-
-                    });
-
-
-
-                    //update selected friend transactions also
-                    //}
-
-                });
-
-
-                updatePrice();
-
-
-
-            }
-
-        });
-
-
+        $('#homeprice').html(cprc);
 
 
     }
@@ -3586,31 +3902,17 @@ function UI() {
         //Always
         Ninki.API.getPrice(Engine.m_guid, Engine.m_settings.LocalCurrency, function (err, result) {
 
+            if (!err) {
 
-            result = _.escape(result);
-            price = result * 1.0;
+                displayPrice(result);
 
-            var loc = "en-US";
-            var cprc = "";
-            if (Engine.m_settings.LocalCurrency == "JPY" || Engine.m_settings.LocalCurrency == "CNY") {
-                cprc = accounting.formatMoney(result, "&yen;", 0);
-            } else if (Engine.m_settings.LocalCurrency == "GBP") {
-                cprc = accounting.formatMoney(result, "&pound;", 2);
-            } else if (Engine.m_settings.LocalCurrency == "EUR") {
-                cprc = accounting.formatMoney(result, "&euro;", 2);
-            } else if (Engine.m_settings.LocalCurrency == "USD") {
-                cprc = accounting.formatMoney(result, "&dollar;", 2);
-            } else if (Engine.m_settings.LocalCurrency == "CNY") {
-                cprc = accounting.formatMoney(result, "&yen;", 2);
+                Engine.Device.setStorageItem("price", price);
+
             }
-
-            $('#homeprice').html(cprc);
 
             if (callback) {
                 callback();
             }
-
-            // + ' / BTC'
 
         });
 
@@ -3690,29 +3992,47 @@ function UI() {
 
         if (balanceDisplayType == "coin") {
             balanceDisplayType = "currency";
-
-
-
         } else {
             balanceDisplayType = "coin";
-
-
         }
 
+        var sbal = "";
         if (balanceDisplayType == "coin") {
             var fbal = '';
             if (COINUNIT == "BTC") {
-                fbal = accounting.formatMoney(currentBalance, "", 4);
+                fbal = accounting.formatMoney(currentBalance, "", 8);
+
+                var enddec = fbal.slice(-4);
+                var chop = fbal.substring(0, fbal.length - 4);
+                fbal = chop;
+
+                if ((enddec * 1) > 0) {
+                    sbal = enddec;
+                }
+
             } else if (COINUNIT == "Bits") {
-                fbal = accounting.formatMoney(currentBalance, "", 0);
+
+                fbal = accounting.formatMoney(currentBalance, "", 2);
+
+                var enddec = fbal.slice(-2);
+                var chop = fbal.substring(0, fbal.length - 3);
+                fbal = chop;
+
+                if ((enddec * 1) > 0) {
+                    sbal = '.' + enddec;
+                }
+
             } else {
                 fbal = accounting.formatMoney(currentBalance, "", 2);
             }
 
             $("#homebalance").text(fbal);
+            //$("#shomebalance").text(sbal);
+
             $("#homecoinunit").text(COINUNIT);
 
             $("#calcbalance").text(fbal);
+            $("#scalcbalance").text(sbal);
             $("#calccoinunit").text(COINUNIT);
 
         } else {
@@ -3720,12 +4040,13 @@ function UI() {
 
             var fbal = convertToLocalCurrency(currentBalance);
 
+            //$("#shomebalance").text('');
             $("#homebalance").html(fbal);
             $("#homecoinunit").text(Engine.m_settings.LocalCurrency);
 
+            $("#scalcbalance").text('');
             $("#calcbalance").html(fbal);
             $("#calccoinunit").text(Engine.m_settings.LocalCurrency);
-
 
         }
 
@@ -3733,6 +4054,87 @@ function UI() {
         //updateBalance();
 
     });
+
+
+    function displayBalance(data) {
+
+        //get in units
+        var balance = convertFromSatoshis(data.TotalBalance, COINUNIT);
+
+        var sbal = "";
+        if (balanceDisplayType == "coin") {
+            var fbal = '';
+            if (COINUNIT == "BTC") {
+                fbal = accounting.formatMoney(balance, "", 8);
+
+                var enddec = fbal.slice(-4);
+                var chop = fbal.substring(0, fbal.length - 4);
+                fbal = chop;
+
+                if ((enddec * 1) > 0) {
+                    sbal = enddec;
+                }
+
+            } else if (COINUNIT == "Bits") {
+
+                fbal = accounting.formatMoney(balance, "", 2);
+
+                var enddec = fbal.slice(-2);
+                var chop = fbal.substring(0, fbal.length - 3);
+                fbal = chop;
+
+                if ((enddec * 1) > 0) {
+                    sbal = '.' + enddec;
+                }
+
+
+            } else {
+                fbal = accounting.formatMoney(balance, "", 2);
+            }
+
+            $("#homebalance").text(fbal);
+            //$("#shomebalance").text(sbal);
+
+            $("#homecoinunit").text(COINUNIT);
+
+            $("#calcbalance").text(fbal);
+            $("#scalcbalance").text(sbal);
+            $("#calccoinunit").text(COINUNIT);
+
+        } else {
+
+
+            var fbal = convertToLocalCurrency(balance);
+
+            //$("#shomebalance").text('');
+            $("#homebalance").html(fbal);
+            $("#homecoinunit").text(Engine.m_settings.LocalCurrency);
+
+            $("#scalcbalance").text('');
+            $("#calcbalance").html(fbal);
+            $("#calccoinunit").text(Engine.m_settings.LocalCurrency);
+
+        }
+
+
+        var template = '';
+        if (data.UnconfirmedBalance > 0) {
+            template += '<i class="i i-hexagon2 i-xs-base text-warning-lt hover-rotate"></i><i class="i i-clock i-sm text-white"></i>';
+        } else {
+            template += '<i class="i i-hexagon2 i-xs-base text-success-lt hover-rotate"></i><i class="i i-checkmark i-sm text-white"></i>';
+        }
+
+        var templatecalc = '';
+        if (data.UnconfirmedBalance > 0) {
+            templatecalc += '<i class="i i-hexagon2 i-xs-base text-warning-lt hover-rotate" style="font-size:1.5em"></i><i class="i i-clock i-sm text-white"></i>';
+        } else {
+            templatecalc += '<i class="i i-hexagon2 i-xs-base text-success-lt hover-rotate" style="font-size:1.5em"></i><i class="i i-checkmark i-sm text-white"></i>';
+        }
+
+        $("#hometimer").html(template);
+        $("#calctimer").html(templatecalc);
+
+    }
 
 
     function updateBalance(callback) {
@@ -3746,56 +4148,7 @@ function UI() {
 
                 currentBalance = balance;
 
-
-                if (balanceDisplayType == "coin") {
-                    var fbal = '';
-                    if (COINUNIT == "BTC") {
-                        fbal = accounting.formatMoney(balance, "", 4);
-                    } else if (COINUNIT == "Bits") {
-                        fbal = accounting.formatMoney(balance, "", 0);
-                    } else {
-                        fbal = accounting.formatMoney(balance, "", 2);
-                    }
-
-                    $("#homebalance").text(fbal);
-                    $("#homecoinunit").text(COINUNIT);
-
-                    $("#calcbalance").text(fbal);
-                    $("#calccoinunit").text(COINUNIT);
-
-                } else {
-
-
-                    var fbal = convertToLocalCurrency(balance);
-
-                    $("#homebalance").html(fbal);
-                    $("#homecoinunit").text(Engine.m_settings.LocalCurrency);
-
-                    $("#calcbalance").html(fbal);
-                    $("#calccoinunit").text(Engine.m_settings.LocalCurrency);
-
-                }
-
-
-
-
-                var template = '';
-                if (result.UnconfirmedBalance > 0) {
-                    template += '<i class="i i-hexagon2 i-xs-base text-warning-lt hover-rotate"></i><i class="i i-clock i-sm text-white"></i>';
-                } else {
-                    template += '<i class="i i-hexagon2 i-xs-base text-success-lt hover-rotate"></i><i class="i i-checkmark i-sm text-white"></i>';
-                }
-
-                var templatecalc = '';
-                if (result.UnconfirmedBalance > 0) {
-                    templatecalc += '<i class="i i-hexagon2 i-xs-base text-warning-lt hover-rotate" style="font-size:1.5em"></i><i class="i i-clock i-sm text-white"></i>';
-                } else {
-                    templatecalc += '<i class="i i-hexagon2 i-xs-base text-success-lt hover-rotate" style="font-size:1.5em"></i><i class="i i-checkmark i-sm text-white"></i>';
-                }
-
-                $("#hometimer").html(template);
-                $("#calctimer").html(templatecalc);
-
+                displayBalance(result);
 
                 if (previousBalance != result.TotalBalance || result.UnconfirmedBalance > 0) {
 
@@ -3819,9 +4172,17 @@ function UI() {
 
                 }
 
+                //cache the last balance result
+
+                //var balcache = JSON.stringify(result);
+                //Engine.Device.setSecureStorageObject("balance", balcache, Engine.m_password, Engine.encrypt, ONE_HOUR);
+
+
             } else {
 
-                callback(true, "Error");
+                if (callback) {
+                    callback(true, "Error");
+                }
 
             }
 
@@ -3829,13 +4190,6 @@ function UI() {
 
 
 
-    }
-
-    function updateNetwork() {
-
-        // getNewFriends();
-        //updateFriendRequests();
-        getNewFriends();
     }
 
 
@@ -4159,7 +4513,7 @@ function UI() {
 
     function updateSelectedFriend(callback) {
 
-        //can optimise futher
+        //can optimise futhermnu
         norefresh = true;
         if (SELECTEDFRIEND.length > 0) {
 
@@ -4222,7 +4576,7 @@ function UI() {
             $('#tblnetinvforme tbody').empty();
 
 
-
+            showTransactionNetwork();
 
             lastInvoiceToPayNetCount = 0;
             lastInvoiceByMeNetCount = 0;
@@ -4230,7 +4584,7 @@ function UI() {
             showInvoiceListNetwork();
             showInvoiceByMeListNetwork();
 
-            showTransactionNetwork();
+
 
             //$("#pnlfriend").show();
             //$("#friendheader").show();
@@ -4261,89 +4615,88 @@ function UI() {
         Engine.getFriendRequests(function (err, ofriends) {
 
 
-            //if origin of friend request is qrcode
-            //and no phrase cache
-            //delay for 60 seconds
-            //add accept with scan button
-            //then return to standard after 5 minutes
+            if (!err) {
+                //if origin of friend request is qrcode
+                //and no phrase cache
+                //delay for 60 seconds
+                //add accept with scan button
+                //then return to standard after 5 minutes
 
-            var friends = [];
-            for (var i = 0; i < ofriends.length; i++) {
-
-                if (contactPhraseCache[ofriends[i].userName]) {
-                    //acceptAndValidateFriend(ofriends[i].userName);
-                } else {
-                    friends.push(ofriends[i]);
-                }
-
-            }
+                var friends = [];
+                for (var i = 0; i < ofriends.length; i++) {
 
 
-            if (friends.length > 0) {
-                $("#dashrequests").show();
-
-            } else {
-                $("#dashrequests").hide();
-            }
-
-            //$("#notifications").text(friends.length);
-            //$("#notificationsright").text(friends.length);
-            //$("#nfriendreq").text(friends.length);
-
-
-            if (lastNoOfFriendsReq != friends.length || friends.length == 0) {
-
-                lastNoOfFriendsReq = friends.length;
-
-                if (friends.length > 0) {
-                    $("#notifications").attr("class", "badge bg-danger pull-right");
-                } else {
-                    $("#notifications").attr("class", "badge pull-right");
-                }
-                $("#nfriendreq").text(friends.length);
-                $("#friendreq").text('');
-                for (var i = 0; i < friends.length; i++) {
-
-                    var length = friends[i].userName.length;
-                    if (length > 20) {
-                        length = 20;
+                    //|| ofriends[i].ICanReceive
+                    if (contactPhraseCache[ofriends[i].userName]) {
+                        //acceptAndValidateFriend(ofriends[i].userName);
+                    } else {
+                        friends.push(ofriends[i]);
                     }
 
-                    var template = '<li id="tapfriendreq' + i + '" class="media list-group-item"><a href="#" class="thumb-sm pull-right m-t-xs avatar">' +
+                }
+
+
+                if (friends.length > 0) {
+                    $("#dashrequests").show();
+
+                } else {
+                    $("#dashrequests").hide();
+                }
+
+
+
+                if (lastNoOfFriendsReq != friends.length || friends.length == 0) {
+
+                    lastNoOfFriendsReq = friends.length;
+
+                    $("#friendreq").text('');
+
+                    for (var i = 0; i < friends.length; i++) {
+
+                        var length = friends[i].userName.length;
+                        if (length > 20) {
+                            length = 20;
+                        }
+
+                        var template = '<li id="tapfriendreq' + i + '" class="media list-group-item"><a href="#" class="thumb-sm pull-right m-t-xs avatar">' +
                                 '<img src="images/avatar/64px/Avatar-' + pad(length) + '.png" alt="John said">' +
                                 '</a>' +
                                 '<div class="clear">' +
                                 '<a href="#" class="text-info">' + _.escape(friends[i].userName) + '<i class="icon-twitter"></i></a>' +
                                 '</div></li>';
 
-                    $("#friendreq").append(template);
+                        $("#friendreq").append(template);
+
+                    }
+
+                    for (var i = 0; i < friends.length; i++) {
+
+                        $("#friendreq #tapfriendreq" + i).hammer(null).bind("tap", { userName: friends[i].userName }, function (ev) {
+
+                            selectedFriendRequest = ev.data.userName;
+
+                            $("#friendrequestusername").text(selectedFriendRequest);
+
+
+                            $("#mainWallet").hide();
+                            $("#networklistheader").hide();
+                            $(".footer").hide();
+                            $("#contactrequest").show();
+
+
+                        });
+
+                    }
 
                 }
-
-                for (var i = 0; i < friends.length; i++) {
-
-                    $("#friendreq #tapfriendreq" + i).hammer(null).bind("tap", { userName: friends[i].userName }, function (ev) {
-
-                        selectedFriendRequest = ev.data.userName;
-
-                        $("#friendrequestusername").text(selectedFriendRequest);
-
-
-                        $("#mainWallet").hide();
-                        $("#networklistheader").hide();
-                        $(".footer").hide();
-                        $("#contactrequest").show();
-
-
-                    });
-
+                if (callback) {
+                    callback(false, "done");
                 }
 
-            }
-            if (callback) {
-                callback(false, "done");
             }
         });
+
+
 
     }
 
@@ -4401,7 +4754,7 @@ function UI() {
 
     function showTransactionFeed(callback) {
 
-        Engine.getTransactionRecords(function (err, transactions) {
+        Engine.getTransactionFeed(function (err, transactions) {
 
 
             if (!err) {
@@ -4442,9 +4795,9 @@ function UI() {
                         var imageSrcSmall = "images/avatar/32px/Avatar-" + pad(length) + ".png";
 
                         if (transactions[i].UserName != 'External') {
-                            if (FRIENDSLIST[transactions[i].UserName]) {
-                                if (FRIENDSLIST[transactions[i].UserName].profileImage != '') {
-                                    imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(FRIENDSLIST[transactions[i].UserName].profileImage) + "?crop=faces&fit=crop&h=128&w=128&mask=ellipse&border=1,d0d0d0";
+                            if (transactions[i].UserNameImage) {
+                                if (transactions[i].UserNameImage != '') {
+                                    imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(transactions[i].UserNameImage) + "?crop=faces&fit=crop&h=128&w=128&mask=ellipse&border=1,d0d0d0";
                                 }
                             }
                         }
@@ -4553,11 +4906,19 @@ function UI() {
 
                 }
 
-                return callback(err, "ok");
+
+                //cache main screen items
+                //transaction list / price / balance
+
+                if (callback) {
+                    return callback(err, "ok");
+                }
 
             } else {
 
-                return callback(err, transactions);
+                if (callback) {
+                    return callback(err, transactions);
+                }
             }
 
         });
@@ -4568,116 +4929,118 @@ function UI() {
 
     function showTransactionNetwork(callback) {
 
-        var transactions = _.filter(transactionCache, function (tran) { return tran.UserName == SELECTEDFRIEND; });
+        Engine.getTransactionsForNetwork(SELECTEDFRIEND, function (err, transactions) {
 
-        if (prevNetworkTransCount < transactions.length) {
+            if (prevNetworkTransCount < transactions.length) {
 
-            prevNetworkTransCount = transactions.length;
-
-            var template = '';
-
-            for (var i = 0; i < transactions.length; i++) {
-
-                var amountLabel = "";
-                var friendLabel = "";
-
-                if (transactions[i].TransType == 'S') {
-                    amountLabel = "sent " + formatCoinAmount(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + " " + _.escape(COINUNIT);
-                    friendLabel = "to " + _.escape(transactions[i].UserName);
-                }
-
-                if (transactions[i].TransType == 'R') {
-                    amountLabel = "received " + formatCoinAmount(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + " " + _.escape(COINUNIT);
-                    friendLabel = "from " + _.escape(transactions[i].UserName);
-                }
-
-
-                var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
-                var timeLabel = prettydate.format(trdate);
-
-                template += '<a style=\"border-top-left-radius: 0px;border-top-right-radius: 0px\" href="#" class="list-group-item clearfix" id="ntran' + i + '">';
-                template += '<span class="clear">';
-
-                template += '<span>';
-                template += amountLabel;
-                template += '</span>';
-
-                template += '<span class="pull-right">';
-                template += '<div class="trntime">';
-                template += timeLabel;
-                template += '</div>';
-                template += '</span>';
-
-                template += '<span class="clear">';
-                template += '<span><div class="conf">';
-                if (transactions[i].Confirmations < 6) {
-                    template += '<span class="badge bg-warning pull-right">';
-                    template += _.escape(transactions[i].Confirmations);
-                    template += '</span>';
-                }
-                template += '</div>';
-                template += '<small class="text-muted clear text-ellipsis">';
-                template += friendLabel;
-                template += '</small>';
-                template += '</span>';
-                template += '</a>';
-
-            }
-
-            $('#netpayfeed').html(template);
-
-
-            for (var i = 0; i < transactions.length && i < 51; i++) {
-
-
-                $('#ntran' + i).hammer(null).bind("tap", {
-                    index: i
-                }, function (event) {
-
-                    if (!scrollingnettran) {
-
-                        displayTransactionDetails(transactions[event.data.index], "network");
-
-                    }
-
-                });
-            }
-
-        } else {
-
-
-            $('#netpayfeed .conf').each(function (index, elem) {
-
-                var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
+                prevNetworkTransCount = transactions.length;
 
                 var template = '';
-                if (tran.Confirmations < 6) {
-                    template += '<span class="badge bg-warning pull-right">';
-                    template += _.escape(tran.Confirmations);
+
+                for (var i = 0; i < transactions.length; i++) {
+
+                    var amountLabel = "";
+                    var friendLabel = "";
+
+                    if (transactions[i].TransType == 'S') {
+                        amountLabel = "sent " + formatCoinAmount(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + " " + _.escape(COINUNIT);
+                        friendLabel = "to " + _.escape(transactions[i].UserName);
+                    }
+
+                    if (transactions[i].TransType == 'R') {
+                        amountLabel = "received " + formatCoinAmount(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + " " + _.escape(COINUNIT);
+                        friendLabel = "from " + _.escape(transactions[i].UserName);
+                    }
+
+
+                    var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
+                    var timeLabel = prettydate.format(trdate);
+
+                    template += '<a style=\"border-top-left-radius: 0px;border-top-right-radius: 0px\" href="#" class="list-group-item clearfix" id="ntran' + i + '">';
+                    template += '<span class="clear">';
+
+                    template += '<span>';
+                    template += amountLabel;
                     template += '</span>';
+
+                    template += '<span class="pull-right">';
+                    template += '<div class="trntime">';
+                    template += timeLabel;
+                    template += '</div>';
+                    template += '</span>';
+
+                    template += '<span class="clear">';
+                    template += '<span><div class="conf">';
+                    if (transactions[i].Confirmations < 6) {
+                        template += '<span class="badge bg-warning pull-right">';
+                        template += _.escape(transactions[i].Confirmations);
+                        template += '</span>';
+                    }
+                    template += '</div>';
+                    template += '<small class="text-muted clear text-ellipsis">';
+                    template += friendLabel;
+                    template += '</small>';
+                    template += '</span>';
+                    template += '</a>';
+
                 }
 
-                $(elem).html(template);
+                $('#netpayfeed').html(template);
 
-                //console.log('updating 1');
 
-            });
+                for (var i = 0; i < transactions.length && i < 51; i++) {
 
-            $('#netpayfeed .trntime').each(function (index, elem) {
 
-                var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
+                    $('#ntran' + i).hammer(null).bind("tap", {
+                        index: i
+                    }, function (event) {
 
-                var trdate = new Date(tran.TransDateTime.match(/\d+/)[0] * 1);
+                        if (!scrollingnettran) {
 
-                var timeLabel = prettydate.format(trdate);
+                            displayTransactionDetails(transactions[event.data.index], "network");
 
-                $(elem).html(timeLabel);
+                        }
 
-                //console.log('updating 2');
+                    });
+                }
 
-            });
+            } else {
 
-        }
+
+                $('#netpayfeed .conf').each(function (index, elem) {
+
+                    var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
+
+                    var template = '';
+                    if (tran.Confirmations < 6) {
+                        template += '<span class="badge bg-warning pull-right">';
+                        template += _.escape(tran.Confirmations);
+                        template += '</span>';
+                    }
+
+                    $(elem).html(template);
+
+                    //console.log('updating 1');
+
+                });
+
+                $('#netpayfeed .trntime').each(function (index, elem) {
+
+                    var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
+
+                    var trdate = new Date(tran.TransDateTime.match(/\d+/)[0] * 1);
+
+                    var timeLabel = prettydate.format(trdate);
+
+                    $(elem).html(timeLabel);
+
+                    //console.log('updating 2');
+
+                });
+
+            }
+
+        });
 
     }
 
@@ -4813,9 +5176,9 @@ function UI() {
                                 prevNetworkTransCount = -1;
                                 prevtransfeed = -1;
 
-                                showTransactionFeed(function (err, res) {
-                                    showTransactionNetwork();
-                                });
+                                showTransactionNetwork();
+                                showTransactionFeed();
+                                updateBalance();
 
                                 sendAmount = '';
 
@@ -4950,7 +5313,6 @@ function UI() {
                                 prevtransfeed = -1;
 
                                 showTransactionFeed();
-
                                 updateUI();
 
                                 sendAmount = '';
@@ -5279,6 +5641,9 @@ function UI() {
         $("#btnAcceptContactDone").hide();
         $("#friendrequestp1").hide();
         $("#friendrequestp2").show();
+
+
+
         $("#acceptcontactprognum").text('5%');
         $("#acceptcontactprog").width('5%');
 
@@ -5312,23 +5677,25 @@ function UI() {
             if (!err) {
 
 
-                updateFriendRequests(function (err, result) {
+                $("#acceptcontactprognum").text('90%');
+                $("#acceptcontactprog").width('90%');
 
-                    $("#acceptcontactprognum").text('90%');
-                    $("#acceptcontactprog").width('90%');
+                setTimeout(function () {
+                    $("#friendrequestusername").text('');
+                    $("#btnAcceptContactDone").show();
+                    $("#acceptcontactprogmess").text("You accepted the contact request from " + selectedFriendRequest);
+                    $("#acceptcontactprognum").text('100%');
+                    $("#acceptcontactprog").width('100%');
+                    selectedFriendRequest = '';
+                },500);
+
+
+                updateFriendRequests(function (err, result) {
 
                     updateFriends(function (err, result) {
 
-                        $("#friendrequestusername").text('');
-                        $("#btnAcceptContactDone").show();
-                        $("#acceptcontactprogmess").text("You accepted the contact request from " + selectedFriendRequest);
-                        $("#acceptcontactprognum").text('100%');
-                        $("#acceptcontactprog").width('100%');
-
-                        selectedFriendRequest = '';
 
                     });
-
 
                 });
 
@@ -5996,6 +6363,1459 @@ function UI() {
 
         });
 
+
+    }
+
+
+    //loginPIN
+    //this function takes the user's input PIN number 
+    //and authenticates the user
+    //if the user has not previosuly authenticated it downloads and decrypts
+    //all the relevant wallet data
+    var pinlock = false;
+    function loginPIN() {
+
+
+        var pin = $("#loginpinno").val();
+
+        $("#enterpinalert").hide();
+
+        if (pin.length == 4 && !pinlock) {
+
+            pinlock = true;
+
+            Engine.Device.getStorageItem("guid", function (guid) {
+
+
+                if (!Engine.m_appInitialised) {
+
+                    Engine.m_oguid = guid;
+
+                    var bytes = [];
+                    for (var i = 0; i < guid.length; ++i) {
+                        bytes.push(guid.charCodeAt(i));
+                    }
+
+                    Engine.m_guid = Bitcoin.Crypto.SHA256(Bitcoin.convert.bytesToWordArray(bytes)).toString();
+                }
+
+                Engine.getDeviceKey(pin, function (err, ekeyv) {
+
+                    //decrypt the passcode
+                    //if no error the PIN is valid
+                    if (!err) {
+
+                        if (!(typeof window.app === 'undefined')) {
+                            app.isScanning = true;
+                        }
+
+                        //is the app previosuly intialised
+
+                        if (Engine.m_appInitialised) {
+
+                            //if so simply change the UI state
+                            //a session with the server has been established
+
+                            $('.numdone').attr("style", "background-color:white");
+
+                            //check state and display correct headers
+
+
+                            $("#paddel").hide();
+                            $('.numdone').attr("style", "background-color:white");
+                            $("#loginpin").hide();
+                            $("#pinloginmessage").text("Enter your PIN number");
+
+                            $("#nonlogin").show();
+                            $("#loginpinno").val('');
+
+                            pinlock = false;
+
+                            //do we show the footer or not?
+
+                            if ($("#footermode").val() == 1) {
+                                $(".footer").show();
+                            } else {
+                                $(".footer").hide();
+                            }
+
+                            //double check footer
+                            //bug workaround
+                            if (menustate == "profile" && profilepagestate == "") {
+
+                                $(".footer").show();
+
+                            }
+
+
+                            if (!(typeof window.app === 'undefined')) {
+                                app.isScanning = false;
+                            }
+
+                            $("#isactive").val(1);
+
+                            updateUI();
+
+                            //refresh account settings in case they were updated
+                            //in the chrome app
+                            Engine.getAccountSettings(function (err, res) {
+
+                                if (!err) {
+
+                                    //only set the settings we need to refresh for the mobile apps
+                                    var settingsObject = JSON.parse(res);
+
+                                    Engine.m_settings.MinersFee = settingsObject.MinersFee;
+                                    Engine.m_settings.TwoFactor = settingsObject.TwoFactor;
+                                    Engine.m_settings.EmailVerified = settingsObject.EmailVerified;
+
+
+                                    if (!Engine.m_settings.EmailVerified) {
+
+
+
+                                        $(".footer").hide();
+                                        $('#dashheader').hide();
+                                        $("#mainWallet").hide();
+                                        $("#emailstep").show();
+
+                                        app.isScanning = true;
+
+
+                                    }
+
+                                }
+
+                            });
+
+                            //refresh user profile data incase they updated
+                            //it via the chrome app
+                            Engine.getUserProfile(function (err, data) {
+
+                                data = JSON.parse(data);
+
+                                Engine.m_profileImage = data.ProfileImage;
+                                Engine.m_statusText = data.Status;
+
+                                updateProfile();
+
+                            });
+
+
+                            //refresh the UI state every 10 seconds
+                            window.updateUIInterval = setInterval(function () {
+
+                                updateUI();
+
+                            }, 10000);
+
+                            window.updatePriceInterval = setInterval(function () {
+
+                                updatePrice();
+
+                            }, 10000);
+
+
+
+                        } else {
+
+
+                            //disable keyboard scrolling in phone app
+                            if (window.cordova) {
+                                cordova.plugins.Keyboard.disableScroll(true);
+                            }
+
+                            //first check for a cache
+                            //this should be there after the first time a packet is intialised
+                            Engine.Device.getStorageItem("dataCache", function (res) {
+
+                                if (res.length == 0) {
+
+                                    //if the app has not been initialised then we need to download the wallet data
+
+                                    $("#pairspinner").show();
+
+                                    var target = document.getElementById('pairspinner');
+                                    var spinner = new Spinner(spinneropts).spin(target);
+                                    pinlock = false;
+
+                                    $("#pinspinner").hide();
+                                    $('.numdone').attr("style", "background-color:white");
+                                    $("#loginpin").hide();
+                                    $("#loginpinno").val('');
+
+                                    $("#paddel").hide();
+                                    $("#pinloginmessage").text("Enter your PIN number");
+
+
+                                    //get the encrypted user's password from local storage
+                                    Engine.Device.getSecureStorageObject("ninki_p", ekeyv.DeviceKey, Engine.decryptNp, function (result) {
+
+                                        Engine.setStretchPass(result);
+
+                                        //get the encrypted 2fa override token from local storage
+                                        Engine.Device.getSecureStorageObject("ninki_rem", ekeyv.DeviceKey, Engine.decryptNp, function (fatoken) {
+
+                                            if (fatoken.length > 0) {
+
+
+                                                //use the token to open the wallet
+                                                Engine.openWallet(guid, fatoken, function (err, result) {
+
+                                                    if (!err) {
+
+                                                        //if this is true it means the 2fa token has expired
+                                                        if (result.TwoFactorOnLogin) {
+
+                                                            $("#pairspinner").hide();
+                                                            $("#loginpinno").val('');
+                                                            pinlock = false;
+                                                            //$("#enterpinalert").show();
+                                                            //$("#enterpinalertmessage").text('Token has expired');
+
+                                                            bootbox.alert("Your token has expired. Please repair your device", function () {
+
+                                                                Engine.Device.deleteStorageItem("ninki_reg");
+                                                                Engine.Device.deleteStorageItem("ninki_p");
+                                                                Engine.Device.deleteStorageItem("ninki_rem");
+                                                                Engine.Device.deleteStorageItem("guid");
+
+                                                                location.reload();
+
+                                                            });
+
+                                                        } else {
+
+
+                                                            //create an encrypted cache to enable quick reloading of app state
+
+                                                            var dataToCache = Engine.serialize();
+
+                                                            Engine.Device.setSecureStorageObject("dataCache", dataToCache, ekeyv.DeviceKey, Engine.encrypt);
+
+
+                                                            //initilaise the UI elements
+                                                            initialiseDashboard(function () {
+
+
+                                                                Engine.m_appInitialised = true;
+
+                                                                $("#isactive").val(1);
+
+                                                                $("#pairspinner").hide();
+
+                                                                $('#dashboard').show();
+                                                                $('#dashheader').show();
+
+                                                                $("#mainWallet").show();
+                                                                $("#footermode").val(1);
+                                                                $(".footer").show();
+
+                                                                $("#nonlogin").show();
+
+
+                                                                if (!(typeof window.app === 'undefined')) {
+                                                                    app.isScanning = false;
+                                                                }
+
+
+                                                            });
+
+
+                                                        }
+
+                                                    } else {
+
+
+                                                        if (result == "ErrLocked") {
+
+                                                            bootbox.alert("Your account is locked. Please unlock your account using the Chrome App");
+
+                                                        } else {
+
+                                                            bootbox.alert(result);
+
+                                                        }
+
+                                                        pinlock = false;
+
+                                                        $("#pairspinner").hide();
+                                                        $('.numdone').attr("style", "background-color:white");
+                                                        $("#loginpin").show();
+                                                        $("#loginpinno").val('');
+                                                        $("#paddel").hide();
+                                                        $("#pinloginmessage").text("Enter your PIN number");
+
+                                                        if (!(typeof window.app === 'undefined')) {
+                                                            app.isScanning = false;
+                                                        }
+
+                                                    }
+
+                                                });
+
+                                            }
+
+                                        });
+
+                                    });
+
+                                } else {
+
+                                    //initialise from cache
+                                    Engine.Device.getSecureStorageObject("dataCache", ekeyv.DeviceKey, Engine.decrypt, function (res) {
+
+
+                                        if (res != "") {
+
+                                            Engine.initialize(JSON.parse(res));
+
+                                            var target = document.getElementById('pairspinner');
+                                            var spinner = new Spinner(spinneropts).spin(target);
+                                            pinlock = false;
+
+                                            $("#pairspinner").show();
+                                            $("#pinspinner").hide();
+                                            $('.numdone').attr("style", "background-color:white");
+                                            $("#loginpin").hide();
+                                            $("#loginpinno").val('');
+                                            $("#paddel").hide();
+                                            $("#pinloginmessage").text("Enter your PIN number");
+
+
+                                            Engine.Device.getSecureStorageObject("ninki_p", ekeyv.DeviceKey, Engine.decryptNp, function (result) {
+
+                                                //decrypt the password using the encryption key sent from the server
+                                                //and set the password
+                                                Engine.setStretchPass(result);
+
+                                                //initilaise the UI elements
+                                                initialiseDashboardFromCache(function () {
+
+                                                    Engine.Device.getStorageItem("price", function (res) {
+
+                                                        displayPrice(JSON.parse(res));
+
+                                                    });
+
+
+                                                    updateUI();
+
+                                                    Engine.m_appInitialised = true;
+
+
+
+
+                                                    $("#isactive").val(1);
+
+                                                    $("#pairspinner").hide();
+
+                                                    $('#dashboard').show();
+                                                    $('#dashheader').show();
+
+                                                    $("#mainWallet").show();
+                                                    $("#footermode").val(1);
+                                                    $(".footer").show();
+
+                                                    $("#nonlogin").show();
+
+
+
+
+
+
+                                                    if (!(typeof window.app === 'undefined')) {
+                                                        app.isScanning = false;
+                                                    }
+
+
+                                                    //refresh account settings in case they were updated
+                                                    //in the chrome app
+                                                    Engine.getAccountSettings(function (err, res) {
+
+                                                        if (!err) {
+
+                                                            //only set the settings we need to refresh for the mobile apps
+                                                            var settingsObject = JSON.parse(res);
+
+                                                            Engine.m_settings.MinersFee = settingsObject.MinersFee;
+                                                            Engine.m_settings.TwoFactor = settingsObject.TwoFactor;
+                                                            Engine.m_settings.EmailVerified = settingsObject.EmailVerified;
+
+                                                            if (!Engine.m_settings.EmailVerified) {
+
+                                                                $(".footer").hide();
+                                                                $('#dashheader').hide();
+                                                                $("#mainWallet").hide();
+                                                                $("#emailstep").show();
+
+                                                                app.isScanning = true;
+
+
+                                                            }
+
+                                                        }
+
+                                                    });
+
+                                                    //refresh user profile data incase they updated
+                                                    //it via the chrome app
+                                                    Engine.getUserProfile(function (err, data) {
+
+                                                        data = JSON.parse(data);
+
+                                                        m_this.m_profileImage = data.ProfileImage;
+                                                        m_this.m_statusText = data.Status;
+
+                                                        updateProfile();
+
+                                                    });
+
+
+
+                                                });
+
+                                            });
+
+                                        } else {
+
+                                            Engine.Device.deleteStorageItem("dataCache");
+                                            //Engine.Device.deleteStorageItem("balance");
+                                            bootbox.alert("Your cache has expired. Please try again.", function () {
+
+                                                location.reload();
+
+                                            });
+                                        }
+
+                                    });
+                                }
+
+                            });
+
+                        }
+
+                    } else {
+
+                        $("#pinspinner").hide();
+
+                        if (ekeyv == "ErrDeviceDestroyed") {
+
+                            Engine.Device.deleteStorageItem("ninki_reg");
+                            Engine.Device.deleteStorageItem("ninki_p");
+                            Engine.Device.deleteStorageItem("ninki_rem");
+                            Engine.Device.deleteStorageItem("guid");
+
+                            bootbox.alert("Too many failed attempts. The device has been unpaired.", function () {
+
+                                $("#loginpin").hide();
+                                $("#mainWallet").hide();
+                                $("#pairDevice").show();
+
+                                location.reload();
+
+                            });
+
+                        } else {
+
+
+                            pinlock = false;
+
+                            $("#loginpinno").val('');
+                            $('.numdone').attr("style", "background-color:white");
+                            $("#paddel").hide();
+
+                            if (ekeyv.substring(0, 6) == "ErrPIN") {
+
+                                var attempts = ekeyv.substring(7, 8);
+
+                                $("#pinloginmessage").text("Incorrect PIN " + attempts + "/3 attempts");
+                                $("#pincounter").effect("shake");
+
+                            } else {
+
+                                bootbox.alert(ekeyv);
+
+                            }
+
+                            if (!(typeof window.app === 'undefined')) {
+                                app.isScanning = false;
+                            }
+                        }
+
+                    }
+
+                });
+
+            });
+
+        } else {
+
+            $("#pinspinner").hide();
+
+        }
+
+    }
+
+
+
+    //device paring temp variables
+    var deviceName = '';
+    var regToken = '';
+    var secret = '';
+    var enck = '';
+    var iv = '';
+
+    //the user scans a QR code containing data encrypted with the server generated encryption key
+
+    function pairDevice() {
+
+        //disable keyboard scrolling on phone apps
+        if (window.cordova) {
+            cordova.plugins.Keyboard.disableScroll(true);
+        }
+
+        $("#btnPairDevice").addClass("disabled");
+
+        var blob = $('#pairdeviceblob').val();
+        var pwd = $('#pairpwd').val();
+
+        var splitBlob = blob.split('|');
+
+
+
+        //check for bad qr scan
+        if (splitBlob.length == 5) {
+
+
+            //flag that a scan is in progress so PIN
+            //screen does not show
+
+            if (!(typeof window.app === 'undefined')) {
+                app.isScanning = true;
+            }
+
+            var guid = splitBlob[2];
+
+            //encrypted hot key and 2fa override token
+            enck = splitBlob[0];
+            iv = splitBlob[1];
+
+            //device name eg. My iPhone
+            deviceName = splitBlob[3];
+
+            //registration token for this pairing attempt
+            regToken = splitBlob[4];
+
+            //password enetered by the user
+            Engine.setPass(pwd, guid);
+
+            var bytes = [];
+            for (var i = 0; i < guid.length; ++i) {
+                bytes.push(guid.charCodeAt(i));
+            }
+
+            var hashguid = Bitcoin.Crypto.SHA256(Bitcoin.convert.bytesToWordArray(bytes)).toString();
+
+
+            Engine.m_guid = hashguid;
+            Engine.m_oguid = guid;
+
+            //first validate the password with the secret
+
+            Engine.getRecoveryPacket(function (err, response) {
+
+                if (err) {
+
+                    if (!(typeof window.app === 'undefined')) {
+                        app.isScanning = false;
+                    }
+
+
+                    $("#btnPairDevice").removeClass("disabled");
+
+                    bootbox.alert("There was an error, please try again.");
+
+
+                } else {
+
+                    //decrypt packet and set the secret
+                    //the user will be asked next to choose a PIN
+                    var jpacket = JSON.parse(response);
+
+                    secret = Engine.decryptNp(jpacket.packet, Engine.m_password, jpacket.IV);
+
+                    Engine.validateSecret(secret, function (err, secvalid) {
+
+                        if (!err) {
+
+                            if (secvalid) {
+
+                                //show pin screen
+
+                                $('#pairDevice').hide();
+                                $("#btnPairDevice").removeClass("disabled");
+                                $('#loginpin').show();
+
+                                if (!(typeof window.app === 'undefined')) {
+                                    app.isScanning = false;
+                                }
+                            }
+
+                        } else {
+
+                            if (!(typeof window.app === 'undefined')) {
+                                app.isScanning = false;
+                            }
+
+                            $("#btnPairDevice").removeClass("disabled");
+
+                            if (secvalid == "ErrAccount") {
+                                bootbox.alert("Password not correct");
+                            } else if (secvalid == "ErrLocked") {
+                                bootbox.alert("The account is locked");
+                            } else {
+                                bootbox.alert("There was an error, please try again");
+                            }
+
+                        }
+
+                    });
+
+                }
+
+            });
+
+        } else {
+
+            $("#btnPairDevice").removeClass("disabled");
+
+            bootbox.alert("There was a pairing error, please try again.");
+
+            // $('#pairdevicealertmessage').text("There was a pairing error");
+            //$('#pairdevicealert').show();
+        }
+
+    }
+
+
+    function regPIN() {
+
+        //the user has chosen a PIN and can now register the deive with the server
+
+        $("#pairspinner").show();
+
+        var target = document.getElementById('pairspinner');
+        var spinner = new Spinner(spinneropts).spin(target);
+
+        $('#loginpin').hide();
+
+
+        if (!(typeof window.app === 'undefined')) {
+            app.isScanning = true;
+        }
+
+        //hash the pin and device id
+        var deviceid = "DEVICE123456789";
+
+        if (window.cordova) {
+            deviceid = window.device.uuid;
+        }
+
+
+        //hash the PIN with the device id
+        //this is used to validate the PIN and lookup the encryption key on our server
+
+        var pin = $("#loginpinno").val();
+
+        var pinhash = deviceid + pin;
+        bytes = [];
+        for (var i = 0; i < pinhash.length; ++i) {
+            bytes.push(pinhash.charCodeAt(i));
+        }
+
+        pinhash = Bitcoin.Crypto.SHA256(Bitcoin.convert.bytesToWordArray(bytes)).toString();
+
+
+        //new register device
+
+
+        //enter password
+        //stretch
+        //get validate
+        //if valid
+        //choose a PIN
+        //register
+
+
+        var devplatform = "platform";
+        var devmodel = "model";
+
+        if (window.cordova) {
+            devplatform = window.device.platform;
+            devmodel = window.device.model;
+        }
+
+        //the device is registered with the server
+        //authentication via:
+        //generation of the pairing data required 2 factor authenticaton
+        //  guid as an identifier
+        //  registration token for this pairing session
+        //secret, which proves the user knows their password
+        //their chosen PIN number is registered with the server vi a hash of the PIN + Device uuid
+        //a 256 bit encryption key is generated on the server using a CSPRNG, this is used to encrypt data stored on the device
+
+        Engine.registerDevice(Engine.m_guid, deviceName, devplatform, devmodel, pinhash, regToken, secret, function (err, result) {
+
+            if (!err) {
+
+                var dk = JSON.parse(result);
+
+                if (dk.DeviceKey.length > 0) {
+
+                    //the server returns the encryption key
+                    //whcih is used to decrypt the hotkey and 2fa override token
+
+                    var decblob = Engine.decryptNp(enck, dk.DeviceKey, iv);
+
+                    //slice it up
+                    //64 64
+
+
+
+                    var hk = '';
+                    var fatoken = '';
+
+                    if (decblob.length == 96) {
+                        hk = decblob.substring(0, 32);
+                        fatoken = decblob.substring(32, 96);
+                    } else {
+                        hk = decblob.substring(0, 64);
+                        fatoken = decblob.substring(64, 128);
+                    }
+
+
+                    //test opening the wallet
+
+                    Engine.openWallet(Engine.m_oguid, fatoken, function (err, result) {
+
+                        if (!err) {
+
+                            if (!result.TwoFactorOnLogin) {
+
+                                //if succesfull store the encrypted data in local storage
+                                Engine.Device.setStorageItem("guid", Engine.m_oguid);
+                                Engine.Device.setStorageItem("ninki_reg", regToken);
+
+                                Engine.Device.setSecureStorageObject("ninki_rem", fatoken, dk.DeviceKey, Engine.encryptNp);
+                                Engine.Device.setSecureStorageObject("ninki_p", Engine.m_password, dk.DeviceKey, Engine.encryptNp);
+                                Engine.Device.setSecureStorageObject("ninki_h", hk, dk.DeviceKey, Engine.encryptNp);
+
+                                var dataToCache = Engine.serialize();
+
+                                Engine.Device.setSecureStorageObject("dataCache", dataToCache, dk.DeviceKey, Engine.encrypt);
+
+                                pinlock = false;
+                                isPairing = false;
+
+                                //cache the main account data
+
+                                dk.DeviceKey = '';
+
+
+                                $("#loginpinno").val('');
+                                $("#paddel").hide();
+                                $('.numdone').attr("style", "background-color:white");
+
+                                var t = Engine.m_settings.LocalCurrency;
+
+                                $('.sccy').filter(function () {
+                                    return $(this).text().trim() == t;
+                                }).find("label").html('<i class="fa fa-check text-active"></i>');
+
+
+                                var tc = Engine.m_settings.CoinUnit;
+                                $('.scoinunit').filter(function () {
+                                    return $(this).text().trim() == tc;
+                                }).find("label").html('<i class="fa fa-check text-active"></i>');
+
+
+                                initialiseDashboard(function () {
+
+                                    Engine.m_appInitialised = true;
+
+                                    $("#pairspinner").hide();
+                                    $('#dashboard').show();
+                                    $('#dashheader').show();
+
+                                    $("#footermode").val(1);
+                                    $("#mainWallet").show();
+                                    $(".footer").show();
+
+                                    if (!(typeof window.app === 'undefined')) {
+                                        app.isScanning = false;
+                                    }
+
+                                });
+
+                            } else {
+
+                                if (!(typeof window.app === 'undefined')) {
+                                    app.isScanning = false;
+                                }
+
+                                $("#pairspinner").hide();
+                                bootbox.alert("Could not pair", function () {
+
+                                    location.reload();
+
+                                });
+
+                            }
+
+                        } else {
+
+                            if (!(typeof window.app === 'undefined')) {
+                                app.isScanning = false;
+                            }
+
+                            $("#pairspinner").hide();
+
+                            bootbox.alert(result, function () {
+
+                                location.reload();
+
+                            });
+
+                        }
+
+                    });
+                } else {
+
+                    if (!(typeof window.app === 'undefined')) {
+                        app.isScanning = false;
+                    }
+
+                    $("#pairspinner").hide();
+
+                    bootbox.alert("The pairing token has expired", function () {
+
+                        location.reload();
+
+                    });
+
+                }
+
+
+            } else {
+
+
+                if (!(typeof window.app === 'undefined')) {
+                    app.isScanning = false;
+                }
+
+                $("#pairspinner").hide();
+
+                bootbox.alert(result, function () {
+
+                    location.reload();
+
+                });
+
+            }
+
+        });
+
+        secret = '';
+
+    }
+
+
+
+    function regPINCreate() {
+
+        //the user has chosen a PIN and can now register the deive with the server
+
+        $("#pairspinner").show();
+        var target = document.getElementById('pairspinner');
+        var spinner = new Spinner(spinneropts).spin(target);
+
+        $('#loginpin').hide();
+
+
+        if (!(typeof window.app === 'undefined')) {
+            app.isScanning = true;
+        }
+
+        //hash the pin and device id
+        var deviceid = "DEVICE123456789";
+
+        if (window.cordova) {
+            deviceid = window.device.uuid;
+        }
+
+
+        //hash the PIN with the device id
+        //this is used to validate the PIN and lookup the encryption key on our server
+
+        var pin = $("#loginpinno").val();
+
+        var pinhash = deviceid + pin;
+        bytes = [];
+        for (var i = 0; i < pinhash.length; ++i) {
+            bytes.push(pinhash.charCodeAt(i));
+        }
+
+        pinhash = Bitcoin.Crypto.SHA256(Bitcoin.convert.bytesToWordArray(bytes)).toString();
+
+
+        //new register device
+
+
+        //enter password
+        //stretch
+        //get validate
+        //if valid
+        //choose a PIN
+        //register
+
+
+        var devplatform = "platform";
+        var devmodel = "model";
+
+        if (window.cordova) {
+            devplatform = window.device.platform;
+            devmodel = window.device.model;
+        }
+
+        //the device is registered with the server
+        //authentication via:
+        //generation of the pairing data required 2 factor authenticaton
+        //  guid as an identifier
+        //  registration token for this pairing session
+        //secret, which proves the user knows their password
+        //their chosen PIN number is registered with the server vi a hash of the PIN + Device uuid
+        //a 256 bit encryption key is generated on the server using a CSPRNG, this is used to encrypt data stored on the device
+
+        Engine.getRecoveryPacket(function (err, response) {
+
+            if (err) {
+
+                if (!(typeof window.app === 'undefined')) {
+                    app.isScanning = false;
+                }
+
+                $("#btnPairDevice").removeClass("disabled");
+
+                bootbox.alert("There was an error, please try again.");
+
+            } else {
+
+                //decrypt packet and set the secret
+                //the user will be asked next to choose a PIN
+                var jpacket = JSON.parse(response);
+
+                secret = Engine.decryptNp(jpacket.packet, Engine.m_password, jpacket.IV);
+
+                Engine.registerDevice(Engine.m_guid, deviceName, devplatform, devmodel, pinhash, regToken, secret, function (err, result) {
+
+                    if (!err) {
+
+                        var dk = JSON.parse(result);
+
+                        if (!(typeof window.app === 'undefined')) {
+                            app.isScanning = true;
+                        }
+
+                        Engine.Device.setStorageItem("guid", Engine.m_oguid);
+
+                        //test opening the wallet
+
+                        Engine.openWallet(Engine.m_oguid, fatoken, function (err, result) {
+
+                            if (!err) {
+
+                                if (!result.TwoFactorOnLogin) {
+
+                                    //if succesfull store the encrypted data in local storage
+
+                                    var dataToCache = Engine.serialize();
+                                    Engine.Device.setSecureStorageObject("dataCache", dataToCache, dk.DeviceKey, Engine.encrypt);
+
+                                    pinlock = false;
+
+                                    $("#loginpinno").val('');
+                                    $("#paddel").hide();
+                                    $('.numdone').attr("style", "background-color:white");
+
+                                    var t = Engine.m_settings.LocalCurrency;
+
+                                    $('.sccy').filter(function () {
+                                        return $(this).text().trim() == t;
+                                    }).find("label").html('<i class="fa fa-check text-active"></i>');
+
+
+                                    var tc = Engine.m_settings.CoinUnit;
+                                    $('.scoinunit').filter(function () {
+                                        return $(this).text().trim() == tc;
+                                    }).find("label").html('<i class="fa fa-check text-active"></i>');
+
+
+                                    isPairing = false;
+
+                                    //callback here before displaying
+
+                                    initialiseDashboard(function () {
+
+                                        Engine.m_appInitialised = true;
+
+
+                                        //don't show main wallet yet
+                                        //show optional 2fa screen
+
+
+                                        $("#emailstep").show();
+
+                                        $("#pairspinner").hide();
+
+                                        $("#hotkeystep").hide();
+
+                                        isCreate = false;
+
+                                        app.isScanning = true;
+                                        $("#isactive").val(1);
+
+
+                                    });
+
+                                } else {
+
+                                    //if (!(typeof window.app === 'undefined')) {
+                                    //    app.isScanning = false;
+                                    //}
+
+                                    $("#pairspinner").hide();
+                                    bootbox.alert("Could not pair", function () {
+
+                                        location.reload();
+
+                                    });
+
+                                }
+
+                            } else {
+
+                                //if (!(typeof window.app === 'undefined')) {
+                                //    app.isScanning = false;
+                                //}
+
+                                $("#pairspinner").hide();
+
+                                bootbox.alert(result, function () {
+
+                                    location.reload();
+
+                                });
+
+                            }
+
+                        });
+
+
+
+                    } else {
+
+
+                        //if (!(typeof window.app === 'undefined')) {
+                        //    app.isScanning = false;
+                        //}
+
+                        $("#pairspinner").hide();
+                        bootbox.alert(result, function () {
+
+                            location.reload();
+
+                        });
+
+                    }
+
+                });
+
+            }
+
+        });
+
+
+
+    }
+
+
+
+
+    function closeSendNet() {
+
+        $("#dashsend").addClass("invis");
+        $("#dashsend").removeClass("slideUp");
+        $("#dashsend").hide();
+
+        $("#dashsendamt").addClass("invis");
+        $("#dashsendamt").removeClass("slideUp");
+        $("#dashsendamt").hide();
+
+        $("#mainWallet").show();
+
+        if (sendmode == "net" || sendmode == "inv") {
+            $("#friendheader").show();
+        } else {
+            $('#dashboard').show();
+            $('#dashheader').show();
+
+        }
+
+        $(".footer").show();
+
+        $("#dashreceive").addClass("invis");
+        $("#dashreceive").removeClass("slideUp");
+        $("#dashreceive").hide();
+
+        $("#dashcontact").addClass("invis");
+        $("#dashcontact").removeClass("slideUp");
+        $("#dashcontact").hide();
+
+        $("#pinconfirm").hide();
+
+        $("#btnStdSndDone").hide();
+
+
+        $('#toAddress').val('');
+
+        sendAmount = '';
+
+        updateStdAmount();
+
+    }
+
+
+    function closeSendStd() {
+
+
+        $("#dashsend").removeClass("slideUp");
+        $("#dashsend").addClass("invis");
+        $("#dashsend").hide();
+
+        $("#dashsendamt").removeClass("slideUp");
+        $("#dashsendamt").addClass("invis");
+        $("#dashsendamt").hide();
+
+        $('#dashboard').show();
+        $('#dashheader').show();
+
+        $("#mainWallet").show();
+        $(".footer").show();
+
+        $("#dashreceive").removeClass("slideUp");
+        $("#dashreceive").addClass("invis");
+        $("#dashreceive").hide();
+
+        $("#dashcontact").removeClass("slideUp");
+        $("#dashcontact").addClass("invis");
+        $("#dashcontact").hide();
+
+        $("#pinconfirm").hide();
+
+        $("#btnStdSndDone").hide();
+
+        $('#toAddress').val('');
+
+        sendAmount = '';
+
+        updateStdAmount();
+
+    }
+
+    var stdAmountConvCoin = true;
+    var netAmountConvCoin = true;
+
+    function convertToLocalCurrency(amount) {
+
+        var conv = amount;
+        conv = conv * 1.0;
+
+        var sats = convertToSatoshis(conv, COINUNIT);
+        var btc = convertFromSatoshis(sats, "BTC");
+
+        var cbtc = btc * price;
+
+        var loc = "en-US";
+        var ires = cbtc;
+
+        if (Engine.m_settings.LocalCurrency == "JPY") {
+            ires = (cbtc * 1.0).toFixed(0) * 1.0;
+        } else {
+            ires = (cbtc * 1.0).toFixed(2) * 1.0;
+        }
+
+        var loc = "en-US";
+        var cprc = "";
+        if (Engine.m_settings.LocalCurrency == "JPY" || Engine.m_settings.LocalCurrency == "CNY") {
+            cprc = accounting.formatMoney(ires, "&yen;", 0);
+        } else if (Engine.m_settings.LocalCurrency == "GBP") {
+            cprc = accounting.formatMoney(ires, "&pound;", 2);
+        } else if (Engine.m_settings.LocalCurrency == "EUR") {
+            cprc = accounting.formatMoney(ires, "&euro;", 2);
+        } else if (Engine.m_settings.LocalCurrency == "USD") {
+            cprc = accounting.formatMoney(ires, "&dollar;", 2);
+        } else if (Engine.m_settings.LocalCurrency == "CNY") {
+            cprc = accounting.formatMoney(ires, "&yen;", 2);
+        }
+
+        return cprc;
+
+    }
+
+
+    function convertFromLocalCurrency(amount, format) {
+
+        var conv = amount;
+        conv = conv * 1.0;
+
+
+        //convert to bitcoin
+        if (price > 0) {
+            var cbtc = conv / price;
+
+            var sats = convertToSatoshis(cbtc, "BTC");
+
+            var dp = 4;
+            if (sats > 0 && sats < 10000) {
+                dp = 8;
+            }
+
+
+            var btc = convertFromSatoshis(sats, COINUNIT);
+
+
+            if (format) {
+                if (COINUNIT == "BTC") {
+
+                    btc = accounting.formatMoney(btc, "", dp);
+
+                }
+
+                if (COINUNIT == "Bits") {
+
+                    btc = accounting.formatMoney(btc, "", 0);
+
+                }
+            } else {
+
+                if (COINUNIT == "BTC") {
+                    var dpr = 4;
+                    if (sats > 0 && sats < 10000) {
+                        dpr = 8;
+                    }
+
+                    btc = accounting.toFixed(btc, dpr);
+                }
+
+                if (COINUNIT == "Bits") {
+                    var dpr = 0;
+                    if (sats > 0 && sats < 10000) {
+                        dpr = 2;
+                    }
+
+                    btc = accounting.toFixed(btc, dpr);
+                }
+            }
+
+            return btc;
+
+        } else {
+
+            return 0;
+
+        }
+
+
+    }
+
+
+    var sendAmount = '';
+
+    function updateStdAmount() {
+
+        //vamout will track the value
+        //hdamount.val is the value actually used as an
+        // input to the transaction
+
+
+        //if the input value is decimal . or empty
+        //set to 0
+
+        var vAmount = 0;
+        if (sendAmount == '' || sendAmount == '.') {
+            vAmount = 0;
+        } else {
+            vAmount = sendAmount;
+        }
+
+        vAmount = vAmount * 1;
+
+        if (sendAmount == '') {
+
+            //default entry box and actual value in the case of no input
+            $('#amount').text('amount');
+            if (stdAmountConvCoin) {
+                $('#ccystdamt').html(convertToLocalCurrency(0));
+            } else {
+                $('#ccystdamt').html(convertFromLocalCurrency(0) + ' ' + COINUNIT);
+            }
+            $('#hdamount').val('0');
+
+        } else {
+
+            if (stdAmountConvCoin) {
+
+                //amounts are being input in a Bitcoin denomination
+                //so we convert to local currenct
+
+                $('#ccystdamt').html(convertToLocalCurrency(vAmount));
+                //convert bitcoin amount to number
+                $('#hdamount').val(vAmount * 1.0);
+
+                var cprc = 0;
+                if (COINUNIT == "Bits") {
+
+                    //default bits to 0 decimal places
+                    cprc = accounting.formatMoney(sendAmount, "", 0);
+
+                } else {
+
+
+                    var indot = sendAmount.indexOf('.');
+
+                    //if the input is the beginning of input entry
+                    //apply no formatting
+                    if (sendAmount == '.' || sendAmount == '0.' || sendAmount == '0') {
+
+                        cprc = sendAmount;
+
+                    }
+                    else if (indot == sendAmount.length - 1) {
+                        //if the user has just enetered a decimal point
+                        //format the number and add on the decimal for display
+                        cprc = accounting.formatMoney(sendAmount, "", 0) + '.';
+                    }
+                    else {
+                        //if there is no decimal point apply formatting
+                        //with 0 dp
+                        if (indot == -1) {
+
+                            cprc = accounting.formatMoney(sendAmount, "", 0);
+
+                        } else {
+
+                            //allow bitcoin entry up to 8 decimal places
+                            var ramt = Math.min(sendAmount.length - indot, 9);
+                            ramt = ramt - 1;
+                            cprc = accounting.formatMoney(sendAmount, "", ramt);
+                        }
+
+                    }
+
+
+                }
+
+                var fee = convertFromSatoshis(Engine.m_settings.MinersFee, COINUNIT);
+                var amountPlusFee = (vAmount + fee).toFixed(10);
+
+                if ((currentBalance >= (amountPlusFee) && vAmount > 0) && convertToSatoshis(vAmount, COINUNIT) >= 10000) {
+
+                    $('#btnsendmoneystd').removeClass("disabled");
+
+                } else {
+
+                    $('#btnsendmoneystd').removeClass("disabled");
+                    $('#btnsendmoneystd').addClass("disabled");
+                }
+
+                $('#amount').text(cprc);
+
+            }
+            else {
+
+                //entry is in local currency
+                //so we need to convert to coin units and also format
+                //the currency input
+
+                var amt = convertFromLocalCurrency(vAmount);
+                var amtfmt = convertFromLocalCurrency(vAmount, true);
+                amt = amt * 1.0;
+
+                $('#hdamount').val(amt);
+
+                $('#ccystdamt').text(amtfmt + ' ' + COINUNIT);
+
+                var symb = '';
+                if (Engine.m_settings.LocalCurrency == "JPY" || Engine.m_settings.LocalCurrency == "CNY") {
+                    symb = "&yen;";
+                } else if (Engine.m_settings.LocalCurrency == "GBP") {
+                    symb = "&pound;";
+                } else if (Engine.m_settings.LocalCurrency == "EUR") {
+                    symb = "&euro;";
+                } else if (Engine.m_settings.LocalCurrency == "USD") {
+                    symb = "&dollar;";
+                } else if (Engine.m_settings.LocalCurrency == "CNY") {
+                    symb = "&yen;";
+                }
+
+
+                var cprc = '';
+
+                var indot = sendAmount.indexOf('.');
+
+                if (sendAmount == '.' || sendAmount == '0.' || sendAmount == '0') {
+
+                    cprc = symb + sendAmount;
+
+                }
+                else if (indot == sendAmount.length - 1) {
+
+                    cprc = accounting.formatMoney(sendAmount, symb, 0) + '.';
+                }
+                else {
+
+                    if (indot == -1) {
+
+                        cprc = accounting.formatMoney(sendAmount, symb, 0);
+
+                    } else {
+
+                        var ramt = Math.min(sendAmount.length - indot, 2);
+
+                        cprc = symb + sendAmount
+
+                    }
+
+                }
+
+                var fee = convertFromSatoshis(Engine.m_settings.MinersFee, COINUNIT);
+                var amountPlusFee = (amt + fee).toFixed(10);
+
+                if (currentBalance >= (amountPlusFee) && amt > 0 && convertToSatoshis(amt, COINUNIT) >= 10000) {
+
+                    $('#btnsendmoneystd').removeClass("disabled");
+
+                } else {
+
+                    $('#btnsendmoneystd').removeClass("disabled");
+                    $('#btnsendmoneystd').addClass("disabled");
+                }
+
+
+                $('#amount').html(cprc);
+            }
+        }
 
     }
 

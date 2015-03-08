@@ -179,6 +179,139 @@ function Device() {
         }
     }
 
+
+
+
+    this.setSecureStorageObject = setSecureStorageObject;
+    function setSecureStorageObject(cname, cvalue, key, encryptor, expiry) {
+
+
+        if (isChromeApp()) {
+
+            var encp = encryptor(cvalue, key);
+            var ptok = {};
+            ptok.ct = encp.toString();
+            ptok.iv = encp.iv.toString();
+
+            if (expiry) {
+                ptok.date = new Date();
+                ptok.expiry = expiry;
+            }
+
+            var ptoken = JSON.stringify(ptok);
+
+            var obj = {};
+            obj[cname] = ptoken
+
+            chrome.storage.local.set(obj, function () {
+
+                console.log("saved");
+
+            });
+
+        }
+        else {
+
+            var encp = encryptor(cvalue, key);
+            var ptok = {};
+            ptok.ct = encp.toString();
+            ptok.iv = encp.iv.toString();
+
+            if (expiry) {
+                ptok.date = new Date();
+                ptok.expiry = expiry;
+            }
+
+            var ptoken = JSON.stringify(ptok);
+            localStorage.setItem(cname, ptoken);
+
+        }
+
+
+    }
+
+
+    this.getSecureStorageObject = getSecureStorageObject;
+    function getSecureStorageObject(cname, key, decryptor, callback) {
+
+        if (isChromeApp()) {
+
+            chrome.storage.local.get(cname, function (result) {
+
+                result = result[cname];
+
+                if (result != "") {
+                    var decryptok = true;
+                    var datac = "";
+                    try {
+
+                        var enc = JSON.parse(result);
+
+                        if (enc.date) {
+                            if (enc.expiry) {
+                                var currentdate = new Date();
+                                if (((new Date) - new Date(enc.date)) < enc.expiry) {
+                                    datac = decryptor(enc.ct, key, enc.iv);
+                                }
+                            }
+                        } else {
+                            datac = decryptor(enc.ct, key, enc.iv);
+                        }
+
+                    } catch (error) {
+                        decryptok = false;
+                    }
+
+                }
+
+                return callback(result);
+
+            });
+
+        } else {
+
+            if (localStorage.getItem(cname)) {
+
+                result = localStorage.getItem(cname);
+
+                if (result != "") {
+                    var decryptok = true;
+                    var datac = "";
+                    try {
+                        var enc = JSON.parse(result);
+
+                        if (enc.date) {
+                            if (enc.expiry) {
+                                var currentdate = new Date();
+                                if (((new Date) - new Date(enc.date)) < enc.expiry) {
+                                    datac = decryptor(enc.ct, key, enc.iv);
+                                }
+                            }
+                        } else {
+                            datac = decryptor(enc.ct, key, enc.iv);
+                        }
+                      
+                    } catch (error) {
+                        decryptok = false;
+                    }
+
+                    if (decryptok) {
+                        result = datac;
+                    }
+
+                }
+
+                return callback(result);
+
+            } else {
+                return callback('');
+            }
+
+        }
+
+    }
+
+
 }
 
 module.exports = Device;
