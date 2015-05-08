@@ -95,6 +95,7 @@ function Device() {
 
             if (typeof window.cordova === 'undefined') {
 
+                //switch to false for mob 
                 return true;
 
             } else {
@@ -232,7 +233,7 @@ function Device() {
 
 
     this.getSecureStorageObject = getSecureStorageObject;
-    function getSecureStorageObject(cname, key, decryptor, callback) {
+    function getSecureStorageObject(cname, key, decryptor, asbytes, callback) {
 
         if (isChromeApp()) {
 
@@ -240,7 +241,7 @@ function Device() {
 
                 result = result[cname];
 
-                if (result != "") {
+                if (!(typeof result === 'undefined')) {
                     var decryptok = true;
                     var datac = "";
                     try {
@@ -251,20 +252,31 @@ function Device() {
                             if (enc.expiry) {
                                 var currentdate = new Date();
                                 if (((new Date) - new Date(enc.date)) < enc.expiry) {
-                                    datac = decryptor(enc.ct, key, enc.iv);
+                                    datac = decryptor(enc.ct, key, enc.iv, asbytes);
                                 }
                             }
                         } else {
-                            datac = decryptor(enc.ct, key, enc.iv);
+                            datac = decryptor(enc.ct, key, enc.iv, asbytes);
+
                         }
 
                     } catch (error) {
                         decryptok = false;
                     }
 
+                    result = "";
+                    if (decryptok) {
+                        result = datac;
+                    }
+                    return callback(result);
+
+                } else {
+
+                    return callback("");
+
                 }
 
-                return callback(result);
+
 
             });
 
@@ -284,17 +296,18 @@ function Device() {
                             if (enc.expiry) {
                                 var currentdate = new Date();
                                 if (((new Date) - new Date(enc.date)) < enc.expiry) {
-                                    datac = decryptor(enc.ct, key, enc.iv);
+                                    datac = decryptor(enc.ct, key, enc.iv, asbytes);
                                 }
                             }
                         } else {
-                            datac = decryptor(enc.ct, key, enc.iv);
+                            datac = decryptor(enc.ct, key, enc.iv, asbytes);
                         }
                       
                     } catch (error) {
                         decryptok = false;
                     }
 
+                    result = "";
                     if (decryptok) {
                         result = datac;
                     }

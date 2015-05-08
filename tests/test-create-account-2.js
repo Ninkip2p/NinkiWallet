@@ -25,6 +25,7 @@ describe('Create Account Function', function () {
 
         it("Creates a new account", function (done) {
 
+
             engine.createWallet(guid, password, username, emailAddress, function (err, result) {
 
 
@@ -61,6 +62,8 @@ describe('Create Account Function', function () {
 
                         var token = "test";
 
+                        console.log("calling getEmailValidation");
+
                         engine.getEmailValidation(token, function (err, response) {
 
                             console.log(response);
@@ -78,6 +81,9 @@ describe('Create Account Function', function () {
 
 
                 });
+
+
+            }, function (progress) {
 
 
             });

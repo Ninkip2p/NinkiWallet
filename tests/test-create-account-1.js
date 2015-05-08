@@ -124,6 +124,8 @@ describe('Account Utilities', function () {
 
                             var token = "test";
 
+                            console.log("calling getEmailValidation");
+
                             engine.getEmailValidation(token, function (err, response) {
 
                                 console.log(response);
@@ -141,6 +143,9 @@ describe('Account Utilities', function () {
 
 
                     });
+
+
+                }, function (progress) {
 
 
                 });

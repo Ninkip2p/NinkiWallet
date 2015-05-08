@@ -135,91 +135,91 @@ function lpost(url, postData, callback) {
 
     } else {
 
-    $.ajax({
-        url: "https://api.ninkip2p.com" + url,
-        type: "POST",
-        timeout: 10000,
-        data: JSON.stringify(postData),
-        contentType: "application/json; charset=utf-8",
-        dataType: "json",
-        headers: { 'api-token': apiToken },
-        success: function (data) {
+        $.ajax({
+            url: "https://api.ninkip2p.com:443" + url,
+            type: "POST",
+            timeout: 10000,
+            data: JSON.stringify(postData),
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            headers: { 'api-token': apiToken },
+            success: function (data) {
 
-            data = sanitizer.sanitize(data);
+                data = sanitizer.sanitize(data);
 
-            var jdata = JSON.parse(data);
+                var jdata = JSON.parse(data);
 
-            if (jdata.error) {
-                return callback(true, jdata.message);
-            }
-            if (!(typeof jdata.message === "undefined")) {
+                if (jdata.error) {
+                    return callback(true, jdata.message);
+                }
+                if (!(typeof jdata.message === "undefined")) {
 
-                return callback(false, jdata.message);
+                    return callback(false, jdata.message);
 
-            }
+                }
 
-            return callback(false, JSON.stringify(jdata));
-        },
-        fail: function (data, textStatus) {
+                return callback(false, JSON.stringify(jdata));
+            },
+            fail: function (data, textStatus) {
 
-            data = sanitizer.sanitize(data);
-            textStatus = sanitizer.sanitize(textStatus);
+                data = sanitizer.sanitize(data);
+                textStatus = sanitizer.sanitize(textStatus);
 
-            return callback(true, {
-                textStatus: textStatus,
-                data: data
-            });
-        },
-        error: function (data) {
+                return callback(true, {
+                    textStatus: textStatus,
+                    data: data
+                });
+            },
+            error: function (data) {
 
-            if (data.statusText == "timeout") {
+                if (data.statusText == "timeout") {
 
-                return callback(true, "Could not connect to the Ninki server. Please try again. If the problem persists email support@ninkip2p.com.");
+                    return callback(true, "Could not connect to the Ninki server. Please try again. If the problem persists email support@ninkip2p.com.");
 
-            }
-
-
-            if (data.status == 0) {
-
-                return callback(true, "Could not connect to the network. Please check that you are connected to the internet.");
-
-            }
-
-            if (data.status == 403) {
-                //session has been lost
-
-            } else if (data.status == 401) {
-
-                if (!window.cordova) {
-                    if (chrome) {
-                        if (chrome.runtime) {
-                            if (chrome.runtime.reload) {
-                                chrome.runtime.reload()
-                            } else {
-                                location.reload();
-                            }
-                        } else {
-                            location.reload();
-                        }
-                        //return callback(true, data.statusText);
-                    } else {
-                        //location.reload();
-                    }
-                } else {
-                    return callback(true, sanitizer.sanitize(data.statusText));
                 }
 
 
-            } else {
+                if (data.status == 0) {
 
-                data.responseText = sanitizer.sanitize(data.responseText);
+                    return callback(true, "Could not connect to the network. Please check that you are connected to the internet.");
 
-                return callback(true, data.responseText);
+                }
+
+                if (data.status == 403) {
+                    //session has been lost
+
+                } else if (data.status == 401) {
+
+                    if (!window.cordova) {
+                        if (chrome) {
+                            if (chrome.runtime) {
+                                if (chrome.runtime.reload) {
+                                    chrome.runtime.reload()
+                                } else {
+                                    location.reload();
+                                }
+                            } else {
+                                location.reload();
+                            }
+                            //return callback(true, data.statusText);
+                        } else {
+                            //location.reload();
+                        }
+                    } else {
+                        return callback(true, sanitizer.sanitize(data.statusText));
+                    }
+
+
+                } else {
+
+                    data.responseText = sanitizer.sanitize(data.responseText);
+
+                    return callback(true, data.responseText);
+                }
+
+
             }
-
-
-        }
-    });
+        });
 
     }
 }
@@ -246,7 +246,7 @@ API.getMasterPublicKeyFromUpstreamServer = function (guid, callback) {
 
 
     var postData = { guid: guid };
-    return lpost("/api/1/u/createaccount", postData, function (err, response) {
+    return lpost("/api/2/u/createaccount", postData, function (err, response) {
 
         if (err) {
             return callback(err, response);
@@ -265,6 +265,10 @@ API.getMasterPublicKeyFromUpstreamServer = function (guid, callback) {
         }
     });
 };
+
+
+
+
 
 //function doesUsernameExist
 //verifies that the requested username does not already exist on our database
@@ -606,6 +610,23 @@ API.getTransactionsForNetwork = function (guid, sharedid, username, callback) {
 };
 
 
+API.getTimeline = function (guid, sharedid, callback) {
+
+    var postData = { guid: guid, sharedid: sharedid };
+
+    lpost("/api/1/u/gettimeline", postData, function (err, transactions) {
+
+        if (!err) {
+            var jtran = JSON.parse(transactions);
+            return callback(err, jtran);
+        } else {
+            return callback(err, transactions);
+        }
+
+    });
+
+};
+
 API.getInvoiceList = function (guid, sharedid, callback) {
 
     var postData = { guid: guid, sharedid: sharedid };
@@ -701,7 +722,7 @@ API.registerDevice = function (guid, deviceName, deviceId, deviceModel, devicePI
 
 API.getDeviceKey = function (guid, devicePIN, regToken, callback) {
     var postData = { guid: guid, devicePIN: devicePIN, regToken: regToken };
-    return lpost("/api/1/u/getdevicekey", postData, function (err, dataStr) {
+    return lpost("/api/2/u/getdevicekey", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
 };
@@ -750,7 +771,7 @@ API.getDeviceToken = function (guid, sharedid, deviceName, twoFactorCode, callba
 };
 
 API.getDeviceTokenForApp = function (guid, sharedid, deviceName, callback) {
-    var postData = { guid: guid, sharedid: sharedid, deviceName: deviceName};
+    var postData = { guid: guid, sharedid: sharedid, deviceName: deviceName };
     return lpost("/api/1/u/getdevicetokenforapp", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
@@ -779,6 +800,84 @@ API.createBackupCodes = function (guid, sharedid, twoFactorCode, callback) {
         return callback(err, dataStr);
     });
 };
+
+
+API.updateEmailAddress = function (guid, sharedid, emailAddress, callback) {
+    var postData = { guid: guid, sharedid: sharedid, emailAddress: emailAddress };
+    return lpost("/api/1/u/updateemailaddress", postData, function (err, dataStr) {
+        return callback(err, dataStr);
+    });
+};
+
+
+API.createAccountSecPub = function (guid, sharedid, secretPub, callback) {
+    var postData = { guid: guid, sharedid: sharedid, secretPub: secretPub };
+    return lpost("/api/1/u/createaccountsecpub", postData, function (err, dataStr) {
+        return callback(err, dataStr);
+    });
+};
+
+API.getAccountSecPub = function (guid, sharedid, callback) {
+    var postData = { guid: guid, sharedid: sharedid};
+    return lpost("/api/1/u/getaccountsecpub", postData, function (err, dataStr) {
+        return callback(err, dataStr);
+    });
+};
+
+API.removeAccountSecPub = function (guid, sharedid, callback) {
+    var postData = { guid: guid, sharedid: sharedid };
+    return lpost("/api/1/u/removeaccountsecpub", postData, function (err, dataStr) {
+        return callback(err, dataStr);
+    });
+};
+
+API.getGUIDByMPKH = function (mpkh, callback) {
+    var postData = { mpkh: mpkh };
+    return lpost("/api/1/getguidbympkh", postData, function (err, dataStr) {
+        return callback(err, dataStr);
+    });
+};
+
+
+API.requestAuthMigration = function (guid, secret, authreqtoken, callback) {
+    var postData = { guid: guid, secret: secret, authreqtoken: authreqtoken };
+    return lpost("/api/1/u/requestauthmigration", postData, function (err, dataStr) {
+        return callback(err, dataStr);
+    });
+};
+
+API.getAuthMigrationRequest = function (guid, secret, callback) {
+    var postData = { guid: guid, secret: secret};
+    return lpost("/api/1/u/getauthmigrationrequest", postData, function (err, dataStr) {
+
+        if (!err) {
+            var jtran = JSON.parse(dataStr);
+            return callback(err, jtran);
+        } else {
+            return callback(err, dataStr);
+        }
+
+    });
+};
+
+API.authMigration = function (guid, sharedid, twoFactorToken, authreqtoken, callback) {
+    var postData = { guid: guid, sharedid: sharedid, twoFactorToken: twoFactorToken, authreqtoken: authreqtoken };
+    return lpost("/api/1/u/authmigration", postData, function (err, dataStr) {
+        return callback(err, dataStr);
+    });
+};
+
+///
+
+API.getAuthMigrationToken = function (guid, secret, authreqtoken, callback) {
+    var postData = { guid: guid, secret: secret, authreqtoken: authreqtoken };
+    return lpost("/api/1/u/getauthmigrationtoken", postData, function (err, dataStr) {
+        return callback(err, dataStr);
+    });
+};
+
+//
+
 
 
 module.exports = API;

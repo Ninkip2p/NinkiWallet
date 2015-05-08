@@ -29,21 +29,14 @@ function Engine() {
     this.m_secret = '';
     this.m_migrateBeta12fa = false;
     this.m_invoiceTax = 0.1;
-    this.m_offlineKeyBackup = false;
-    //keys for PGP
     this.m_privKey = '';
     this.m_pubKey = '';
     this.m_privKeyRaw = '';
     this.m_pubKeyRaw = '';
-    //online EC key
-    this.m_onlineKey = [];
-    this.m_deviceKey = [];
-    this.m_deviceSecKey = [];
-    this.m_regToken = '';
-    this.m_deviceToken = [];
     this.m_APIToken = '';
     this.m_appInitialised = false;
     this.m_watchOnly = false;
+
 
     m_this = this;
 
@@ -67,7 +60,7 @@ function Engine() {
         var serTarget = {};
         serTarget.m_walletinfo = m_this.m_walletinfo;
         serTarget.m_sharedid = m_this.m_sharedid;
-        //serTarget.m_twoFactorOnLogin = m_this.m_twoFactorOnLogin;
+        serTarget.m_twoFactorOnLogin = m_this.m_twoFactorOnLogin;
         serTarget.m_nickname = m_this.m_nickname;
         //serTarget.m_profileImage = m_this.m_profileImage;
         //serTarget.m_statusText = m_this.m_statusText;
@@ -89,7 +82,7 @@ function Engine() {
 
         m_this.m_walletinfo = cache.m_walletinfo;
         m_this.m_sharedid = cache.m_sharedid;
-        //m_this.m_twoFactorOnLogin = cache.m_twoFactorOnLogin;
+        m_this.m_twoFactorOnLogin = cache.m_twoFactorOnLogin;
         m_this.m_nickname = cache.m_nickname;
         //m_this.m_profileImage = cache.m_profileImage;
         //m_this.m_statusText = cache.m_statusText;
@@ -108,16 +101,7 @@ function Engine() {
 
         m_this.m_pubKey = publicKeys.keys[0];
 
-
         cache = {};
-    }
-
-
-    this.setSecDeviceKey = setSecDeviceKey;
-    function setSecDeviceKey() {
-        //set a secondary encryption key that does not 
-        //require the PIN each time to retreive
-        m_this.m_deviceSecKey = SHA256(m_this.m_deviceKey);
     }
 
     this.appHasLoaded = appHasLoaded;
@@ -156,112 +140,19 @@ function Engine() {
     }
 
 
-
-    //use this in production
-
     function getRandomValues(b) {
         var rng = new Uint8Array(b);
         window.crypto.getRandomValues(rng);
         return rng;
     }
 
-    this.generateToken = generateToken;
-    function generateToken() {
-
-        var rng = getRandomValues(32);
-
-        var bytes = [];
-        for (var i = 0; i < rng.length; ++i) {
-            bytes[i] = rng[i];
-        }
-
-        return Bitcoin.convert.bytesToHex(bytes);
-
-    }
-
-
-    //only use for testing
-
-    //    function getRandomValues(b) {
-
-    //        var rng = new Uint8Array(b);
-    //        if (typeof window === 'undefined') {
-    //            //this is to support the test scripts
-    //            //which are executed using node.js
-    //            var buf = crypto.randomBytes(256);
-    //            rng = new Uint8Array(buf);
-
-    //        } else {
-
-    //            window.crypto.getRandomValues(rng);
-    //        }
-
-    //        return rng;
-    //    }
-
-    sjcl.codec.bytes = {
-        /** Convert from a bitArray to an array of bytes. */
-        fromBits: function (arr) {
-            var out = [], bl = sjcl.bitArray.bitLength(arr), i, tmp;
-            for (i = 0; i < bl / 8; i++) {
-                if ((i & 3) === 0) {
-                    tmp = arr[i / 4];
-                }
-                out.push(tmp >>> 24);
-                tmp <<= 8;
-            }
-            return out;
-        },
-        /** Convert from an array of bytes to a bitArray. */
-        toBits: function (bytes) {
-            var out = [], i, tmp = 0;
-            for (i = 0; i < bytes.length; i++) {
-                tmp = tmp << 8 | bytes[i];
-                if ((i & 3) === 3) {
-                    out.push(tmp);
-                    tmp = 0;
-                }
-            }
-            if (i & 3) {
-                out.push(sjcl.bitArray.partial(8 * (i & 3), tmp));
-            }
-            return out;
-        }
-    };
-
-    this.zeroOnlineKey = zeroOnlineKey;
-    function zeroOnlineKey() {
-        for (var i = 0; i < this.m_onlineKey.length; ++i) {
-            this.m_onlineKey[i] = 0;
-        }
-    }
-
-    this.zeroDeviceKey = zeroDeviceKey;
-    function zeroDeviceKey() {
-        for (var i = 0; i < this.m_deviceKey.length; ++i) {
-            this.m_deviceKey[i] = 0;
-        }
-    }
-
-    function zeroWordArray(obj) {
-        for (var i = 0; i < obj.words.length; ++i) {
-            obj.words[i] = 0;
-        }
-    }
-
-    this.zeroByteArray = zeroByteArray;
-    function zeroByteArray(obj) {
-        for (var i = 0; i < obj.length; ++i) {
-            obj[i] = 0;
-        }
-    }
 
     this.encrypt = encrypt;
     function encrypt(valueToEncrypt, passphrase) {
 
         valueToEncrypt = JSON.stringify(valueToEncrypt);
 
-        var key = Bitcoin.convert.bytesToWordArray(passphrase);
+        var key = CryptoJS.enc.Hex.parse(passphrase);
 
         var iv = getRandomValues(32);
 
@@ -274,8 +165,6 @@ function Engine() {
 
         var encrypted = CryptoJS.AES.encrypt(valueToEncrypt, key, { iv: ivwords });
 
-        zeroWordArray(key);
-
         return encrypted;
     };
 
@@ -283,11 +172,12 @@ function Engine() {
     this.encryptNp = encryptNp;
     function encryptNp(valueToEncrypt, passphrase) {
 
-        valueToEncrypt = Bitcoin.convert.bytesToWordArray(valueToEncrypt);
+        valueToEncrypt = CryptoJS.enc.Hex.parse(valueToEncrypt);
 
-        var key = Bitcoin.convert.bytesToWordArray(passphrase);
+        var key = CryptoJS.enc.Hex.parse(passphrase);
 
         var iv = getRandomValues(32);
+
 
         var ivbytes = [];
         for (var i = 0; i < iv.length; ++i) {
@@ -298,67 +188,33 @@ function Engine() {
 
         var encrypted = CryptoJS.AES.encrypt(valueToEncrypt, key, { iv: ivwords, padding: CryptoJS.pad.NoPadding });
 
-        zeroWordArray(key);
-
         return encrypted;
     };
 
     this.decrypt = decrypt;
     function decrypt(encryptedObj, passphrase, iv) {
 
-        //word arrays
-        var key = Bitcoin.convert.bytesToWordArray(passphrase);
+        var key = CryptoJS.enc.Hex.parse(passphrase);
         var iv = CryptoJS.enc.Hex.parse(iv);
 
         var decryptedObject = CryptoJS.AES.decrypt(encryptedObj, key, { iv: iv });
 
-        zeroWordArray(key);
-
         var decryptutf = decryptedObject.toString(CryptoJS.enc.Utf8);
-
-        zeroWordArray(decryptedObject);
-
         var decryptjson = JSON.parse(decryptutf);
         return decryptjson;
     };
 
-
     this.decryptNp = decryptNp;
-    function decryptNp(encryptedObj, passphrase, iv, asbytes) {
+    function decryptNp(encryptedObj, passphrase, iv) {
 
-        //word arrays
-        var key = Bitcoin.convert.bytesToWordArray(passphrase);
+        var key = CryptoJS.enc.Hex.parse(passphrase);
         var iv = CryptoJS.enc.Hex.parse(iv);
 
         var decryptedObject = CryptoJS.AES.decrypt(encryptedObj, key, { iv: iv, padding: CryptoJS.pad.NoPadding });
 
-        zeroWordArray(key);
-
-        var ret = null;
-        if (asbytes) {
-            ret = Bitcoin.convert.wordArrayToBytes(decryptedObject);
-        } else {
-            ret = decryptedObject.toString(CryptoJS.enc.Hex);
-        }
-
-        zeroWordArray(decryptedObject);
-
-        return ret;
-
+        var decrypthex = decryptedObject.toString(CryptoJS.enc.Hex);
+        return decrypthex;
     };
-
-    function SHA256(bytes) {
-
-        var wa = Bitcoin.convert.bytesToWordArray(bytes);
-        var wa2 = Bitcoin.Crypto.SHA256(wa);
-        var ret = Bitcoin.convert.wordArrayToBytes(wa2);
-
-        zeroWordArray(wa);
-        zeroWordArray(wa2);
-
-        return ret;
-
-    }
 
     var hmac = function (key) {
         var hasher = new sjcl.misc.hmac(key, sjcl.hash.sha1);
@@ -369,20 +225,15 @@ function Engine() {
 
     this.pbkdf2 = pbkdf2;
     function pbkdf2(password, salt) {
-
         var passwordSalt = sjcl.codec.utf8String.toBits(salt);
         var derivedKey = sjcl.misc.pbkdf2(password, passwordSalt, 1000, 256, hmac);
-
-        var bkey = sjcl.codec.bytes.fromBits(derivedKey);
-
-        return bkey;
+        var hexKey = sjcl.codec.hex.fromBits(derivedKey);
+        return hexKey;
     }
 
     this.setPass = setPass;
     function setPass(pass, salt) {
         m_this.m_password = pbkdf2(pass, salt);
-        m_this.m_deviceSecKey = m_this.m_password;
-
     }
 
     this.setStretchPass = setStretchPass;
@@ -421,6 +272,7 @@ function Engine() {
 
         });
 
+
     }
 
 
@@ -442,8 +294,7 @@ function Engine() {
 
         if (validseed) {
 
-
-            saveHotHash(Bitcoin.convert.hexToBytes(hothash), function (err, result) {
+            saveHotHash(hothash, function (err, result) {
 
                 if (!err) {
                     return callback(false, hothash);
@@ -463,28 +314,13 @@ function Engine() {
     }
 
 
-    this.getTwoFactorToken = getTwoFactorToken;
-    function getTwoFactorToken(key, callback) {
-
-        m_this.Device.getStorageItem("ninki_rem", function (tft) {
-
-            var jtft = JSON.parse(tft);
-
-            var fatoken = decryptNp(jtft.ct, key, jtft.iv);
-
-            return callback(false, fatoken);
-
-        });
-
-    }
-
     this.getHotHash = getHotHash;
     function getHotHash(key, callback) {
 
         //to do: validate key against stored public key
         //needs to be done incase user changed their password on a different machine
 
-        if (m_this.Device.isChromeApp() || m_this.Device.isNode() || m_this.Device.isBrowser()) {
+        if (m_this.Device.isChromeApp() || m_this.Device.isBrowser() || m_this.Device.isNode()) {
 
             m_this.Device.getStorageItem("hk" + m_this.m_guid, function (result) {
 
@@ -498,8 +334,7 @@ function Engine() {
 
                     var iserror = false;
                     try {
-                        //get hothash as bytes
-                        m_this.m_onlineKey = decryptNp(hk, m_this.m_password, hkiv, true);
+                        hothash = decryptNp(hk, m_this.m_password, hkiv);
                     } catch (error) {
                         iserror = true;
                     }
@@ -509,7 +344,7 @@ function Engine() {
                         //validate against loaded hot public key
                         var validseed = true;
                         try {
-                            var bipHot = new Bitcoin.HDWallet(m_this.m_onlineKey, m_this.m_network);
+                            var bipHot = Bitcoin.HDWallet.fromSeedHex(hothash, m_this.m_network);
                             if (m_this.m_walletinfo.hotPub != bipHot.toString()) {
                                 validseed = false;
                             }
@@ -520,30 +355,7 @@ function Engine() {
 
                         if (validseed) {
 
-                            if (m_this.m_deviceKey.length > 0) {
-                                //incase we are simulating mobile devices on chrome
-                                m_this.Device.getStorageItem("ninki_rem", function (tft) {
-
-                                    if (tft != "") {
-
-                                        var jtft = JSON.parse(tft);
-
-                                        var fatoken = decryptNp(jtft.ct, m_this.m_deviceKey, jtft.iv);
-
-                                        return callback(false, "", fatoken);
-                                    } else {
-
-                                        return callback(false, "", "");
-
-                                    }
-
-                                });
-                            } else {
-
-                                return callback(false, "", "");
-
-                            }
-
+                            return callback(false, hothash);
 
                         } else {
 
@@ -576,8 +388,7 @@ function Engine() {
                     try {
 
                         var enc = JSON.parse(hk);
-                        //get hothash as bytes
-                        m_this.m_onlineKey = decryptNp(enc.ct, m_this.m_deviceKey, enc.iv, true);
+                        hothash = decryptNp(enc.ct, key, enc.iv);
 
                     } catch (error) {
                         iserror = true;
@@ -587,7 +398,7 @@ function Engine() {
                         //validate against loaded hot public key
                         var validseed = true;
                         try {
-                            var bipHot = new Bitcoin.HDWallet(m_this.m_onlineKey, m_this.m_network);
+                            var bipHot = Bitcoin.HDWallet.fromSeedHex(hothash, m_this.m_network);
                             if (m_this.m_walletinfo.hotPub != bipHot.toString()) {
                                 validseed = false;
                             }
@@ -605,12 +416,12 @@ function Engine() {
                                 if (tft != "") {
                                     var jtft = JSON.parse(tft);
 
-                                    var fatoken = decryptNp(jtft.ct, m_this.m_deviceKey, jtft.iv);
+                                    var fatoken = decryptNp(jtft.ct, key, jtft.iv);
 
-                                    return callback(false, "", fatoken);
+                                    return callback(false, hothash, fatoken);
                                 } else {
 
-                                    return callback(false, "", "");
+                                    return callback(false, hothash, "");
 
                                 }
 
@@ -646,7 +457,7 @@ function Engine() {
         //before we encrypt validate the hash matches the logged in public key
         var validseed = true;
         try {
-            var bipHot = new Bitcoin.HDWallet(hotHash, m_this.m_network);
+            var bipHot = Bitcoin.HDWallet.fromSeedHex(hotHash, m_this.m_network);
             if (m_this.m_walletinfo.hotPub != bipHot.toString()) {
                 validseed = false;
             }
@@ -658,7 +469,7 @@ function Engine() {
 
             var encHotHash = encryptNp(hotHash, m_this.m_password);
 
-            if (m_this.Device.isChromeApp() || m_this.Device.isNode() || m_this.Device.isBrowser()) {
+            if (m_this.Device.isChromeApp() || m_this.Device.isBrowser() || m_this.Device.isNode()) {
 
                 m_this.Device.setStorageItem('hk' + m_this.m_guid, encHotHash.toString());
                 m_this.Device.setStorageItem('hkiv' + m_this.m_guid, encHotHash.iv.toString());
@@ -681,6 +492,18 @@ function Engine() {
             callback(true, "invalid");
 
         }
+
+
+    }
+
+
+    function validateHotKey(callback) {
+
+        //load the hotkey
+        //if not there return error
+
+        //validate the hotkey
+        //if not there return error
 
 
     }
@@ -728,7 +551,7 @@ function Engine() {
                     password = '';
 
                     //create a new wallet
-                    makeNewWallet(username, emailAddress, getKeys, function (err, walletInformation, userToken) {
+                    makeNewWallet(username, emailAddress, function (err, walletInformation, userToken) {
 
                         if (err) {
 
@@ -785,82 +608,10 @@ function Engine() {
     }
 
 
-
-    //create wallet
-    //create a new wallet and save to the server
-    this.createWalletApp = createWalletApp;
-    function createWalletApp(guid, username, callback, progress) {
-
-        m_this.m_oguid = guid;
-
-        var bytes = [];
-        for (var i = 0; i < guid.length; ++i) {
-            bytes.push(guid.charCodeAt(i));
-        }
-
-        m_this.m_guid = Bitcoin.Crypto.SHA256(Bitcoin.convert.bytesToWordArray(bytes)).toString();
-
-
-        //create a new wallet
-
-        makeNewWallet(username, '', getKeysForMobile, function (err, walletInformation, userToken) {
-
-            if (err) {
-
-                return callback(true, "ErrCreateAccount");
-
-            } else {
-
-                m_this.m_sharedid = userToken;
-
-                //wallet creation is successful
-                //set variables
-                //add the usertoken to the wallet
-                walletInformation.wallet.googleAuthSecret = "";
-                walletInformation.wallet.sharedid = userToken;
-
-                //
-                var recpacket = encryptNp(m_this.m_password, m_this.m_walletinfo.hckey);
-
-                walletInformation.wallet.recPacket = recpacket.toString();
-                walletInformation.wallet.recPacketIV = recpacket.iv.toString();
-
-                //save the wallet to the server
-                progress('saving data...');
-
-                setTimeout(function () {
-
-                    API.post("/api/1/u/createaccount2", walletInformation.wallet, function (err, response) {
-
-                        if (err) {
-
-                            return callback(err, "ErrSavePacket");
-
-                        } else {
-
-                            //set the session
-                            API.registerToken(response);
-                            m_this.m_APIToken = response;
-
-                            //pass back the wallet and info to the calling function
-                            return callback(false, walletInformation);
-                        }
-                    });
-
-                }, 50);
-
-            }
-
-        }, progress);
-
-    }
-
-
-
     //function makeNewWallet
     //this function calls the server which generates the Ninki key pair to be used for the wallet
     //the server returns the public key to the client so that it can be saved in the user's encrypted packet
-    function makeNewWallet(nickname, email, getkeys, callback, progress) {
+    function makeNewWallet(nickname, email, callback, progress) {
 
 
         //TODO add some more param checking
@@ -874,7 +625,7 @@ function Engine() {
                 if (err) {
                     return callback(err, "ErrCreateAccount");
                 } else {
-                    makeNewWalletPacket(nickname, email, ninkiPubKey, userToken, secret, getkeys, function (err, walletInformation) {
+                    makeNewWalletPacket(nickname, email, ninkiPubKey, userToken, secret, function (err, walletInformation) {
                         if (err) {
                             return callback(err, walletInformation);
                         } else {
@@ -887,395 +638,176 @@ function Engine() {
     }
 
 
-    function getKeys(dummy, callback) {
-
-        var rnghot = getRandomValues(16);
-
-        var hotKeyBytes = [];
-        for (var i = 0; i < rnghot.length; ++i) {
-            hotKeyBytes[i] = rnghot[i];
-        }
-
-
-        var rngcold = getRandomValues(16);
-
-        var coldKeyBytes = [];
-        for (var i = 0; i < rngcold.length; ++i) {
-            coldKeyBytes[i] = rngcold[i];
-        }
-
-        callback(false, coldKeyBytes, hotKeyBytes);
-
-    }
-
-
-    //
-    //method to derive hot and cold keys
-    //with the ability to deterministically
-    //recover the cold key using:
-
-    //hotkey
-    //secret public key
-    //random data on device
-
-    //this means that the user does not have to write down the cold key immediately
-
-    //an attacker needs: 
-    //access to the device
-    //access to hot key
-    //access to Ninki server
-    //access to Ninki decryption keys
-
-    //one time derivation secured by:
-    //PIN number
-    //access to device
-
-    function getKeysForMobile(userToken, callback) {
-
-        //get 128 bits of entropy for the hot key
-        var rnghot = getRandomValues(16);
-
-        var hotKeyBytes = [];
-        for (var i = 0; i < rnghot.length; ++i) {
-            hotKeyBytes[i] = rnghot[i];
-        }
-
-        zeroByteArray(rnghot);
-
-        //get 128 bits of entropy for the secret key
-        //used to derive the cold key
-        var secretEntropy = getRandomValues(16);
-
-        var secretEntropyBytes = [];
-        for (var i = 0; i < secretEntropy.length; ++i) {
-            secretEntropyBytes[i] = secretEntropy[i];
-        }
-
-        zeroByteArray(secretEntropy);
-
-        var deviceEntropy = getRandomValues(16);
-        //get 128 bits of entropy for the device key
-        var deviceEntropyBytes = [];
-        for (var i = 0; i < 16; ++i) {
-            deviceEntropyBytes[i] = deviceEntropy[i];
-        }
-
-        zeroByteArray(deviceEntropy);
-
-        //get ECKey for secretEntropy
-        var secretKey = new Bitcoin.ECKey(secretEntropyBytes, false);
-
-        //derive the public EC key
-        var secretPubKey = secretKey.getPub();
-
-        secretPubKey.priv = 0;
-
-        zeroByteArray(secretEntropyBytes);
-
-        //verify the public key has been stored on the server
-        //before continuing
-
-        API.createAccountSecPub(m_this.m_oguid, userToken, secretPubKey.toString(), function (err, result) {
-
-            if (!err) {
-
-                //m_this.m_oguid
-
-                //get the device key
-                var deviceKey = new Bitcoin.ECKey(deviceEntropyBytes, false);
-
-                //EC multiply to get the cold key entropy
-                var coldKey = secretPubKey.multiply(deviceKey);
-
-                deviceKey.priv = 0;
-
-                var bcoldkey = coldKey.toBytes();
-
-                //create the final cold key
-                var rngcold = SHA256(bcoldkey);
-
-                //get the first 128 bits
-                var coldKeyBytes = [];
-                for (var i = 0; i < 16; ++i) {
-                    coldKeyBytes[i] = rngcold[i];
-                }
-
-                zeroByteArray(rngcold);
-                zeroByteArray(bcoldkey);
-
-                //set password to sha256 of the hotkey seed
-                m_this.m_password = SHA256(hotKeyBytes);
-
-                //save the device entropy encrypted with the password
-                //we don't have the device enc key yet at this stage
-                m_this.Device.setSecureStorageObject("dpk", deviceEntropyBytes, m_this.m_password, m_this.encryptNp);
-
-                //clear buffer
-                zeroByteArray(deviceEntropyBytes);
-
-                return callback(err, coldKeyBytes, hotKeyBytes, secretPubKey.toString());
-
-            } else {
-
-                return callback(err);
-            }
-
-        });
-
-    }
-
-    //recover cold key for mobile
-    this.recoverColdKeyForMobile = recoverColdKeyForMobile;
-    function recoverColdKeyForMobile(callback) {
-
-        API.getAccountSecPub(m_this.m_guid, m_this.m_sharedid, function (err, secretpub) {
-
-            m_this.m_password = SHA256(m_this.m_onlineKey);
-
-            m_this.Device.getSecureStorageObject("dpk", m_this.m_password, m_this.decryptNp, false, function (deviceent) {
-
-                zeroByteArray(m_this.m_password);
-
-                var secretKey = new Bitcoin.ECPubKey(secretpub, false);
-
-                var deviceKey = new Bitcoin.ECKey(Bitcoin.convert.hexToBytes(deviceent), false);
-
-                deviceent = [];
-
-                var coldKey = secretKey.multiply(deviceKey);
-
-                deviceKey.priv = 0
-
-                var bcoldkey = coldKey.toBytes();
-
-                coldKey = 0;
-
-                var rngcold = SHA256(bcoldkey);
-
-                zeroByteArray(bcoldkey);
-
-                var coldKeyBytes = [];
-                for (var i = 0; i < 16; ++i) {
-                    coldKeyBytes[i] = rngcold[i];
-                }
-
-                zeroByteArray(rngcold);
-
-                return callback(coldKeyBytes);
-
-            });
-
-        });
-
-    }
-
-
-    this.destroySecretPub = destroySecretPub;
-    function destroySecretPub(callback) {
-
-        API.removeAccountSecPub(m_this.m_guid, m_this.m_sharedid, function (err, res) {
-
-            if (!err) {
-
-                m_this.Device.deleteStorageItem("dpk");
-
-                m_this.m_offlineKeyBackup = true;
-
-                return callback(err, res);
-
-            } else {
-
-
-                //make the user click again and retry
-                //we might as well delete the secret anyway
-                //as long as either are destroyed the key is
-                //unrecoverable
-                m_this.Device.deleteStorageItem("dpk");
-
-                return callback(err, res);
-            }
-
-        });
-
-
-    }
-
-
-    function makeNewWalletPacket(nickname, emailAddress, ninkiPubKey, userToken, secret, getkeys, callback, progress) {
+    function makeNewWalletPacket(nickname, emailAddress, ninkiPubKey, userToken, secret, callback, progress) {
 
 
         progress('getting entropy...');
 
         setTimeout(function () {
 
-            //getKeysForMobile();
 
-            getkeys(userToken, function (err, coldKeyBytes, hotKeyBytes) {
+            //what to do if running in node
+            // crypto provider module
 
 
-                if (!err) {
 
-                    progress('creating cold keys...');
+            var rngcold = getRandomValues(16);
+
+            var coldKeyBytes = [];
+            for (var i = 0; i < rngcold.length; ++i) {
+                coldKeyBytes[i] = rngcold[i];
+            }
+
+            //get some random data for the hot key
+            var rnghot = getRandomValues(16);
+
+            var hotKeyBytes = [];
+            for (var i = 0; i < rnghot.length; ++i) {
+                hotKeyBytes[i] = rnghot[i];
+            }
+
+            progress('creating cold keys...');
+
+            setTimeout(function () {
+
+
+                var coldHash = Bitcoin.convert.bytesToHex(coldKeyBytes);
+
+                var coldWallet = Bitcoin.HDWallet.fromSeedHex(coldHash, m_this.m_network);
+                //get the keys as strings
+                var coldPriv = coldWallet.toString(" ");
+                var coldPub = coldWallet.toString();
+
+                progress('creating hot keys...');
+
+                setTimeout(function () {
+
+
+                    var hotHash = Bitcoin.convert.bytesToHex(hotKeyBytes);
+
+                    var hotWallet = Bitcoin.HDWallet.fromSeedHex(hotHash, m_this.m_network);
+                    //get the keys as strings
+                    var hotPriv = hotWallet.toString(" ");
+                    var hotPub = hotWallet.toString();
+
+
+                    //create a key based on a hash of the hot + cold key
+                    //this is used to encrypt the pbkdf password and so enables
+                    //password reset if the user has access to the hot and cold key phrases
+
+                    var hckey = hotHash + coldHash;
+                    var hcbkey = Bitcoin.convert.hexToBytes(hckey);
+                    var hchkey = Bitcoin.Crypto.SHA256(Bitcoin.convert.bytesToWordArray(hcbkey)).toString();
+
+                    progress('creating pgp keys...');
+
 
                     setTimeout(function () {
 
-                        //var coldHash = Bitcoin.convert.bytesToHex(coldKeyBytes);
+                        //generate a pgp keypair
+                        //this key pair will be used to allow the user's to communicate with their contacts
+                        //the private key will be aes256 encrypted so use the userToken as the passphrase as the library
+                        //doesn't support blank passphrases yet (and there is no way to change them)
+                        var options = { numBits: 1024, userId: nickname, passphrase: userToken };
+                        var keypair = openpgp.generateKeyPair(options);
 
-                        var coldWallet = new Bitcoin.HDWallet(coldKeyBytes, m_this.m_network);
-
-                        var coldPub = coldWallet.toString();
-
-                        coldWallet.priv.priv = 0;
-                        coldWallet.priv = 0;
-                        zeroByteArray(coldWallet.chaincode);
-
-                        progress('creating hot keys...');
+                        var privKeys = openpgp.key.readArmored(keypair.privateKeyArmored);
+                        var publicKeys = openpgp.key.readArmored(keypair.publicKeyArmored);
 
                         setTimeout(function () {
 
-                            var hotWallet = new Bitcoin.HDWallet(hotKeyBytes, m_this.m_network);
-                            //get the keys as strings
+                            //$('#textMessageCreate').text('encrypting data...');
+                            //save the wallet keys and user token in an encrypted packet
+                            //AES256 using PBKDF2 on the password and a unique salt
 
-                            var hotPub = hotWallet.toString();
+                            var wal = {
+                                coldPub: coldPub,
+                                hotPub: hotPub,
+                                ninkiPubKey: ninkiPubKey,
+                                hotPriv: '',
+                                hotHash: '',
+                                userToken: userToken,
+                                hckey: hchkey
+                            };
 
-                            hotWallet.priv.priv = 0;
-                            hotWallet.priv = 0;
-                            zeroByteArray(hotWallet.chaincode);
+                            m_this.m_walletinfo = wal;
 
-                            //create a key based on a hash of the hot + cold key
-                            //this is used to encrypt the pbkdf password and so enables
+                            var encryptedPayload = encrypt(wal, m_this.m_password);
 
-                            //password reset if the user has access to the hot and cold key phrases
-                            var hcbkey = [];
-                            hcbkey = hcbkey.concat(hotKeyBytes);
-                            hcbkey = hcbkey.concat(coldKeyBytes);
+                            //save the PGP keys in an encrypted packet
+                            //AES256 using PBKDF2 on the password and a unique salt
 
-                            var hchkey = Bitcoin.Crypto.SHA256(Bitcoin.convert.bytesToWordArray(hcbkey)).toString();
+                            var encryptedUserPayload = encrypt({
+                                RSAPriv: keypair.privateKeyArmored,
+                                RSAPub: keypair.publicKeyArmored
+                            }, m_this.m_password, m_this.m_oguid);
 
-                            zeroByteArray(hcbkey);
+                            //encrypt a shared secret
+                            //this allows Ninki to validate that the user
+                            //knows their password without having to hold any
+                            //info about the password
 
-                            progress('creating pgp keys...');
+                            var encryptedSecret = encryptNp(secret, m_this.m_password);
 
+                            m_this.m_secret = secret;
 
-                            setTimeout(function () {
+                            //create a packet to post to the server
+                            //note:
+                            //  hot private key is encrypted in the payload
+                            //  PGP private key is encrypted in the payload
+                            //  all 3 wallet public keys are encrypted in the payload
+                            //  hot and cold wallet public keys are passed to the server
+                            //  public PGP key is passed to the server
 
-                                //generate a pgp keypair
-                                //this key pair will be used to allow the user's to communicate with their contacts
-                                //the private key will be aes256 encrypted so use the userToken as the passphrase as the library
-                                //doesn't support blank passphrases yet (and there is no way to change them)
+                            //TODO: move ninkiPhrase to server side
 
-                                var options = { numBits: 1024, userId: nickname, passphrase: userToken };
-                                var keypair = openpgp.generateKeyPair(options);
+                            var wallet = {
+                                guid: m_this.m_oguid,
+                                payload: encryptedPayload.toString(),
+                                userPublicKey: keypair.publicKeyArmored,
+                                userPayload: encryptedUserPayload.toString(),
+                                hotPublicKey: hotPub,
+                                coldPublicKey: coldPub,
+                                nickName: nickname,
+                                emailAddress: emailAddress,
+                                secret: encryptedSecret.toString(),
+                                ninkiPhrase: ninkiPubKey,
+                                IVA: encryptedPayload.iv.toString(),
+                                IVU: encryptedUserPayload.iv.toString(),
+                                IVR: encryptedSecret.iv.toString()
+                            };
 
-                                var privKeys = openpgp.key.readArmored(keypair.privateKeyArmored);
-                                var publicKeys = openpgp.key.readArmored(keypair.publicKeyArmored);
-
-                                setTimeout(function () {
-
-                                    //save the wallet public keys and user token in an encrypted packet
-                                    //AES256 using PBKDF2 on the password and a unique salt
-
-                                    var wal = {
-                                        coldPub: coldPub,
-                                        hotPub: hotPub,
-                                        ninkiPubKey: ninkiPubKey,
-                                        hotPriv: '',
-                                        hotHash: '',
-                                        userToken: userToken,
-                                        hckey: hchkey
-                                    };
-
-                                    m_this.m_walletinfo = wal;
-
-                                    var encryptedPayload = encrypt(wal, m_this.m_password);
-
-                                    //save the PGP keys in an encrypted packet
-                                    //AES256 using PBKDF2 on the password and a unique salt
-
-                                    var encryptedUserPayload = encrypt({
-                                        RSAPriv: keypair.privateKeyArmored,
-                                        RSAPub: keypair.publicKeyArmored
-                                    }, m_this.m_password, m_this.m_oguid);
-
-                                    //encrypt a shared secret
-                                    //this allows Ninki to validate that the user
-                                    //knows their password without having to hold any
-                                    //info about the password
-
-                                    var encryptedSecret = encryptNp(Bitcoin.convert.hexToBytes(secret), m_this.m_password);
-
-                                    m_this.m_secret = secret;
-
-                                    //create a packet to post to the server
-                                    //note:
-                                    //  PGP private key is encrypted in the payload
-                                    //  all 3 wallet public keys are encrypted in the payload
-                                    //  hot and cold wallet public keys are passed to the server
-                                    //  public PGP key is passed to the server
-
-                                    var wallet = {
-                                        guid: m_this.m_oguid,
-                                        payload: encryptedPayload.toString(),
-                                        userPublicKey: keypair.publicKeyArmored,
-                                        userPayload: encryptedUserPayload.toString(),
-                                        hotPublicKey: hotPub,
-                                        coldPublicKey: coldPub,
-                                        nickName: nickname,
-                                        emailAddress: emailAddress,
-                                        secret: encryptedSecret.toString(),
-                                        ninkiPhrase: ninkiPubKey,
-                                        IVA: encryptedPayload.iv.toString(),
-                                        IVU: encryptedUserPayload.iv.toString(),
-                                        IVR: encryptedSecret.iv.toString()
-                                    };
-
-                                    //the cold private key is discarded and is only displayed to the user
-                                    //as a mnemomic representation so that the user can write it down
-                                    //if this phrase is lost by the user it is unrecoverable
+                            //the cold private key is discarded and is only displayed to the user
+                            //as a mnemomic representation so that the user can write it down
+                            //if this phrase is lost by the user it is unrecoverable
 
 
-                                    //the hot private key is encrypted and saved locally
-                                    //encrypted with the user's password
+                            //the hot private key is encrypted and saved locally
+                            //encrypted with the user's password
 
-                                    var bip39 = new BIP39();
-                                    var walletInformation = {
-                                        wallet: wallet,
-                                        coldWalletPhrase: bip39.entropyToMnemonic(Bitcoin.convert.bytesToHex(coldKeyBytes)),
-                                        hotWalletPhrase: bip39.entropyToMnemonic(Bitcoin.convert.bytesToHex(hotKeyBytes)),
-                                        sharedid: userToken,
-                                        hckey: hchkey
-                                    };
+                            saveHotHash(hotHash, function (err, res) {
 
-                                    //set the online key
-                                    m_this.m_onlineKey = hotKeyBytes;
+                                var bip39 = new BIP39();
+                                var walletInformation = {
+                                    wallet: wallet,
+                                    coldWalletPhrase: bip39.entropyToMnemonic(coldHash),
+                                    hotWalletPhrase: bip39.entropyToMnemonic(hotHash),
+                                    sharedid: userToken,
+                                    hckey: hchkey
+                                };
 
-                                    zeroByteArray(coldKeyBytes);
 
-                                    //*if mobile, don't save this locally until PIN is chosen
-                                    if (m_this.Device.isCordova()) {
+                                return callback(err, walletInformation);
 
-                                        return callback(err, walletInformation);
-
-                                    } else {
-
-                                        saveHotHash(hotKeyBytes, function (err, res) {
-
-                                            return callback(err, walletInformation);
-
-                                        });
-
-                                    }
-
-                                }, 50);
-
-                            }, 50);
+                            });
 
                         }, 50);
 
                     }, 50);
 
-                }
-            });
+                }, 50);
+
+            }, 50);
 
         }, 50);
     }
@@ -1286,7 +818,6 @@ function Engine() {
 
         //check two factor code
         if (twoFactorCodeChk != '') {
-
             SetupTwoFactor(twoFactorCodeChk, function (err, wallet) {
 
                 if (err) {
@@ -1357,8 +888,6 @@ function Engine() {
 
                         //double check it has been saved correctly
                         getHotHash("", function (err, result) {
-
-                            m_this.zeroOnlineKey();
 
                             if (!err) {
 
@@ -1439,7 +968,7 @@ function Engine() {
                         //if there is a cookie token then encrypt it
 
                         if (wallet.CookieToken) {
-                            var enc = encryptNp(Bitcoin.convert.hexToBytes(wallet.CookieToken), m_this.m_password);
+                            var enc = encryptNp(wallet.CookieToken, m_this.m_password);
                             var ctok = {};
                             ctok.ct = enc.toString();
                             ctok.iv = enc.iv.toString();
@@ -1479,7 +1008,7 @@ function Engine() {
                 //if there is a cookie token then encrypt it
 
                 if (wallet.CookieToken) {
-                    var enc = encryptNp(Bitcoin.convert.hexToBytes(wallet.CookieToken), m_this.m_password);
+                    var enc = encryptNp(wallet.CookieToken, m_this.m_password);
                     var ctok = {};
                     ctok.ct = enc.toString();
                     ctok.iv = enc.iv.toString();
@@ -1982,12 +1511,6 @@ function Engine() {
     this.isAddressValid = isAddressValid;
     function isAddressValid(address) {
         var addrValid = true;
-
-        if (m_this.m_network == "mainnet") {
-            if (address[0] != "1" && address[0] != "3") {
-                return false;
-            }
-        }
         try {
             var addressCheck = new Bitcoin.Address(address);
             addressCheck.toString();
@@ -2008,6 +1531,8 @@ function Engine() {
 
             corNodesToProcess = nodes.length;
             cordovaDeriveKey(mpk, nodes, mkpder, function (result) {
+
+
 
                 return cdcallback(mkpder);
 
@@ -2082,6 +1607,8 @@ function Engine() {
         //in the case of mobile the twoFactorCode is actually the device key
         //and will return a twofactor override code
 
+
+
         getHotHash(twoFactorCode, function (err, hothash, twoFactorOverride) {
 
             if (twoFactorOverride) {
@@ -2089,11 +1616,10 @@ function Engine() {
             }
 
 
-            //initialise the hot private key space
-            var bipHot = new Bitcoin.HDWallet(m_this.m_onlineKey, m_this.m_network);
 
-            //zero out buffers
-            m_this.zeroOnlineKey();
+
+            //initialise the hot private key space
+            var bipHot = Bitcoin.HDWallet.fromSeedHex(hothash, m_this.m_network);
 
             //
 
@@ -2237,7 +1763,10 @@ function Engine() {
                     //we need to derive addresses on their behalf
 
 
+
+
                     deriveKeys(bipHot, nodeLevels, function (ret) {
+
 
                         if (m_this.Device.isiOS()) {
 
@@ -2255,8 +1784,7 @@ function Engine() {
                         }
 
 
-                        //zero out bipHot buffers
-                        bipHot.priv = 0;
+
 
 
                         if (sendType == 'friend' || sendType == 'invoice') {
@@ -2282,7 +1810,7 @@ function Engine() {
                                     addressToSend.push(address);
 
                                     //create the change address, this must be done on the client
-                                    statuscallback('Creating change address...', '60%');
+                                    statuscallback('Creating change address...', '40%');
 
 
                                     createAddress('m/0/1', changeAmount, function (err, changeaddress) {
@@ -2294,7 +1822,7 @@ function Engine() {
                                             }
 
                                             //now get the  transaction data
-                                            statuscallback('Building transaction...', '80%');
+                                            statuscallback('Building transaction...', '60%');
                                             setTimeout(function () {
                                                 aGetTransactionData(packet, function (err, hashesForSigning, rawTransaction) {
 
@@ -2326,9 +1854,8 @@ function Engine() {
 
                                                         API.post("/api/1/u/sendtransaction", jsonp1, function (err, result) {
 
-                                                            bipHot.priv = 0;
-
                                                             if (!err) {
+
 
                                                                 statuscallback('Transaction broadcast...', '100%');
 
@@ -2433,7 +1960,7 @@ function Engine() {
                             });
                         } else {
 
-                            statuscallback('Creating change address...', '40%');
+                            statuscallback('Creating change address...', '20%');
 
                             addressToSend.push(addressTo);
 
@@ -2456,14 +1983,14 @@ function Engine() {
 
                                     //now get the  transaction
 
-                                    statuscallback('Creating transaction...', '60%');
+                                    statuscallback('Creating transaction...', '40%');
                                     setTimeout(function () {
 
                                         aGetTransactionData(packet, function (err, hashesForSigning, rawTransaction) {
 
                                             if (!err) {
 
-                                                statuscallback('Counter-signing transaction...', '80%');
+                                                statuscallback('Counter-signing transaction...', '60%');
 
                                                 var jsonSend = {
                                                     guid: m_this.m_guid,
@@ -2482,9 +2009,7 @@ function Engine() {
 
                                                 API.post("/api/1/u/sendtransaction", jsonp1, function (err, result) {
 
-                                                    bipHot.priv = 0;
-
-                                                    //statuscallback(null, '80%');
+                                                    statuscallback(null, '80%');
 
                                                     if (!err) {
 
@@ -2595,6 +2120,8 @@ function Engine() {
 
         });
 
+
+
     }
 
     //function createAddress
@@ -2617,6 +2144,7 @@ function Engine() {
 
                     var path = nodePath + '/' + leaf;
 
+
                     if (m_this.Device.isiOS()) {
 
                         var tnode = snode[2] * 1;
@@ -2630,28 +2158,30 @@ function Engine() {
                         var hninkiKey = '';
 
                         cordova.exec(
-
                             function callback(data) {
 
                                 hhotKey = data;
 
                                 hotKey = Bitcoin.convert.hexToBytes(data);
 
-                                cordova.exec(
 
+                                cordova.exec(
                                     function callback(data) {
 
                                         hcoldKey = data;
 
+
                                         coldKey = Bitcoin.convert.hexToBytes(data);
 
                                         cordova.exec(
-
                                             function callback(data) {
 
                                                 hninkiKey = data;
 
+
+
                                                 ninkiKey = Bitcoin.convert.hexToBytes(data);
+
 
                                                 var script = [0x52];
 
@@ -2720,92 +2250,52 @@ function Engine() {
                         //derive the 3 public keys for the new address
                         //TODO: possible to use an encrypted cache for performance improvements
 
-
-                        //so, do we still do this on first addreess generate or on account create?
-                        //would add 6-7 seconds to account creation process
-
-                        var cachepath = nodePath.replace('/', '');
-                        cachepath = cachepath.replace('/', '');
-
-                        m_this.Device.getSecureStorageObject("pubcache" + cachepath, m_this.m_deviceSecKey, m_this.decrypt, false, function (pubcache) {
-
-                            //if this is
-
-                            //logic ot reset if any issue with cache/decryption
-                            if (pubcache == '') {
-
-                                //derive the root node path and cache
-
-                                var obipHot = Bitcoin.HDWallet.fromBase58(m_this.m_walletinfo.hotPub);
-                                var obipCold = Bitcoin.HDWallet.fromBase58(m_this.m_walletinfo.coldPub);
-                                var obipNinki = Bitcoin.HDWallet.fromBase58(m_this.m_walletinfo.ninkiPubKey);
+                        var bipHot = Bitcoin.HDWallet.fromBase58(m_this.m_walletinfo.hotPub);
+                        var bipCold = Bitcoin.HDWallet.fromBase58(m_this.m_walletinfo.coldPub);
+                        var bipNinki = Bitcoin.HDWallet.fromBase58(m_this.m_walletinfo.ninkiPubKey);
 
 
-                                var hotKey = deriveChild(nodePath, obipHot);
-                                var coldKey = deriveChild(nodePath, obipCold);
-                                var ninkiKey = deriveChild(nodePath, obipNinki);
+                        var hotKey = deriveChild(path, bipHot);
 
-                                var opubcache = {};
-                                opubcache.hotKey = hotKey.toBase58();
-                                opubcache.coldKey = coldKey.toBase58();
-                                opubcache.ninkiKey = ninkiKey.toBase58();
+                        var coldKey = deriveChild(path, bipCold);
 
+                        var ninkiKey = deriveChild(path, bipNinki);
 
-                                m_this.Device.setSecureStorageObject("pubcache" + cachepath, opubcache, m_this.m_deviceSecKey, m_this.encrypt);
+                        //now create the multisig address
+                        var script = [0x52];
 
-                                pubcache = opubcache;
+                        script.push(33);
+                        script = script.concat(hotKey.pub.toBytes());
+                        script.push(33);
+                        script = script.concat(coldKey.pub.toBytes());
+                        script.push(33);
+                        script = script.concat(ninkiKey.pub.toBytes());
+                        script.push(0x53);
+                        script.push(0xae);
 
+                        var address = multiSig(script);
+
+                        //post the address back to the server
+                        //this allows the server to monitor for balances etc.
+                        var postData = {
+                            guid: m_this.m_guid,
+                            sharedid: m_this.m_sharedid,
+                            path: path,
+                            address: address,
+                            pk1: hotKey.pub.toString(),
+                            pk2: coldKey.pub.toString(),
+                            pk3: ninkiKey.pub.toString()
+                        };
+                        API.post("/api/1/u/createaddress", postData, function (err, result) {
+
+                            if (!err) {
+                                return cacallback(err, address);
+                            } else {
+                                return cacallback(err, result);
                             }
 
-
-                            var bipHot = Bitcoin.HDWallet.fromBase58(pubcache.hotKey);
-                            var bipCold = Bitcoin.HDWallet.fromBase58(pubcache.coldKey);
-                            var bipNinki = Bitcoin.HDWallet.fromBase58(pubcache.ninkiKey);
-
-
-                            var hotKey = bipHot.derive(leaf);
-
-                            var coldKey = bipCold.derive(leaf);
-
-                            var ninkiKey = bipNinki.derive(leaf);
-
-                            //now create the multisig address
-                            var script = [0x52];
-
-                            script.push(33);
-                            script = script.concat(hotKey.pub.toBytes());
-                            script.push(33);
-                            script = script.concat(coldKey.pub.toBytes());
-                            script.push(33);
-                            script = script.concat(ninkiKey.pub.toBytes());
-                            script.push(0x53);
-                            script.push(0xae);
-
-                            var address = multiSig(script);
-
-                            //post the address back to the server
-                            //this allows the server to monitor for balances etc.
-                            var postData = {
-                                guid: m_this.m_guid,
-                                sharedid: m_this.m_sharedid,
-                                path: path,
-                                address: address,
-                                pk1: hotKey.pub.toString(),
-                                pk2: coldKey.pub.toString(),
-                                pk3: ninkiKey.pub.toString()
-                            };
-
-
-                            API.post("/api/1/u/createaddress", postData, function (err, result) {
-
-                                if (!err) {
-                                    return cacallback(err, address);
-                                } else {
-                                    return cacallback(err, result);
-                                }
-
-                            });
                         });
+
                     }
 
                 } else {
@@ -3075,7 +2565,7 @@ function Engine() {
     function decodeKey(key) {
         var bip39 = new BIP39();
         var mkey = bip39.mnemonicToHex(key);
-        return Bitcoin.convert.hexToBytes(mkey);
+        return mkey;
     }
 
     this.encodeKey = encodeKey;
@@ -3746,9 +3236,7 @@ function Engine() {
 
                         //if password reset do not pbkdf the password
 
-                        if (oldpassword != m_this.m_password) {
-                            oldpassword = pbkdf2(oldpassword, m_this.m_oguid);
-                        }
+                        oldpassword = pbkdf2(oldpassword, m_this.m_oguid);
 
                         //get the two packets
 
@@ -3758,7 +3246,7 @@ function Engine() {
                         var decryptedWithOld = true;
                         var decryptedPayload = '';
                         try {
-                            decryptedPayload = decrypt(wallet.Payload, oldpassword, wallet.IV);
+                            decryptedPayload = decrypt(wallet.Payload, m_this.m_password, wallet.IV);
                         } catch (err) {
                             decryptedWithOld = false;
                         }
@@ -3796,7 +3284,7 @@ function Engine() {
                                             var jpacket = JSON.parse(response);
                                             var veripacket = '';
                                             try {
-                                                veripacket = decryptNp(jpacket.packet, m_this.m_password, jpacket.IV, true);
+                                                veripacket = decryptNp(jpacket.packet, m_this.m_password, jpacket.IV);
                                             }
                                             catch (verror) {
                                                 decryptedVerWithOld = false;
@@ -3830,7 +3318,7 @@ function Engine() {
                                                         newveripacket = encryptNp(veripacket, newpassword);
 
                                                         if (decryptedPayload.hckey) {
-                                                            newpasspacket = encryptNp(newpassword, Bitcoin.convert.hexToBytes(decryptedPayload.hckey));
+                                                            newpasspacket = encryptNp(newpassword, decryptedPayload.hckey);
                                                         }
 
                                                         newAIV = newpayload.iv.toString();
@@ -3860,7 +3348,7 @@ function Engine() {
 
                                                             testpayload = decrypt(newpayload.toString(), newpassword, newAIV);
                                                             testnewusrpayload = decrypt(newusrpayload.toString(), newpassword, newUIV);
-                                                            testveripacket = decryptNp(newveripacket.toString(), newpassword, newRIV, true);
+                                                            testveripacket = decryptNp(newveripacket.toString(), newpassword, newRIV);
 
                                                             if (decryptedPayload.hckey) {
                                                                 testpasspacket = decryptNp(newpasspacket.toString(), decryptedPayload.hckey, newPIV)
@@ -3914,7 +3402,7 @@ function Engine() {
 
                                                                             if (tfso != "") {
                                                                                 var enc = JSON.parse(tfso);
-                                                                                var token = decryptNp(enc.ct, m_this.m_password, enc.iv, true);
+                                                                                var token = decryptNp(enc.ct, m_this.m_password, enc.iv);
                                                                                 tfso = encryptNp(token, newpassword);
 
                                                                                 var ctok = {};
@@ -3930,15 +3418,21 @@ function Engine() {
                                                                             //the worst case scenario is the
                                                                             //user has to reenter their hot key
 
-                                                                            saveHotHash(m_this.m_onlineKey, function (err, result) {
-
-                                                                                m_this.zeroOnlineKey();
+                                                                            saveHotHash(hothash, function (err, result) {
 
                                                                                 callback(false, '');
 
                                                                             });
 
                                                                         });
+
+
+
+
+
+
+
+
 
 
                                                                     } else {
@@ -3982,7 +3476,7 @@ function Engine() {
 
 
                         } else {
-                            callback(true, "Current password incorrect");
+
                         }
 
 
@@ -4317,7 +3811,7 @@ function Engine() {
 
 
 
-        //only request a new token 
+        //only request a new token
 
 
         var postdata = {
@@ -4339,7 +3833,7 @@ function Engine() {
 
                         if (ret.Token) {
 
-                            var enc = encryptNp(Bitcoin.convert.hexToBytes(ret.Token), m_this.m_password);
+                            var enc = encryptNp(ret.Token, m_this.m_password);
                             var ctok = {};
                             ctok.ct = enc.toString();
                             ctok.iv = enc.iv.toString();
@@ -4427,8 +3921,6 @@ function Engine() {
 
                 getHotHash("", function (err, hotHash) {
 
-                    //m_this.zeroOnlineKey();
-
                     if (!err) {
 
                         result.hotHash = hotHash;
@@ -4465,64 +3957,6 @@ function Engine() {
     this.emailGUID = emailGUID;
     function emailGUID(userName, callback) {
         API.emailGUID(userName, callback);
-    }
-
-    this.getGUIDByMPKH = getGUIDByMPKH;
-    function getGUIDByMPKH(phrase, callback) {
-
-
-
-        //get seed from mnemonic
-        //derive master public key
-        //hash master public key
-
-        var bip39 = new BIP39();
-
-        //convert to master key
-        var mkey = bip39.mnemonicToHex(phrase);
-
-        if (mkey) {
-
-            var hd = Bitcoin.HDWallet.fromSeedHex(mkey, m_this.m_network);
-            //get master public key
-            var mpk = hd.toString();
-
-            //hash the master public key
-            var bytes = [];
-            for (var i = 0; i < mpk.length; ++i) {
-                bytes.push(mpk.charCodeAt(i));
-            }
-
-            var mpkh = Bitcoin.Crypto.SHA256(Bitcoin.convert.bytesToWordArray(bytes)).toString();
-
-            //lookup account guid
-            return API.getGUIDByMPKH(mpkh, callback);
-
-
-        } else {
-
-            return callback(true, "InvalidPhrase");
-
-        }
-
-
-    }
-
-
-    this.setPasswordApp = setPasswordApp;
-    function setPasswordApp(phrase, callback) {
-
-        var bip39 = new BIP39();
-
-        //convert to master key
-        var mkey = bip39.mnemonicToHex(phrase);
-
-        var bytes = Bitcoin.convert.hexToBytes(mkey);
-
-        var mpkh = SHA256(bytes);
-
-        m_this.m_password = mpkh;
-
     }
 
     this.getMasterPublicKeyFromUpstreamServer = getMasterPublicKeyFromUpstreamServer;
@@ -4686,10 +4120,7 @@ function Engine() {
         API.getTransactionsForNetwork(m_this.m_guid, m_this.m_sharedid, username, callback);
     }
 
-    this.getTimeline = getTimeline;
-    function getTimeline(callback) {
-        API.getTimeline(m_this.m_guid, m_this.m_sharedid, callback);
-    }
+
 
     this.getInvoiceList = getInvoiceList;
     function getInvoiceList(callback) {
@@ -4725,21 +4156,7 @@ function Engine() {
 
     this.registerDevice = registerDevice;
     function registerDevice(guid, deviceName, deviceId, deviceModel, devicePIN, regToken, secret, callback) {
-
-        API.registerDevice(guid, deviceName, deviceId, deviceModel, devicePIN, regToken, secret, function (err, res) {
-
-            var jekey = JSON.parse(res);
-
-            m_this.m_deviceKey = Bitcoin.convert.hexToBytes(jekey.DeviceKey);
-
-            if (jekey.DeviceKey.length > 0) {
-                jekey.DeviceKey = 'valid';
-            }
-
-            callback(err, res);
-
-
-        });
+        API.registerDevice(guid, deviceName, deviceId, deviceModel, devicePIN, regToken, secret, callback);
     }
 
     this.getDeviceKey = getDeviceKey;
@@ -4764,24 +4181,22 @@ function Engine() {
             API.getDeviceKey(m_this.m_guid, pinhash, regToken, function (err, ekey) {
 
                 if (!err) {
-
                     var jekey = JSON.parse(ekey);
 
                     if (jekey.DeviceKey.length > 0) {
 
-                        m_this.m_deviceKey = Bitcoin.convert.hexToBytes(jekey.DeviceKey);
 
                         if (jekey.SessionToken) {
                             API.registerToken(jekey.SessionToken);
                             m_this.m_APIToken = jekey.SessionToken;
-                            callback(err, "");
+                            callback(err, jekey);
                         }
 
-                        jekey.DeviceKey = [];
+
 
                     } else {
 
-                        callback(err, "");
+                        callback(err, jekey);
                     }
                 } else {
                     callback(true, ekey);
@@ -4873,15 +4288,7 @@ function Engine() {
         });
     }
 
-    this.updateEmailAddress = updateEmailAddress;
-    function updateEmailAddress(emailAddress, callback) {
-        API.updateEmailAddress(m_this.m_oguid, m_this.m_sharedid, emailAddress, function (err, res) {
 
-            return callback(err, res);
-
-
-        });
-    }
 
 
     this.get2faOverride = get2faOverride;
@@ -4945,57 +4352,6 @@ function Engine() {
 
     }
 
-
-    //
-    this.requestAuthMigration = requestAuthMigration;
-    function requestAuthMigration(token, callback) {
-
-        API.requestAuthMigration(m_this.m_guid, m_this.m_secret, token, function (err, res) {
-
-            return callback(err, res);
-
-        });
-
-    }
-
-    this.getAuthMigrationRequest = getAuthMigrationRequest;
-    function getAuthMigrationRequest(callback) {
-
-        API.getAuthMigrationRequest(m_this.m_guid, m_this.m_sharedid, function (err, res) {
-
-            return callback(err, res);
-
-        });
-    }
-
-
-    this.authMigration = authMigration;
-    function authMigration(enckey, token, callback) {
-
-        getTwoFactorToken(enckey, function (err, twoFactorToken) {
-
-            API.authMigration(m_this.m_guid, m_this.m_sharedid, twoFactorToken, token, function (err, res) {
-
-                return callback(err, res);
-
-            });
-
-        });
-    }
-
-
-    this.getAuthMigrationToken = getAuthMigrationToken;
-    function getAuthMigrationToken(token, callback) {
-
-        API.getAuthMigrationToken(m_this.m_guid, m_this.m_secret, token, function (err, res) {
-
-            return callback(err, res);
-
-        });
-    }
-
-
 }
 
 module.exports = Engine;
-
