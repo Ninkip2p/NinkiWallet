@@ -2732,7 +2732,10 @@ function Engine() {
                             //if this is
 
                             //logic ot reset if any issue with cache/decryption
-                            if (pubcache == '') {
+
+
+                            //only cache on android
+                            if (pubcache == '' || !m_this.Device.isCordova()) {
 
                                 //derive the root node path and cache
 
@@ -2750,10 +2753,12 @@ function Engine() {
                                 opubcache.coldKey = coldKey.toBase58();
                                 opubcache.ninkiKey = ninkiKey.toBase58();
 
-
-                                m_this.Device.setSecureStorageObject("pubcache" + cachepath, opubcache, m_this.m_deviceSecKey, m_this.encrypt);
-
                                 pubcache = opubcache;
+
+                                //only set this on mobile
+                                if (m_this.Device.isCordova()) {
+                                    m_this.Device.setSecureStorageObject("pubcache" + cachepath, opubcache, m_this.m_deviceSecKey, m_this.encrypt);
+                                }
 
                             }
 

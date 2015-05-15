@@ -189,36 +189,45 @@ function UI() {
 
             $("#txt2faForBackupError").hide();
 
-            var twoFactorCode = $("#txt2faForBackup").val();
 
-            var codes = Engine.createBackupCodes(twoFactorCode, function (err, codes) {
+            if ($("#txt2faForBackup").parsley().isValid()) {
 
-                if (!err) {
+                var twoFactorCode = $("#txt2faForBackup").val();
 
-                    for (var i = 0; i < codes.length; i++) {
+                var codes = Engine.createBackupCodes(twoFactorCode, function (err, codes) {
 
-                        $("#bc" + (i + 1)).text(codes[i].Code.substring(0, 5) + ' ' + codes[i].Code.substring(5, 8));
+                    if (!err) {
+
+                        for (var i = 0; i < codes.length; i++) {
+
+                            $("#bc" + (i + 1)).text(codes[i].Code.substring(0, 5) + ' ' + codes[i].Code.substring(5, 8));
+                        }
+
+                        Engine.m_settings.BackupIndex = 1;
+
+                        $("#pnlBackupCodes").show();
+                        $("#btnPrintCodes").show();
+                        $("#btnBackupCodes").addClass('disabled');
+
+                    } else {
+
+                        $("#txt2faForBackupError").show();
+
                     }
+                });
 
-                    Engine.m_settings.BackupIndex = 1;
+            } else {
 
-                    $("#pnlBackupCodes").show();
-                    $("#btnPrintCodes").show();
-                    $("#btnBackupCodes").addClass('disabled');
+                $("#txt2faForBackup").parsley().validate();
 
-                } else {
-
-                    $("#txt2faForBackupError").show();
-
-                }
-            });
+            }
 
         });
 
         $("#btnPairUseBackups").click(function () {
 
 
-            
+
             $("#pairerror").hide();
             $("#pairqr2fa").hide();
             $("#pairusebackup").show();
@@ -234,7 +243,7 @@ function UI() {
 
         });
 
-       
+
 
 
 
@@ -256,7 +265,7 @@ function UI() {
         });
 
 
-      
+
         //file-input
 
         var tmpContent = {};
@@ -1009,14 +1018,21 @@ function UI() {
             //password
             //hotkey
 
-            var deviceName = $("#txtAddDevice").val();
+            if ($("#txtAddDevice").parsley().isValid()) {
 
-            Engine.createDevice(deviceName, function (err, result) {
+                var deviceName = $("#txtAddDevice").val();
+
+                Engine.createDevice(deviceName, function (err, result) {
 
 
-                updateDeviceList();
+                    updateDeviceList();
 
-            });
+                });
+
+            } else {
+
+                $("#txtAddDevice").parsley().validate();
+            }
 
 
         });
@@ -1794,7 +1810,7 @@ function UI() {
 
                                 $("#loginuser").hide();
                                 $("#loginimg").hide();
-                                
+
                                 Engine.Device.deleteStorageItem("user");
                                 Engine.Device.deleteStorageItem("userimg");
                                 Engine.Device.setStorageItem('guid', Engine.m_oguid);
@@ -2453,7 +2469,7 @@ function UI() {
         $("#btnPassphraseLogin").click(function () {
 
 
-            var isvalid = $('#phrase2fa').parsley('validate');
+            var isvalid = $('#phrase2fa').parsley().isValid();
 
             if (isvalid) {
 
@@ -2505,6 +2521,11 @@ function UI() {
 
 
                 });
+
+            } else {
+
+                $('#phrase2fa').parsley().validate();
+
             }
 
         });
@@ -3386,7 +3407,7 @@ function UI() {
 
         $("#cpassword").on('change keyup', function () {
 
-            $("#password1").parsley("validate");
+            $("#password1").parsley().validate(); ;
 
         });
 
@@ -3409,7 +3430,7 @@ function UI() {
             var oldpassword = $("#oldpwd").val();
             var twoFactorCode = $("#txtTwoFactorCodeForChangePwd").val();
 
-            if ($("#frmpwdchange").parsley('validate')) {
+            if ($("#frmpwdchange").parsley().isValid()) {
 
                 $("#chngpwdprog").show();
                 $("#chngpwdprogmess").show();
@@ -3482,6 +3503,10 @@ function UI() {
                     $("#chngpwdprogmess").hide();
                     $("#chngpwdprog").hide();
                 }
+
+            } else {
+
+                $("#frmpwdchange").parsley().validate();
 
             }
         });
@@ -3631,7 +3656,7 @@ function UI() {
             //switch on two factor on login
             //setting changes always require two factor
 
-            if ($("#frmSaveTwoFactor").parsley('validate')) {
+            if ($("#frmSaveTwoFactor").parsley().isValid()) {
 
                 var twoFactorCode = $("#txtsettings2fa").val();
                 var verifyToken = $("#txt2faVerifyToken").val();
@@ -3663,6 +3688,10 @@ function UI() {
                         $("#savetwofactorerrormessage").text(result);
                     }
                 });
+
+            } else {
+
+                $("#frmSaveTwoFactor").parsley().validate();
 
             }
         });
@@ -3734,8 +3763,13 @@ function UI() {
 
 
         $("#savesettingsbutton").click(function () {
-            if ($("#frmsettings").parsley('validate')) {
+            if ($("#frmsettings").parsley().isValid()) {
+
                 saveAccountSettingsToServer();
+
+            } else {
+
+                $("#frmsettings").parsley().validate();
 
             }
         });
@@ -3877,6 +3911,7 @@ function UI() {
 
                 if (allok) {
 
+                    $('#btnSendInvoice').prop('disabled', true);
                     $('#textMessageSendInv').removeClass('alert alert-danger');
                     $('#textMessageSendInv').text('Creating transaction...');
                     $('#textMessageSendInv').show();
@@ -3885,6 +3920,8 @@ function UI() {
                     $('#sendinvprogstatus').width('10%');
 
                     payInvoice(selectedInvoiceUserName, selectedInvoiceAmount, selectedInvoiceId, twoFactorCode, function (err, result) {
+
+                        $('#btnSendInvoice').prop('disabled', false);
 
                         if (!err) {
 
@@ -5395,37 +5432,45 @@ function UI() {
 
         $("#twoFactorCodeFor2faError").hide();
 
-        var twoFactorCode = $("#twoFactorCodeFor2fa").val();
+        if ($("#twoFactorCodeFor2fa").parsley().isValid()) {
 
-        if (twoFactorCode.length == 6) {
+            var twoFactorCode = $("#twoFactorCodeFor2fa").val();
 
-            Engine.getNewTwoFactorImg(twoFactorCode, function (err, twoFASecret) {
+            if (twoFactorCode.length == 6) {
 
-                if (!err) {
+                Engine.getNewTwoFactorImg(twoFactorCode, function (err, twoFASecret) {
 
-                    var data = "otpauth://totp/Ninki:" + Engine.m_nickname + "?secret=" + twoFASecret + "&issuer=Ninki";
-                    var options = { text: data, width: 172, height: 172 };
+                    if (!err) {
 
-                    $('#imgsettings2fa').text('');
-                    $('#imgsettings2fa').qrcode(options);
+                        var data = "otpauth://totp/Ninki:" + Engine.m_nickname + "?secret=" + twoFASecret + "&issuer=Ninki";
+                        var options = { text: data, width: 172, height: 172 };
 
-                    $("#setup2faqr").show();
-                    $("#twofactorsettings").show();
-                    $("#2famodal").modal('show');
+                        $('#imgsettings2fa').text('');
+                        $('#imgsettings2fa').qrcode(options);
 
-                    $("#savetwofactorerror").hide();
-                    $("#setup2faemail").hide();
+                        $("#setup2faqr").show();
+                        $("#twofactorsettings").show();
+                        $("#2famodal").modal('show');
 
-                } else {
+                        $("#savetwofactorerror").hide();
+                        $("#setup2faemail").hide();
 
-                    $("#twoFactorCodeFor2faError").show();
+                    } else {
 
-                }
-            });
+                        $("#twoFactorCodeFor2faError").show();
+
+                    }
+                });
+
+            } else {
+
+                $("#twoFactorCodeFor2faError").show();
+
+            }
 
         } else {
 
-            $("#twoFactorCodeFor2faError").show();
+            $("#twoFactorCodeFor2fa").parsley().validate();
 
         }
 
@@ -6856,6 +6901,9 @@ function UI() {
     function generateAddressClient() {
 
 
+        var target = document.getElementById('craddrspin');
+        var spinner = new Spinner(spinneropts).spin(target);
+        $("#craddrspin").show();
 
         Engine.createAddress('m/0/0', 1, function (err, newAddress, path) {
 
@@ -6868,6 +6916,8 @@ function UI() {
 
             //$('#requestaddress').text(tempate);
             $('#requestaddress').show();
+
+            $("#craddrspin").hide();
 
 
         });
@@ -6915,6 +6965,9 @@ function UI() {
 
             if (allok) {
 
+
+                $('#btnSendToFriend').prop('disabled', true);
+
                 $('input#friendAmount').css("border-color", "#ccc");
                 $('#textMessageSend').text('Creating transaction...');
                 $('#textMessageSend').show();
@@ -6922,6 +6975,8 @@ function UI() {
                 $('#sendfriendprog').show();
                 $('#sendfriendprogstatus').width('10%');
                 Engine.sendTransaction('friend', friend, '', amount, twoFactorCode, function (err, transactionid) {
+
+                    $('#btnSendToFriend').prop('disabled', false);
 
                     if (!err) {
                         updateBalance();
@@ -7016,6 +7071,8 @@ function UI() {
 
             if (allok) {
 
+                $('#btnsendmoneystd').prop('disabled', true);
+
                 $('#textMessageSendStd').text('Creating transaction...');
                 $('#textMessageSendStd').show();
                 $('#sendstdprogstatus').width('3%');
@@ -7024,6 +7081,8 @@ function UI() {
 
 
                 Engine.sendTransaction('standard', '', address, amount, twoFactorCode, function (err, transactionid) {
+
+                    $('#btnsendmoneystd').prop('disabled', false);
 
                     if (!err) {
 

@@ -2461,7 +2461,7 @@ function UI() {
 
                 cordova.plugins.clipboard.paste(function (text) {
 
-                    $('#toAddress').val(text);
+                    $('#toAddress').val(text.trim());
                     $("#toAddress").trigger('change');
 
                 }, function () {
@@ -3534,9 +3534,9 @@ function UI() {
 
             Engine.Device.getStorageItem("ok_disp", function (res) {
 
-                if (res == "1") {
+                if (!Engine.m_offlineKeyBackup || res == "1") {
 
-                    bootbox.dialog({ title: '<div class="clear"><div class="h3 m-t-xs m-b-xs"><i class="fa fa-warning text-warning"></i>&nbsp;Security Warning</div><small class="text-muted"></small></div>', message: 'Backup your keys in Settings > Security Checklist.<br /><br />Currently, if you lose access to this device, you will lose access to any bitcoins you have stored in your wallet.', closeButton: false, buttons: {
+                    bootbox.dialog({ title: '<div class="clear"><div class="h3 m-t-xs m-b-xs"><i class="fa fa-warning text-warning"></i>&nbsp;Security Warning</div><small class="text-muted"></small></div>', message: 'Backup your keys in Settings > Security Checklist.<br /><br />Currently, if you lose access to this application, you will lose access to any bitcoins you have stored in your wallet.', closeButton: false, buttons: {
                         main: {
                             label: "I Understand",
                             className: "btn-warning",
@@ -3697,7 +3697,8 @@ function UI() {
 
                 cordova.plugins.clipboard.paste(function (text) {
 
-                    $("#txtCode").val(text);
+                    text = text.replace(/\r?\n|\r/g, '');
+                    $("#txtCode").val(text.trim());
                     $("#txtCode").trigger('change');
 
                 }, function () {
@@ -3970,8 +3971,8 @@ function UI() {
                     statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
                 }
 
-                s += "<a style=\"border-top-left-radius: 0px;border-top-right-radius: 0px\" id=\"viewinvoicenetfrom" + _.escape(invoices[i].InvoiceFrom) + _.escape(invoices[i].InvoiceId) + "\" class=\"media list-group-item\"><div class=\"pull-left\">" + _.escape(timeLabel) + "</div>" +
-                                 "<div class=\"pull-right m-t-xs\">" + statusbox + "</div></a>";
+                s += "<div style=\"border-top-left-radius: 0px;border-top-right-radius: 0px\" id=\"viewinvoicenetfrom" + _.escape(invoices[i].InvoiceFrom) + _.escape(invoices[i].InvoiceId) + "\" class=\"media list-group-item\"><div class=\"pull-left\">" + _.escape(timeLabel) + "</div>" +
+                                 "<div class=\"pull-right m-t-xs\">" + statusbox + "</div></div>";
             }
 
             cachedInvoices = invoices;
@@ -4051,8 +4052,8 @@ function UI() {
                         statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
                     }
 
-                    s += "<a style=\"border-top-left-radius: 0px;border-top-right-radius: 0px\" id=\"viewinvoicenetby" + invoices[i].InvoiceFrom + invoices[i].InvoiceId + "\" class=\"media list-group-item\"><div class=\"pull-left\">" + _.escape(timeLabel) + "</div>" +
-                                 "<div class=\"pull-right m-t-xs\">" + statusbox + "</div></a>";
+                    s += "<div style=\"border-top-left-radius: 0px;border-top-right-radius: 0px\" id=\"viewinvoicenetby" + invoices[i].InvoiceFrom + invoices[i].InvoiceId + "\" class=\"media list-group-item\"><div class=\"pull-left\">" + _.escape(timeLabel) + "</div>" +
+                                 "<div class=\"pull-right m-t-xs\">" + statusbox + "</div></div>";
                 }
 
                 cachedInvoicesByUser = invoices;
@@ -7662,11 +7663,11 @@ function UI() {
 
                                 Engine.Device.getStorageItem("ok_disp", function (res) {
 
-                                    if (res == "1") {
+                                    if (!Engine.m_offlineKeyBackup || res == "1") {
 
                                         if (currentBalanceInSatoshis >= 2500000) {
 
-                                            bootbox.dialog({ title: '<div class="clear"><div class="h3 m-t-xs m-b-xs"><i class="fa fa-warning text-warning"></i>&nbsp;Security Warning</div><small class="text-muted"></small></div>', message: 'Backup your keys in Settings > Security Checklist.<br /><br />Currently, if you lose access to this device, you will lose access to any bitcoins you have stored in your wallet.', closeButton: false, buttons: {
+                                            bootbox.dialog({ title: '<div class="clear"><div class="h3 m-t-xs m-b-xs"><i class="fa fa-warning text-warning"></i>&nbsp;Security Warning</div><small class="text-muted"></small></div>', message: 'Backup your keys in Settings > Security Checklist.<br /><br />Currently, if you lose access to this application, you will lose access to any bitcoins you have stored in your wallet.', closeButton: false, buttons: {
                                                 main: {
                                                     label: "I Understand",
                                                     className: "btn-warning",
@@ -7825,11 +7826,11 @@ function UI() {
 
                                                     Engine.Device.getStorageItem("ok_disp", function (res) {
 
-                                                        if (res == "1") {
+                                                        if (!Engine.m_offlineKeyBackup || res == "1") {
 
                                                             if (currentBalanceInSatoshis >= 2500000) {
 
-                                                                bootbox.dialog({ title: '<div class="clear"><div class="h3 m-t-xs m-b-xs"><i class="fa fa-warning text-warning"></i>&nbsp;Security Warning</div><small class="text-muted"></small></div>', message: 'Backup your keys in Settings > Security Checklist.<br /><br />Currently, if you lose access to this device, you will lose access to any bitcoins you have stored in your wallet.', closeButton: false, buttons: {
+                                                                bootbox.dialog({ title: '<div class="clear"><div class="h3 m-t-xs m-b-xs"><i class="fa fa-warning text-warning"></i>&nbsp;Security Warning</div><small class="text-muted"></small></div>', message: 'Backup your keys in Settings > Security Checklist.<br /><br />Currently, if you lose access to this application, you will lose access to any bitcoins you have stored in your wallet.', closeButton: false, buttons: {
                                                                     main: {
                                                                         label: "I Understand",
                                                                         className: "btn-warning",
