@@ -1,7 +1,7 @@
 var Bitcoin = require('bitcoinjs-lib');
 var BIP39 = require('./bip39');
-
-
+var prettydate = require("pretty-date");
+var sanitizer = require('sanitizer');
 
 function UI() {
 
@@ -66,9 +66,9 @@ function UI() {
         corners: 1, // Corner roundness (0..1)
         rotate: 0, // The rotation offset
         direction: 1, // 1: clockwise, -1: counterclockwise
-        color: '#000', // #rgb or #rrggbb or array of colors
+        color: '#666666', // #rgb or #rrggbb or array of colors
         speed: 1, // Rounds per second
-        trail: 60, // Afterglow percentage
+        trail: 30, // Afterglow percentage
         shadow: false, // Whether to render a shadow
         hwaccel: false, // Whether to use hardware acceleration
         className: 'spinner', // The CSS class to assign to the spinner
@@ -133,6 +133,216 @@ function UI() {
 
 
     jQuery(document).ready(function () {
+
+        Engine.getVersion(function (err, ret) {
+
+            if (!err) {
+
+                if (ret.CreateOff) {
+
+                    $("#newzone").hide();
+                }
+
+            }
+
+        });
+
+        //
+
+
+
+        //get series history  last 24 houts
+
+
+
+        //main sidebar navigation
+
+        $("#sbdashboard").click(function () {
+            $(".mpanel").hide();
+            $("#dashboard").show();
+            $("#contheadtitle").text("Dashboard");
+
+        });
+
+        $("#sbprofile").click(function () {
+            $(".mpanel").hide();
+            $("#profile").show();
+            $("#contheadtitle").text("Profile");
+
+        });
+
+
+        var prevNetworkTab = '';
+
+        $("#sbcontacts").click(function () {
+
+
+            if (lastNoOfFriends == 0) {
+                $("#sbcontactadd").click();
+            } else {
+
+
+                $(".mpanel").hide();
+                $("#network").show();
+                $("#networksidebar").show();
+
+
+
+                if (selectedFriend) {
+
+                    $("#contheadtitle").text(prevNetworkTab);
+                    //prevnetworktab
+                    //$("#bmcontactsend").click();
+
+                    $("#networkspanel").show();
+                } else {
+                    $("#contheadtitle").text("Contacts");
+                }
+
+
+            }
+
+
+        });
+
+        $("#bmcontactsend").click(function () {
+
+            prevNetworkTab = "Send to Contact";
+            $(".contactpnl").hide();
+            $("#pnlfriend").show();
+            $("#contheadtitle").text(prevNetworkTab);
+
+        });
+
+        $("#bmcontactinvoice").click(function () {
+            prevNetworkTab = "Invoices";
+            $(".contactpnl").hide();
+            $("#pnlfriendinv").show();
+            $("#contheadtitle").text(prevNetworkTab);
+        });
+
+
+        $("#qsendmess").click(function () {
+            if (selectedFriend.validated) {
+                $("#bmcontactmessages").click();
+            } else {
+
+                // bootbox.alert("You must validate this contact before you can send them messages.");
+            }
+        });
+
+        $("#bmcontactmessages").click(function () {
+
+            prevNetworkTab = "Messages";
+            $(".contactpnl").hide();
+            $("#pnlfriendmessage").show();
+            $("#contheadtitle").text(prevNetworkTab);
+            $('#messagescroll').scrollTop($('#messagescroll')[0].scrollHeight);
+
+            if (messageRefresh) {
+
+                clearInterval(messageRefresh);
+
+            }
+
+            showMessageNetwork(function (err, res) {
+
+                if (!err) {
+                    messageRefresh = setInterval(function () {
+                        showMessageNetwork();
+                    }, 5000);
+                }
+
+            });
+
+
+        });
+
+        $("#sbpayments").click(function () {
+            $(".mpanel").hide();
+            $("#transactions").show();
+            $("#contheadtitle").text("Payments");
+        });
+
+        $("#sbinvoice").click(function () {
+            $(".mpanel").hide();
+            $("#invoices").show();
+            $("#contheadtitle").text("Invoices");
+        });
+
+        $("#sbsettings").click(function () {
+            $(".mpanel").hide();
+            $("#settings").show();
+            $("#contheadtitle").text("Settings");
+
+            $(".settingspnl").hide();
+            $("#setgen").show();
+
+        });
+
+        $("#sbdashsend,#quicksend").click(function () {
+            $(".mpanel").hide();
+            $("#dashsend").show();
+            $("#contheadtitle").text("Send");
+        });
+
+        $("#sbdashreceive,#quickrec").click(function () {
+
+            $(".mpanel").hide();
+            $("#dashreceive").show();
+            $("#contheadtitle").text("Receive");
+
+
+            if (!addrHasBeenGenerated) {
+
+                generateAddressClient();
+
+            }
+
+        });
+
+        $("#sbcontactrequests").click(function () {
+            $(".mpanel").hide();
+            $("#contactrequests").show();
+            $("#contheadtitle").text("Contact Requests");
+        });
+
+        $("#sbcontactadd").click(function () {
+            $(".mpanel").hide();
+            $("#contactadd").show();
+            $("#contheadtitle").text("Add a Contact");
+        });
+
+
+        $("#sbsetgen").click(function () {
+            $(".settingspnl").hide();
+            $("#setgen").show();
+        });
+
+        $("#sbsetdev").click(function () {
+            $(".settingspnl").hide();
+            $("#setdev").show();
+        });
+
+        $("#sbsetpwd").click(function () {
+            $(".settingspnl").hide();
+            $("#setacc").show();
+        });
+
+        $("#sbset2fa").click(function () {
+            $(".settingspnl").hide();
+            $("#setsec").show();
+        });
+
+        $("#sbsetkey").click(function () {
+            $(".settingspnl").hide();
+            $("#setamne").show();
+        });
+
+        $("#sbunspent").click(function () {
+            $(".settingspnl").hide();
+            $("#setadv").show();
+        });
 
 
 
@@ -240,10 +450,36 @@ function UI() {
             $("#userlogin").hide();
             $("#guidsec").show();
             $("#openWalletStart").show();
+            $("#signdiff").hide();
+            $("#loadfrombackup").hide();
+            $("#exusercancel2").show();
+
+        });
+
+        $("#btnLoadFromBackup2").click(function () {
+
+            $("#introduction").hide();
+            $("#mobilelogin").hide();
+            $("#userlogin").hide();
+            $("#guidsec").show();
+            $("#openWalletStart").show();
+            $("#signdiff").hide();
+            $("#loadfrombackup").hide();
+            $("#exusercancel2").show();
 
         });
 
 
+
+        $("#btnrecover2fs").click(function () {
+            $("#twofactorauthreset").show();
+            $("#openWalletStart").hide();
+        });
+
+        $("#tfaresetcancel").click(function () {
+            $("#twofactorauthreset").hide();
+            $("#openWalletStart").show();
+        });
 
 
 
@@ -485,10 +721,12 @@ function UI() {
                 xhrsm.responseType = 'blob';
                 xhrsm.onload = function (e) {
                     $("#imgProfile").attr("src", window.URL.createObjectURL(this.response));
+                    $("#imgProfile2").attr("src", window.URL.createObjectURL(this.response));
                 };
                 xhrsm.send();
             } else {
                 $("#imgProfile").attr("src", imageSrc);
+                $("#imgProfile2").attr("src", imageSrc);
             }
 
 
@@ -530,6 +768,7 @@ function UI() {
                         xhrsm.responseType = 'blob';
                         xhrsm.onload = function (e) {
                             $("#imgProfile").attr("src", window.URL.createObjectURL(this.response));
+                            $("#imgProfile2").attr("src", window.URL.createObjectURL(this.response));
                         };
                         xhrsm.send();
 
@@ -543,6 +782,7 @@ function UI() {
 
                     } else {
                         $("#imgProfile").attr("src", imageSrc);
+                        $("#imgProfile2").attr("src", imageSrc);
                         $("#imgtoprightprofile").attr("src", imageSrcSmall);
                     }
 
@@ -553,6 +793,7 @@ function UI() {
                     $("#btnEditProfile").show();
                     $("#statusedit").hide();
                     $("#mystatus").text(statusText);
+                    $("#mystatus2").text(statusText);
                     $("#txtStatusText").val(statusText);
                     $("#profnmests").show();
                     $("#imgreset").hide();
@@ -588,10 +829,12 @@ function UI() {
                 xhrsm.responseType = 'blob';
                 xhrsm.onload = function (e) {
                     $("#imgProfile").attr("src", window.URL.createObjectURL(this.response));
+                    $("#imgProfile2").attr("src", window.URL.createObjectURL(this.response));
                 };
                 xhrsm.send();
             } else {
                 $("#imgProfile").attr("src", imageSrc);
+                $("#imgProfile2").attr("src", imageSrc);
             }
 
             $("#statusedit").hide();
@@ -687,7 +930,7 @@ function UI() {
                         xhr.addEventListener("error", uploadFailed, false);
                         xhr.addEventListener("abort", uploadCanceled, false);
 
-                        xhr.open('POST', 'https://ninkip2pimgstore.s3-us-west-1.amazonaws.com/', true); //MUST BE LAST LINE BEFORE YOU SEND 
+                        xhr.open('POST', 'https://ninkip2pimgstore.s3-us-west-1.amazonaws.com/', true); //MUST BE LAST LINE BEFORE YOU SEND
 
                         xhr.send(fd);
                     }
@@ -721,6 +964,7 @@ function UI() {
                 xhrsm.responseType = 'blob';
                 xhrsm.onload = function (e) {
                     $("#imgProfile").attr("src", window.URL.createObjectURL(this.response));
+                    $("#imgProfile2").attr("src", window.URL.createObjectURL(this.response));
                     $('#imgProfileContainer').show();
                     $('#dropzone').hide();
                     $('progressNumber').text('');
@@ -729,6 +973,7 @@ function UI() {
                 xhrsm.send();
             } else {
                 $("#imgProfile").attr("src", imageSrc);
+                $("#imgProfile2").attr("src", imageSrc);
                 $('#imgProfileContainer').show();
                 $('#dropzone').hide();
                 $('progressNumber').text('');
@@ -1000,6 +1245,19 @@ function UI() {
             }
         });
 
+
+
+        $("#btnclose2fahelp").click(function () {
+
+            $('#2fahelp').modal('hide');
+
+        });
+
+        $("#btn2fahelp").click(function () {
+
+            $('#2fahelp').modal('show');
+
+        });
 
         $("#btncreatewallet").click(function () {
             showCreateWalletStart();
@@ -1325,18 +1583,6 @@ function UI() {
 
                             $("#openwalletalert").hide();
 
-
-                            if (!Engine.m_settings.HasBackupCodes) {
-                                $("#btnPairUseBackups").hide();
-                                $("#btnBackupCode2fa").hide();
-                                $("#lost2fa").hide();
-                            } else {
-                                $("#lost2fa").show();
-                                $("#btnPairUseBackups").show();
-                                $("#btnBackupCode2fa").show();
-                            }
-
-
                             if (result.TwoFactorOnLogin) {
 
                                 //delete any old 2 factor tokens
@@ -1354,12 +1600,15 @@ function UI() {
                                     $("#sib1").hide();
                                     $("#sib2").show();
 
-                                    //$("#signdiff").hide();
-                                    //$("#crwallet").hide();
+                                    $("#signdiff").hide();
+                                    $("#loadfrombackup").hide();
+
 
                                     $('#openWalletStart input#twoFactorCode').focus();
 
                                     $("#btnLogin").button('reset');
+
+
 
                                 } else {
 
@@ -1374,6 +1623,24 @@ function UI() {
 
                                     $("#btnLogin").button('reset');
                                 }
+
+                                if (!Engine.m_settings.HasBackupCodes) {
+                                    $("#btnPairUseBackups").hide();
+                                    $("#btnBackupCode2fa").hide();
+                                    $("#lost2fa").hide();
+                                    $("#rec2fa").show();
+                                    $("#loadfrombackup").hide();
+
+                                } else {
+                                    $("#lost2fa").show();
+                                    $("#rec2fa").show();
+                                    $("#loadfrombackup").hide();
+
+                                    $("#btnPairUseBackups").show();
+                                    $("#btnBackupCode2fa").show();
+                                }
+                                $("#signdiff").show();
+
 
                             } else {
 
@@ -2037,6 +2304,7 @@ function UI() {
 
 
 
+
         $("#btngenaddr").click(function () {
 
             generateAddressClient();
@@ -2099,6 +2367,7 @@ function UI() {
             var amount = $('#hdamount').val();
             amount = convertToSatoshis(amount, COINUNIT);
 
+
             var address = $('input#toAddress').val();
 
             $("#txtSendTwoFactor").val('');
@@ -2122,47 +2391,23 @@ function UI() {
             if (allok) {
 
 
-                Engine.Device.getStorageItem("tfso" + Engine.m_guid, function (res) {
+                Engine.prepareTransaction(amount, function (err, limits) {
 
-                    if (res == "") {
-                        //get the current limit status from the server
-                        //and determine if we need 2fa or not
+                    if (!err) {
 
-                        $('#sendstds2amt').text($('#hdamount').val() + ' ' + COINUNIT);
-                        $('#sendstds2add').text($('#toAddress').val());
+                        var byteEstimate = Engine.estimateTranBytes(limits.NoOfOuts, 2, amount);
+                        var feeEstimate = Engine.calcMinerFee(byteEstimate, limits.FeeHigh);
 
-                        //$("#sendstds1").hide();
-                        $("#sendstds3").hide();
-                        $("#sendstds2").show();
-                        $("#sendstdmodal").modal('show');
+                        $('#stdminersfee').text(convertFromSatoshis(feeEstimate, COINUNIT) + ' ' + COINUNIT);
+                        $('#txtMinersFee').val(feeEstimate);
 
-                    } else {
+                        Engine.Device.getStorageItem("tfso" + Engine.m_guid, function (res) {
 
-                        Engine.getLimitStatus(function (err, limits) {
+                            if (res == "") {
 
-                            var twofareq = false;
-                            if ((limits.No24hr + 1) > limits.NoOfTransactionsPerDay) {
-                                twofareq = true;
-                            }
-                            if ((limits.No1hr + 1) > limits.NoOfTransactionsPerHour) {
-                                twofareq = true;
-                            }
-
-                            var amount = convertToSatoshis($('#hdamount').val(), COINUNIT);
-
-                            if ((amount) > limits.SingleTransactionLimit) {
-                                twofareq = true;
-                            }
-                            if ((limits.TotalAmount24hr + amount) > limits.DailyTransactionLimit) {
-                                twofareq = true;
-                            }
-
-                            if (twofareq) {
-
-
-                                $('#twofactreq').show();
                                 $('#sendstds2amt').text($('#hdamount').val() + ' ' + COINUNIT);
                                 $('#sendstds2add').text($('#toAddress').val());
+
 
                                 //$("#sendstds1").hide();
                                 $("#sendstds3").hide();
@@ -2171,25 +2416,62 @@ function UI() {
 
                             } else {
 
+                                //this becomes prep transaciton
+                                //returns limits and number of inputs required
+                                //for the amount
 
-                                $('#twofactreq').hide();
-                                $('#sendstds2amt').text($('#hdamount').val() + ' ' + COINUNIT);
-                                $('#sendstds2add').text($('#toAddress').val());
+                                var twofareq = false;
+                                if ((limits.No24hr + 1) > limits.NoOfTransactionsPerDay) {
+                                    twofareq = true;
+                                }
+                                if ((limits.No1hr + 1) > limits.NoOfTransactionsPerHour) {
+                                    twofareq = true;
+                                }
 
-                                //$("#sendstds1").hide();
-                                $("#sendstds3").hide();
-                                $("#sendstds2").show();
-                                $("#sendstdmodal").modal('show');
+                                var amount = convertToSatoshis($('#hdamount').val(), COINUNIT);
+
+                                if ((amount) > limits.SingleTransactionLimit) {
+                                    twofareq = true;
+                                }
+                                if ((limits.TotalAmount24hr + amount) > limits.DailyTransactionLimit) {
+                                    twofareq = true;
+                                }
+
+                                if (twofareq) {
+
+
+                                    $('#twofactreq').show();
+                                    $('#sendstds2amt').text($('#hdamount').val() + ' ' + COINUNIT);
+                                    $('#sendstds2add').text($('#toAddress').val());
+
+
+                                    //$("#sendstds1").hide();
+                                    $("#sendstds3").hide();
+                                    $("#sendstds2").show();
+                                    $("#sendstdmodal").modal('show');
+
+                                } else {
+
+
+                                    $('#twofactreq').hide();
+                                    $('#sendstds2amt').text($('#hdamount').val() + ' ' + COINUNIT);
+                                    $('#sendstds2add').text($('#toAddress').val());
+
+
+                                    //$("#sendstds1").hide();
+                                    $("#sendstds3").hide();
+                                    $("#sendstds2").show();
+                                    $("#sendstdmodal").modal('show');
+
+                                }
 
                             }
-
 
                         });
 
                     }
 
                 });
-
             }
         });
 
@@ -2225,6 +2507,7 @@ function UI() {
             var amount = $('#hdfriendAmount').val();
             amount = convertToSatoshis(amount, COINUNIT);
 
+
             $("#txtFriendSend2FA").val('');
             $('#txtFriendSend2FA').css("border-color", "#ccc");
             $('#textMessageSend').removeClass('alert alert-danger');
@@ -2238,44 +2521,21 @@ function UI() {
             }
             if (allok) {
 
-                Engine.Device.getStorageItem("tfso" + Engine.m_guid, function (res) {
 
-                    if (res == "") {
+                Engine.prepareTransaction(amount, function (err, limits) {
 
+                    if (!err) {
 
-                        $('#sendnets2amt').text($('#hdfriendAmount').val() + ' ' + COINUNIT);
-                        $('#sendnets2add').text(SELECTEDFRIEND);
+                        var byteEstimate = Engine.estimateTranBytes(limits.NoOfOuts, 2, amount);
+                        var feeEstimate = Engine.calcMinerFee(byteEstimate, limits.FeeHigh);
 
-                        //$("#networksend").hide();
-                        $("#sendnets3").hide();
-                        $("#sendnetmodal").modal('show');
-                        $("#sendnets2").show();
+                        $('#friendminersfee').text(convertFromSatoshis(feeEstimate, COINUNIT) + ' ' + COINUNIT);
+                        $('#txtFriendMinersFee').val(feeEstimate);
+                        
 
-                        $("#twofactreqnet").show();
+                        Engine.Device.getStorageItem("tfso" + Engine.m_guid, function (res) {
 
-                    } else {
-
-                        Engine.getLimitStatus(function (err, limits) {
-
-                            var twofareq = false;
-                            if ((limits.No24hr + 1) > limits.NoOfTransactionsPerDay) {
-                                twofareq = true;
-                            }
-                            if ((limits.No1hr + 1) > limits.NoOfTransactionsPerHour) {
-                                twofareq = true;
-                            }
-
-                            var amount = convertToSatoshis($('#hdfriendAmount').val(), COINUNIT);
-
-                            if ((amount) > limits.SingleTransactionLimit) {
-                                twofareq = true;
-                            }
-                            if ((limits.TotalAmount24hr + amount) > limits.DailyTransactionLimit) {
-                                twofareq = true;
-                            }
-
-                            if (twofareq) {
-
+                            if (res == "") {
 
                                 $('#sendnets2amt').text($('#hdfriendAmount').val() + ' ' + COINUNIT);
                                 $('#sendnets2add').text(SELECTEDFRIEND);
@@ -2289,17 +2549,48 @@ function UI() {
 
                             } else {
 
+                                var twofareq = false;
+                                if ((limits.No24hr + 1) > limits.NoOfTransactionsPerDay) {
+                                    twofareq = true;
+                                }
+                                if ((limits.No1hr + 1) > limits.NoOfTransactionsPerHour) {
+                                    twofareq = true;
+                                }
 
-                                $('#sendnets2amt').text($('#hdfriendAmount').val() + ' ' + COINUNIT);
-                                $('#sendnets2add').text(SELECTEDFRIEND);
+                                var amount = convertToSatoshis($('#hdfriendAmount').val(), COINUNIT);
 
-                                //$("#networksend").hide();
-                                $("#sendnets3").hide();
-                                $("#sendnetmodal").modal('show');
-                                $("#sendnets2").show();
+                                if ((amount) > limits.SingleTransactionLimit) {
+                                    twofareq = true;
+                                }
+                                if ((limits.TotalAmount24hr + amount) > limits.DailyTransactionLimit) {
+                                    twofareq = true;
+                                }
 
-                                $("#twofactreqnet").hide();
+                                if (twofareq) {
 
+                                    $('#sendnets2amt').text($('#hdfriendAmount').val() + ' ' + COINUNIT);
+                                    $('#sendnets2add').text(SELECTEDFRIEND);
+
+                                    //$("#networksend").hide();
+                                    $("#sendnets3").hide();
+                                    $("#sendnetmodal").modal('show');
+                                    $("#sendnets2").show();
+
+                                    $("#twofactreqnet").show();
+
+                                } else {
+
+                                    $('#sendnets2amt').text($('#hdfriendAmount').val() + ' ' + COINUNIT);
+                                    $('#sendnets2add').text(SELECTEDFRIEND);
+
+                                    //$("#networksend").hide();
+                                    $("#sendnets3").hide();
+                                    $("#sendnetmodal").modal('show');
+                                    $("#sendnets2").show();
+
+                                    $("#twofactreqnet").hide();
+
+                                }
 
                             }
 
@@ -2308,7 +2599,6 @@ function UI() {
                     }
 
                 });
-
 
             }
         });
@@ -2415,6 +2705,13 @@ function UI() {
                                 $("#no2famessage").hide();
                                 showTwoFactorQr();
 
+
+
+                                Engine.Device.setStorageItem('guid', guid);
+                                Engine.Device.setStorageItem("user", username);
+                                Engine.Device.setStorageItem("userimg", "");
+
+
                             }
                         }, function (message) {
 
@@ -2485,8 +2782,8 @@ function UI() {
                 $("#loginuser").hide();
                 $("#loginimg").hide();
 
-                Engine.Device.deleteStorageItem("user");
-                Engine.Device.deleteStorageItem("userimg");
+                //Engine.Device.deleteStorageItem("user");
+                //Engine.Device.deleteStorageItem("userimg");
                 Engine.Device.setStorageItem('guid', Engine.m_oguid);
 
                 Engine.openWalletAfterCreate(twoFactorCodeChk, function (err, result) {
@@ -2494,9 +2791,11 @@ function UI() {
                     if (err) {
 
                         $("#imgphrasewaiting").hide();
-                        $("#phraseloginerror").show();
-                        $("#phraseloginerrormessage").text(result);
+                        //$("#phraseloginerror").show();
+                        //$("#phraseloginerrormessage").text(result);
                         $("#btnPassphraseLogin").prop('disabled', false);
+
+                        bootbox.alert("Invalid Two Factor Code. Ensure that the time on your phone is correctly synced.");
 
                     } else {
 
@@ -2533,6 +2832,8 @@ function UI() {
 
         $("#btnEmailValidate").click(function () {
 
+            $("#valemailerror").hide();
+
             var token = $("#txtEmailToken").val();
 
             $("#btnEmailValidate").prop('disabled', true);
@@ -2541,6 +2842,8 @@ function UI() {
 
                 if (err) {
                     $("#btnEmailValidate").prop('disabled', false);
+                    $("#valemailerrormessage").text(response);
+                    $("#valemailerror").show();
                 } else {
 
                     if (response != "Valid") {
@@ -2557,10 +2860,8 @@ function UI() {
 
                     } else {
 
-
                         //initialiseUI();
                         Engine.m_validate = false;
-
 
                         $("#securitywizard").hide();
                         $("#validateemail").hide();
@@ -2838,41 +3139,38 @@ function UI() {
         $("#optDay").click(function () {
             trasactionFilterOn = true;
             currentTransactionFilter = 'Day';
-            lastNoOfTrans = -1;
-            updateTransactions();
+            filterTransactions();
         });
 
         $("#optWeek").click(function () {
             trasactionFilterOn = true;
             currentTransactionFilter = 'Week';
-            lastNoOfTrans = -1;
-            updateTransactions();
+            filterTransactions();
         });
 
         $("#optMonth").click(function () {
             trasactionFilterOn = true;
             currentTransactionFilter = 'Month';
-            lastNoOfTrans = -1;
-            updateTransactions();
+            filterTransactions();
         });
 
         $('#btntransearch').click(function () {
             trasactionFilterOn = true;
             currentTransactionFilter = 'Search';
-            lastNoOfTrans = -1;
-            updateTransactions();
+            filterTransactions();
         });
 
         $('#btntranclear').click(function () {
             trasactionFilterOn = false;
             currentTransactionFilter = '';
             lastNoOfTrans = -1;
+            tranPageTo = 10;
+            lastTransTimestamp = 0;
             updateTransactions();
             $("#optDay").removeClass('active');
             $("#optWeek").removeClass('active');
             $("#optMonth").removeClass('active');
             $("#txttransearch").val('');
-
         });
 
 
@@ -2890,8 +3188,7 @@ function UI() {
             }
 
             trasactionSortOn = true;
-            lastNoOfTrans = -1;
-            updateTransactions();
+            filterTransactions();
         });
 
         $('#thtrancontact').click(function () {
@@ -2908,37 +3205,64 @@ function UI() {
             }
 
             trasactionSortOn = true;
-            lastNoOfTrans = -1;
-            updateTransactions();
+            filterTransactions();
         });
 
         $('#tpagfirst').click(function () {
-            currentPageIndex = 0;
-            lastNoOfTrans = -1;
-            updateTransactions();
+
+            if (!trasactionFilterOn) {
+
+                tranPageFrom = 0;
+                tranPageTo = transactionsPerPage;
+                lastTransTimestamp = 0;
+                lastNoOfTrans = 0;
+                updateTransactions();
+
+            }
         });
 
         $('#tpaglast').click(function () {
-            currentPageIndex = Math.floor((filteredTransactions.length / transactionsPerPage));
-            lastNoOfTrans = -1;
-            updateTransactions();
+
+            if (!trasactionFilterOn) {
+
+                var pgmax = Math.ceil(totalTrans / transactionsPerPage) * transactionsPerPage;
+
+                tranPageFrom = pgmax - transactionsPerPage;
+                tranPageTo = pgmax;
+                lastTransTimestamp = 0;
+                lastNoOfTrans = 0;
+                updateTransactions();
+
+            }
 
         });
 
         $('#tpagnext').click(function () {
-            if (currentPageIndex < Math.floor((filteredTransactions.length / transactionsPerPage))) {
-                currentPageIndex = currentPageIndex + 1;
-                lastNoOfTrans = -1;
+
+            if (!trasactionFilterOn) {
+
+                tranPageFrom = tranPageFrom + transactionsPerPage;
+                tranPageTo = tranPageTo + transactionsPerPage;
+                lastTransTimestamp = 0;
+                lastNoOfTrans = 0;
                 updateTransactions();
+
             }
+
         });
 
         $('#tpagprev').click(function () {
-            if (currentPageIndex > 0) {
-                currentPageIndex = currentPageIndex - 1;
-                lastNoOfTrans = -1;
+
+            if (!trasactionFilterOn) {
+
+                tranPageFrom = tranPageFrom - transactionsPerPage;
+                tranPageTo = tranPageTo - transactionsPerPage;
+                lastTransTimestamp = 0;
+                lastNoOfTrans = 0;
                 updateTransactions();
+
             }
+
         });
 
 
@@ -2947,37 +3271,38 @@ function UI() {
         $("#optPending").click(function () {
             invoiceFilterOn = true;
             currentInvoiceFilter = 'Pending';
-            lastInvoiceToPayCount = -1;
-            showInvoiceList();
+            filterInvoiceList();
         });
 
         $("#optPaid").click(function () {
             invoiceFilterOn = true;
             currentInvoiceFilter = 'Paid';
-            lastInvoiceToPayCount = -1;
-            showInvoiceList();
+            filterInvoiceList();
         });
 
         $("#optRejected").click(function () {
             invoiceFilterOn = true;
             currentInvoiceFilter = 'Rejected';
-            lastInvoiceToPayCount = -1;
-            showInvoiceList();
+            filterInvoiceList();
         });
 
         $("#optClearInvoice").click(function () {
             invoiceFilterOn = false;
             currentInvoiceFilter = '';
-            lastInvoiceToPayCount = -1;
+            lastInvPayTimestamp = 0;
+            invPageTo = 10;
             showInvoiceList();
+            $('#txtSearchInvForMe').val('')
+            $("#optRejected").removeClass('active');
+            $("#optPaid").removeClass('active');
+            $("#optPending").removeClass('active');
         });
 
         $('#btnSearchInvForMe').click(function () {
             currentForMeInvoicePageIndex = 0;
             invoiceFilterOn = true;
             currentInvoiceFilter = 'Search';
-            lastInvoiceToPayCount = -1;
-            showInvoiceList();
+            filterInvoiceList();
         });
 
 
@@ -2989,96 +3314,127 @@ function UI() {
         $("#optByMePending").click(function () {
             invoiceByMeFilterOn = true;
             currentByMeInvoiceFilter = 'Pending';
-            lastInvoiceByUserCount = -1;
-            showInvoiceByUserList();
+            filterInvoiceUserList();
         });
 
         $("#optByMePaid").click(function () {
             invoiceByMeFilterOn = true;
             currentByMeInvoiceFilter = 'Paid';
-            lastInvoiceByUserCount = -1;
-            showInvoiceByUserList();
+            filterInvoiceUserList();
         });
 
         $("#optByMeRejected").click(function () {
             invoiceByMeFilterOn = true;
             currentByMeInvoiceFilter = 'Rejected';
-            lastInvoiceByUserCount = -1;
-            showInvoiceByUserList();
+            filterInvoiceUserList();
         });
 
         $("#optByMeClear").click(function () {
             invoiceByMeFilterOn = false;
             currentByMeInvoiceFilter = '';
-            lastInvoiceByUserCount = -1;
+            lastInvByUserTimestamp = 0;
+            invByPageTo = 10;
             showInvoiceByUserList();
+
         });
 
         $('#btnSearchInvByMe').click(function () {
-            currentByMeInvoicePageIndex = 0;
             invoiceByMeFilterOn = true;
             currentByMeInvoiceFilter = 'Search';
-            lastInvoiceByUserCount = -1;
-            showInvoiceByUserList();
+            filterInvoiceUserList();
         });
 
+
+        //    var lastInvoiceByUserCount = 0;
+        //    var lastInvByUserTimestamp = 0
+        //    var lastInvByUserLKey = 0;
+        //    var invByPageFrom = 0;
+        //    var invByPageTo = invByPageFrom + invoicesByMePerPage;
+        //    var totalInvBy = 0;
+        //    var cachedInvoicesByUser = [];
+
+        //    function showInvoiceByUserList(callback) {
+
+
+
         $('#ibmpagfirst').click(function () {
-            currentByMeInvoicePageIndex = 0;
-            lastInvoiceByMeNetCount = -1;
+
+            invByPageFrom = 0;
+            invByPageTo = invoicesForMePerPage;
+            lastInvByUserTimestamp = 0;
             showInvoiceByUserList();
+
         });
 
         $('#ibmpaglast').click(function () {
-            currentByMeInvoicePageIndex = Math.floor((filteredByMeInvoices.length / invoicesByMePerPage));
-            lastInvoiceByMeNetCount = -1;
+
+            var pgmax = Math.ceil(totalInvBy / invoicesByMePerPage) * invoicesByMePerPage;
+
+            invByPageFrom = pgmax - invoicesByMePerPage;
+            invByPageTo = pgmax;
+            lastInvByUserTimestamp = 0;
             showInvoiceByUserList();
+
         });
 
         $('#ibmpagnext').click(function () {
-            if (currentByMeInvoicePageIndex < Math.floor((filteredByMeInvoices.length / invoicesByMePerPage))) {
-                currentByMeInvoicePageIndex = currentByMeInvoicePageIndex + 1;
-                lastInvoiceByMeNetCount = -1;
-                showInvoiceByUserList();
-            }
+
+            invByPageFrom = invByPageFrom + invoicesByMePerPage;
+            invByPageTo = invByPageTo + invoicesByMePerPage;
+            lastInvByUserTimestamp = 0;
+            showInvoiceByUserList();
+
         });
 
         $('#ibmpagprev').click(function () {
-            if (currentByMeInvoicePageIndex > 0) {
-                currentByMeInvoicePageIndex = currentByMeInvoicePageIndex - 1;
-                lastInvoiceByMeNetCount = -1;
-                showInvoiceByUserList();
-            }
+
+            invByPageFrom = invByPageFrom - invoicesByMePerPage;
+            invByPageTo = invByPageTo - invoicesByMePerPage;
+            lastInvByUserTimestamp = 0;
+            showInvoiceByUserList();
+
         });
+
 
 
         //for me
 
         $('#ifmpagfirst').click(function () {
-            currentForMeInvoicePageIndex = 0;
-            lastInvoiceToPayCount = -1;
+
+            invPageFrom = 0;
+            invPageTo = invoicesForMePerPage;
+            lastInvPayTimestamp = 0;
             showInvoiceList();
+
         });
 
         $('#ifmpaglast').click(function () {
-            currentForMeInvoicePageIndex = Math.floor((filteredForMeInvoices.length / invoicesForMePerPage));
-            lastInvoiceToPayCount = -1;
+
+            var pgmax = Math.ceil(totalInvPay / invoicesForMePerPage) * invoicesForMePerPage;
+
+            invPageFrom = pgmax - invoicesForMePerPage;
+            invPageTo = pgmax;
+            lastInvPayTimestamp = 0;
             showInvoiceList();
+
         });
 
         $('#ifmpagnext').click(function () {
-            if (currentForMeInvoicePageIndex < Math.floor((filteredForMeInvoices.length / invoicesForMePerPage))) {
-                currentForMeInvoicePageIndex = currentForMeInvoicePageIndex + 1;
-                lastInvoiceToPayCount = -1;
-                showInvoiceList();
-            }
+
+            invPageFrom = invPageFrom + invoicesForMePerPage;
+            invPageTo = invPageTo + invoicesForMePerPage;
+            lastInvPayTimestamp = 0;
+            showInvoiceList();
+
         });
 
         $('#ifmpagprev').click(function () {
-            if (currentForMeInvoicePageIndex > 0) {
-                currentForMeInvoicePageIndex = currentForMeInvoicePageIndex - 1;
-                lastInvoiceToPayCount = -1;
-                showInvoiceList();
-            }
+
+            invPageFrom = invPageFrom - invoicesForMePerPage;
+            invPageTo = invPageTo - invoicesForMePerPage;
+            lastInvPayTimestamp = 0;
+            showInvoiceList();
+
         });
 
 
@@ -3143,6 +3499,7 @@ function UI() {
             } else {
 
                 $("#introduction").show();
+                $("#exusercancel").hide();
 
             }
         });
@@ -3171,14 +3528,34 @@ function UI() {
 
         });
 
-        $("#exusercancel").click(function () {
+        $("#exusercancel, #exusercancel2").click(function () {
 
+            Engine.Device.getStorageItem('guid', function (res) {
 
-            $("#introduction").hide();
+                $("#openWalletStart #guid").val(res);
 
-            $("#openWalletStart").show();
+                if (res.length > 0) {
 
-            showOpenWalletStart();
+                    $("#guidsec").hide();
+                    $("#userlogin").show();
+                    $("#loadfrombackup").show();
+                    $("#introduction").hide();
+
+                    $("#openWalletStart").show();
+
+                    $("#exusercancel2").hide();
+                    $("#rec2fa").hide();
+                    $("#lost2fa").hide();
+
+                    showOpenWalletStart();
+
+                } else {
+
+                    $("#openWalletStart").hide();
+                    $("#introduction").show();
+
+                }
+            });
 
         });
 
@@ -3196,6 +3573,96 @@ function UI() {
 
 
         });
+
+        $("#btnreset2faaccount").click(function () {
+
+            var coldkey = $("#txtCold").val();
+
+            $("#btnreset2faaccount").button('loading');
+
+            //get challenge
+
+            Engine.getSigChallenge(function (err, challenge) {
+
+                if (!err) {
+
+                    Engine.signMessage(coldkey, challenge, function (err, coldsig) {
+
+                        //console.log(coldsig);
+
+                        if (!err) {
+
+                            Engine.resetTwoFactorAccount(coldsig, function (err, res) {
+
+                                //console.log(res);
+
+                                if (!err) {
+
+                                    //reprompt for 2fa setup
+                                    Engine.openWallet(Engine.m_oguid, '', function (err, result) {
+
+                                        if (!err) {
+
+                                            if (!Engine.m_twoFactorOnLogin) {
+
+                                                $("#twofactorsettings").show();
+                                                $("#2famodal").modal('show');
+
+                                                $("#twofactorsettings").show();
+                                                //$("#btnSetupTwoFactor").hide();
+                                                $("#savetwofactorerror").hide();
+                                                $("#setup2faemail").hide();
+                                                $("#setup2faqr").show();
+                                                $("#twofactorauthreset").hide();
+
+                                                setTimeout(function () {
+                                                    $("#btnreset2faaccount").button('reset');
+                                                }, 5000);
+
+                                                showMissingTwoFactorQr();
+
+                                            } else {
+
+                                                $("#btnreset2faaccount").button('reset');
+
+                                            }
+
+                                        } else {
+
+                                            $("#btnreset2faaccount").button('reset');
+
+                                        }
+
+                                    });
+
+
+                                } else {
+
+                                    $("#btnreset2faaccount").button('reset');
+
+                                }
+
+
+                            });
+
+                        } else {
+
+                            $("#btnreset2faaccount").button('reset');
+
+                        }
+
+                    });
+
+                } else {
+
+                    $("#btnreset2faaccount").button('reset');
+
+                }
+            });
+
+        });
+
+
 
 
         $("#printCold").click(function () {
@@ -3241,6 +3708,20 @@ function UI() {
         $("#btnCreateInit").click(function () {
             $("#introduction").hide();
             showCreateWalletStart();
+
+            var htmlmess = '<ul><li>Ninki Wallet is designed for experienced users of Bitcoin</li><li><span class="text-danger">We cannot reset your password</span></li><li>Failure to follow instructions can result in the loss of your bitcoins</li><li>Ninki Wallet is an automated service</li><li>Use this service at your own risk</li><li>This service is free to use, but provides no direct user support</li><ul>';
+
+            bootbox.dialog({
+                title: "Warning",
+                message: htmlmess,
+                buttons: {
+                    main: {
+                        label: "OK",
+                        className: "btn-primary"
+                    }
+                }
+            });
+
         });
 
         $("#btnLoginInit").click(function () {
@@ -3777,6 +4258,70 @@ function UI() {
         Engine.fillElementWithGuid($("#createWalletStart input#guid"));
 
 
+        //Messaging functions
+
+
+
+
+        $("#btnSendMessage").click(function () {
+
+            var message = $("#txtFriendMessage").val();
+
+            if (message.length > 0) {
+
+                $("#btnSendMessage").button('loading');
+
+                var mdate = new Date();
+
+                var messageId = Bitcoin.Crypto.SHA256(mdate.toUTCString()).toString();
+
+                var s = '';
+
+                //messdate
+                try {
+                    message = sanitizer.sanitize(message);
+                } catch (e) {
+                    message = "Invalid message";
+                }
+                s = '<li id="' + messageId + '" class="list-group-item m-t-xs"><p class="font-bold">Me</p><p>' + _.escape(message) + '</p><small class="block text-muted"><i class="fa fa-clock-o"></i>&nbsp;<span id="messdate"></span></small></li>';
+
+                $('#usernetmessages ul').append(s);
+
+                $('#messagescroll').scrollTop($('#messagescroll')[0].scrollHeight);
+
+
+                Engine.createMessage(SELECTEDFRIEND, message, '', messageId, function (err, result) {
+
+                    if (!err) {
+                        $("#txtFriendMessage").val('');
+
+                        lastMessageTimestamp = 0;
+                        showMessageNetwork(function () { $("#btnSendMessage").button('reset'); });
+
+                    } else {
+
+                        $("#btnSendMessage").button('reset');
+
+                    }
+
+
+
+                });
+            }
+
+        });
+
+
+
+
+
+
+
+        //-----------------------------------------------------
+
+
+
+
         //INVOICE STUFF START------------------------------------------
 
         $("#friendselector").hide();
@@ -3797,51 +4342,88 @@ function UI() {
         });
 
 
+        $("#feeplus").on("click", function () {
+            var feeinsatoshis = $('#txtInvMinersFee').val();
+            feeinsatoshis = feeinsatoshis * 1.0
+            feeinsatoshis += 10000;
+            $('#txtInvMinersFee').val(feeinsatoshis);
+            $('#invminersfee').text(convertFromSatoshis(feeinsatoshis, COINUNIT) + ' ' + COINUNIT);
+        });
+
+        $("#feeminus").on("click", function () {
+            var feeinsatoshis = $('#txtInvMinersFee').val();
+            feeinsatoshis = feeinsatoshis * 1.0
+            feeinsatoshis -= 10000;
+
+            if (feeinsatoshis < 10000) {
+                feeinsatoshis = 10000;
+            }
+
+            $('#txtInvMinersFee').val(feeinsatoshis);
+            $('#invminersfee').text(convertFromSatoshis(feeinsatoshis, COINUNIT) + ' ' + COINUNIT);
+        });
+
+
+        $("#friendfeeplus").on("click", function () {
+            var feeinsatoshis = $('#txtFriendMinersFee').val();
+            feeinsatoshis = feeinsatoshis * 1.0
+            feeinsatoshis += 10000;
+            $('#txtFriendMinersFee').val(feeinsatoshis);
+            $('#friendminersfee').text(convertFromSatoshis(feeinsatoshis, COINUNIT) + ' ' + COINUNIT);
+        });
+
+        $("#friendfeeminus").on("click", function () {
+            var feeinsatoshis = $('#txtFriendMinersFee').val();
+            feeinsatoshis = feeinsatoshis * 1.0
+            feeinsatoshis -= 10000;
+
+            if (feeinsatoshis < 10000) {
+                feeinsatoshis = 10000;
+            }
+
+            $('#txtFriendMinersFee').val(feeinsatoshis);
+            $('#friendminersfee').text(convertFromSatoshis(feeinsatoshis, COINUNIT) + ' ' + COINUNIT);
+        });
+
+        $("#stdfeeplus").on("click", function () {
+            var feeinsatoshis = $('#txtMinersFee').val();
+            feeinsatoshis = feeinsatoshis * 1.0
+            feeinsatoshis += 10000;
+            $('#txtMinersFee').val(feeinsatoshis);
+            $('#stdminersfee').text(convertFromSatoshis(feeinsatoshis, COINUNIT) + ' ' + COINUNIT);
+        });
+
+        $("#stdfeeminus").on("click", function () {
+            var feeinsatoshis = $('#txtMinersFee').val();
+            feeinsatoshis = feeinsatoshis * 1.0
+            feeinsatoshis -= 10000;
+
+            if (feeinsatoshis < 10000) {
+                feeinsatoshis = 10000;
+            }
+
+            $('#txtMinersFee').val(feeinsatoshis);
+            $('#stdminersfee').text(convertFromSatoshis(feeinsatoshis, COINUNIT) + ' ' + COINUNIT);
+        });
+
 
         $("#btnpayinvoice").click(function () {
 
+            var amount = selectedInvoiceAmount;
 
-            Engine.Device.getStorageItem("tfso" + Engine.m_guid, function (res) {
+            Engine.prepareTransaction(amount, function (err, limits) {
 
-                if (res == "") {
+                if (!err) {
 
-                    $('input#txtInvoice2FA').css("border-color", "#ccc");
-                    $('input#txtInvoice2FA').val('');
+                    var byteEstimate = Engine.estimateTranBytes(limits.NoOfOuts, 2, amount);
+                    var feeEstimate = Engine.calcMinerFee(byteEstimate, limits.FeeHigh);
 
-                    $("#sendinvprog").hide();
-                    $("#textMessageSendInv").hide();
+                    $('#invminersfee').text(convertFromSatoshis(feeEstimate, COINUNIT) + ' ' + COINUNIT);
+                    $('#txtInvMinersFee').val(feeEstimate);
 
-                    $("#sendinvs2").hide();
-                    $("#sendinvs2").show();
-                    $("#sendinvs3").hide();
+                    Engine.Device.getStorageItem("tfso" + Engine.m_guid, function (res) {
 
-                    $("#invmodal").modal('show');
-
-                    $("#twofactreqinv").show();
-
-                } else {
-
-
-                    Engine.getLimitStatus(function (err, limits) {
-
-                        var twofareq = false;
-                        if ((limits.No24hr + 1) > limits.NoOfTransactionsPerDay) {
-                            twofareq = true;
-                        }
-                        if ((limits.No1hr + 1) > limits.NoOfTransactionsPerHour) {
-                            twofareq = true;
-                        }
-
-                        var amount = selectedInvoiceAmount;
-
-                        if ((amount) > limits.SingleTransactionLimit) {
-                            twofareq = true;
-                        }
-                        if ((limits.TotalAmount24hr + amount) > limits.DailyTransactionLimit) {
-                            twofareq = true;
-                        }
-
-                        if (twofareq) {
+                        if (res == "") {
 
                             $('input#txtInvoice2FA').css("border-color", "#ccc");
                             $('input#txtInvoice2FA').val('');
@@ -3851,35 +4433,75 @@ function UI() {
 
                             $("#sendinvs2").hide();
                             $("#sendinvs2").show();
-
                             $("#sendinvs3").hide();
 
                             $("#invmodal").modal('show');
 
                             $("#twofactreqinv").show();
 
-
                         } else {
 
-                            $('input#txtInvoice2FA').css("border-color", "#ccc");
-                            $('input#txtInvoice2FA').val('');
 
-                            $("#sendinvprog").hide();
-                            $("#textMessageSendInv").hide();
+                            var twofareq = false;
+                            if ((limits.No24hr + 1) > limits.NoOfTransactionsPerDay) {
+                                twofareq = true;
+                            }
+                            if ((limits.No1hr + 1) > limits.NoOfTransactionsPerHour) {
+                                twofareq = true;
+                            }
 
-                            $("#sendinvs2").hide();
-                            $("#sendinvs2").show();
 
-                            $("#sendinvs3").hide();
 
-                            $("#invmodal").modal('show');
+                            if ((amount) > limits.SingleTransactionLimit) {
+                                twofareq = true;
+                            }
+                            if ((limits.TotalAmount24hr + amount) > limits.DailyTransactionLimit) {
+                                twofareq = true;
+                            }
 
-                            $("#twofactreqinv").hide();
+                            if (twofareq) {
+
+                                $('input#txtInvoice2FA').css("border-color", "#ccc");
+                                $('input#txtInvoice2FA').val('');
+
+                                $("#sendinvprog").hide();
+                                $("#textMessageSendInv").hide();
+
+                                $("#sendinvs2").hide();
+                                $("#sendinvs2").show();
+
+                                $("#sendinvs3").hide();
+
+                                $("#invmodal").modal('show');
+
+                                $("#twofactreqinv").show();
+
+
+                            } else {
+
+                                $('input#txtInvoice2FA').css("border-color", "#ccc");
+                                $('input#txtInvoice2FA').val('');
+
+                                $("#sendinvprog").hide();
+                                $("#textMessageSendInv").hide();
+
+                                $("#sendinvs2").hide();
+                                $("#sendinvs2").show();
+
+                                $("#sendinvs3").hide();
+
+                                $("#invmodal").modal('show');
+
+                                $("#twofactreqinv").hide();
+
+                            }
+
+
+
 
                         }
 
                     });
-
 
                 }
 
@@ -3891,6 +4513,24 @@ function UI() {
         $("#btnSendInvoice").click(function () {
 
             var allok = true;
+
+            var minersfee = $('#txtInvMinersFee').val();
+            minersfee = minersfee * 1.0;
+
+            if (minersfee.length > 0) {
+
+                if (!isNaN(minersfee)) {
+                    $('input#txtInvMinersFee').css("border-color", "#ccc");
+                } else {
+                    $('input#txtInvMinersFee').css("border-color", "#ffaaaa");
+                    allok = false;
+                }
+
+            } else {
+                $('input#txtInvMinersFee').css("border-color", "#ccc");
+            }
+
+
             var twoFactorCode = $('#txtInvoice2FA').val();
 
             Engine.get2faOverride(amount, function (err, result) {
@@ -3898,9 +4538,9 @@ function UI() {
                 if (result == "") {
 
                     if (twoFactorCode.length == 6) {
-                        $('input#txtSendTwoFactor').css("border-color", "#ccc");
+                        $('input#txtInvoice2FA').css("border-color", "#ccc");
                     } else {
-                        $('input#txtSendTwoFactor').css("border-color", "#ffaaaa");
+                        $('input#txtInvoice2FA').css("border-color", "#ffaaaa");
                         allok = false;
                     }
                 } else {
@@ -3919,7 +4559,7 @@ function UI() {
                     $('#sendinvprog').show();
                     $('#sendinvprogstatus').width('10%');
 
-                    payInvoice(selectedInvoiceUserName, selectedInvoiceAmount, selectedInvoiceId, twoFactorCode, function (err, result) {
+                    payInvoice(selectedInvoiceUserName, selectedInvoiceAmount, selectedInvoiceId, twoFactorCode, minersfee, function (err, result) {
 
                         $('#btnSendInvoice').prop('disabled', false);
 
@@ -3946,6 +4586,7 @@ function UI() {
             Engine.updateInvoice(selectedInvoiceUserName, selectedInvoiceId, '', 2, function (err, result) {
 
                 lastInvoiceToPayCount = 0;
+
                 showInvoiceList();
                 showInvoiceListNetwork();
 
@@ -3954,8 +4595,15 @@ function UI() {
                 $("#createinv").show();
 
                 if (uiInvoiceReturnToNetwork) {
+                    $("#sbcontacts").click();
                     updateSelectedFriend();
                 }
+
+                if (uiInvoiceReturnToDashboard) {
+                    $("#sbdashboard").click();
+                    uiInvoiceReturnToDashboard = false;
+                }
+
             });
 
         });
@@ -3967,10 +4615,14 @@ function UI() {
             $("#createinv").show();
 
             if (uiInvoiceReturnToNetwork) {
-                $("#hnetwork").click();
+                $("#sbcontacts").click();
                 uiInvoiceReturnToNetwork = false;
             }
 
+            if (uiInvoiceReturnToDashboard) {
+                $("#sbdashboard").click();
+                uiInvoiceReturnToDashboard = false;
+            }
 
         });
 
@@ -3984,10 +4636,19 @@ function UI() {
             if (uiInvoiceReturnToNetwork) {
                 lastInvoiceToPayNetCount = 0;
 
-                $("#hnetwork").click();
+                $("#sbcontacts").click();
+                $("#bmcontactinvoice").click();
+
                 uiInvoiceReturnToNetwork = false;
                 showInvoiceListNetwork();
             }
+
+
+            if (uiInvoiceReturnToDashboard) {
+                $("#sbdashboard").click();
+                uiInvoiceReturnToDashboard = false;
+            }
+
 
             lastInvoiceToPayCount = 0;
             showInvoiceList();
@@ -4005,7 +4666,7 @@ function UI() {
             $("#invoicedisplay").hide();
             $("#invoice").hide();
             $("#invoicestopay").show();
-            $("#hnetwork").click();
+            $("#sbcontacts").click();
         });
 
 
@@ -4055,7 +4716,7 @@ function UI() {
                         $("#invoice").hide();
 
 
-                        $("#hnetwork").click();
+                        $("#sbcontacts").click();
                         lastInvoiceByUserCount = -1;
                         lastInvoiceByMeNetCount = -1;
 
@@ -4078,6 +4739,12 @@ function UI() {
         });
 
 
+
+        $("#qcreateinv").click(function () {
+            $("#btnCreateInvFriend").click();
+        });
+
+
         $("#btnCreateInvFriend").click(function () {
 
             $("#invoicestopay").hide();
@@ -4092,8 +4759,7 @@ function UI() {
             $("#invoice").show();
             //write a new one
             $("#addline").click();
-            $("#hinvoices").click();
-
+            $("#sbinvoice").click();
         });
 
 
@@ -4146,9 +4812,15 @@ function UI() {
                     }
                 });
 
-
-                $('#line' + lineCount + 'desc').blur(function (event) {
-                    validateInvoice();
+                $('#line' + lineCount + 'desc').blur({
+                    line: lineCount
+                }, function (event) {
+                    if (validateInvoice()) {
+                        $('#lineTotal' + (event.data.line)).text(($('#line' + (event.data.line) + 'Amount').val() * $('#line' + (event.data.line) + 'Quantity').val()).toFixed(4));
+                        calcInvoiceTotals();
+                    } else {
+                        //$('#line' + (event.data.line) + 'Amount').
+                    }
                 });
 
                 $('#line' + lineCount + 'Amount').keypress({
@@ -4341,241 +5013,453 @@ function UI() {
     }
 
 
+
+
     var cachedInvoices = [];
     var lastInvoiceToPayCount = 0;
+    var lastInvPayTimestamp = 0
+    var lastInvPayLKey = 0;
+    var invPageFrom = 0;
+    var invPageTo = invPageFrom + invoicesForMePerPage;
+    var totalInvPay = 0;
+
+
     function showInvoiceList(callback) {
         //get back the list of invoices to pay
 
-        Engine.getInvoiceList(function (err, invoices) {
+        if (!invoiceFilterOn) {
 
+            var lkey = 0;
+            var timestamp = lastInvPayTimestamp;
+
+            Engine.getInvoiceList(timestamp, lkey, invPageFrom, invPageTo, function (err, invoices) {
+
+                if (!err) {
+
+
+                    if (invoices == -1) {
+
+                        if (callback) {
+                            callback();
+                        }
+
+                    } else {
+
+
+                        cachedInvoices = [];
+
+                        if (invoices.timestamp) {
+                            lastInvPayTimestamp = invoices.timestamp;
+                        }
+
+                        var total = invoices.total;
+
+                        totalInvPay = total;
+
+                        var noofpages = Math.floor((total / invoicesForMePerPage));
+
+                        invoices = invoices.data;
+
+                        for (var i = 0; i < invoices.length; i++) {
+
+                            cachedInvoices.push(invoices[i]);
+
+                        }
+
+                        displayInvoices(invoices, 'forme');
+
+                    }
+
+                }
+
+                if (callback) {
+                    callback();
+                }
+
+            });
+
+        } else {
+
+            if (callback) {
+                callback();
+            }
+        }
+    }
+
+
+    function filterInvoiceList() {
+
+        var lkey = 0;
+
+        Engine.getInvoiceList(0, lkey, invPageFrom, 1000, function (err, invoices) {
 
             if (!err) {
 
-                if (lastInvoiceToPayCount < invoices.length) {
+                if (invoices == -1) {
+
+                    if (callback) {
+                        callback();
+                    }
 
                 } else {
 
-                    return callback(false, "done");
+                    invoices = invoices.data;
 
-                }
+                    if (currentInvoiceFilter == "Pending") {
 
-                for (var i = 0; i < invoices.length; i++) {
-                    var d1 = new Date(invoices[i].InvoiceDate);
-                    invoices[i].JsDate = d1;
-                }
+                        invoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 0; });
+                    }
 
-                invoices = _.sortBy(invoices, function (inv) { return -inv.JsDate; });
+                    if (currentInvoiceFilter == "Paid") {
 
-                filteredForMeInvoices = invoices;
+                        invoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 1; });
+                    }
 
-                //perform all filters then set back to invoices
+                    if (currentInvoiceFilter == "Rejected") {
 
-                if (currentInvoiceFilter == "Pending") {
+                        invoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 2; });
+                    }
 
-                    filteredForMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 0; });
-                }
-
-                if (currentInvoiceFilter == "Paid") {
-
-                    filteredForMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 1; });
-                }
-
-                if (currentInvoiceFilter == "Rejected") {
-
-                    filteredForMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 2; });
-                }
-
-
-                if (currentInvoiceFilter == "Search") {
-                    var search = $('#txtSearchInvForMe').val();
-                    filteredForMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceFrom.search(search) > -1; });
-                }
-
-
-                var noofpages = Math.floor((filteredForMeInvoices.length / invoicesForMePerPage));
-
-                var indexFrom = currentForMeInvoicePageIndex * invoicesForMePerPage;
-                var indexTo = indexFrom + invoicesForMePerPage;
-
-                if (indexTo > filteredForMeInvoices.length) {
-                    indexTo = filteredForMeInvoices.length;
-                }
-
-                $('#invbmpaglabel').text('Showing ' + (indexFrom + 1) + ' to ' + (indexTo) + ' of ' + filteredForMeInvoices.length);
-
-
-                invoices = filteredForMeInvoices;
-
-                if (lastInvoiceToPayCount < invoices.length) {
-
-
-
-
-
-                    pagedForMeInvoices = filteredForMeInvoices.slice(indexFrom, indexTo);
-
-                    invoices = pagedForMeInvoices;
+                    if (currentInvoiceFilter == "Search") {
+                        var search = $('#txtSearchInvForMe').val();
+                        invoices = _.filter(invoices, function (inv) { return inv.InvoiceFrom.search(search) > -1; });
+                    }
 
                     cachedInvoices = [];
 
-                    lastInvoiceToPayCount = invoices.length;
-
-                    var s = '';
-                    $('#tblinvoicepay tbody').empty();
                     for (var i = 0; i < invoices.length; i++) {
 
                         cachedInvoices.push(invoices[i]);
-
-                        var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1).toLocaleString();
-                        var invpaydate = '';
-                        if (invoices[i].InvoicePaidDate) {
-                            invpaydate = new Date(invoices[i].InvoicePaidDate.match(/\d+/)[0] * 1).toLocaleString();
-                        }
-
-                        var statusbox = '';
-                        if (invoices[i].InvoiceStatus == 0) {
-                            statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
-                        }
-                        else if (invoices[i].InvoiceStatus == 1) {
-                            statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
-                        }
-                        else if (invoices[i].InvoiceStatus == 2) {
-                            statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
-                        }
-
-                        s += "<tr><td><label class=\"checkbox m-n i-checks\"><input type=\"checkbox\" name=\"post[]\"><i></i></label></td><td>" + _.escape(invdate) + "</td>";
-
-                        s += "<td><span class=\"thumb-sm\"><img id=\"imginvoice" + i + "\" alt=\"\" class=\"img-circle\"></span><span class=\"m-s\"> ";
-
-                        s += _.escape(invoices[i].InvoiceFrom) + "</span></td>";
-
-                        s += "<td><a href=\"#\" class=\"active\">" + statusbox + "</a></td><td>" + _.escape(invpaydate) + "</td><td><button type=\"button\" class=\"btn btn-sm btn-default\" id=\"viewinvoice" + i + "\">View</button></td></tr>";
                     }
 
-                    $('#tblinvoicepay tbody').append(s);
-
-                    for (var i = 0; i < invoices.length; i++) {
-
-                        $("#tblinvoicepay #viewinvoice" + i).click({
-                            index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
-                        }, function (event) {
-                            displayInvoice(event.data.index, event.data.username, 'forme', function (err, res) {
-                                uiInvoiceReturnToNetwork = false;
-                                //$('#hinvoices').click();
-                            });
-                        });
-
-
-                        var length = invoices[i].InvoiceFrom.length;
-                        if (length > 20) {
-                            length = 20;
-                        }
-
-                        var imageSrcSmall = "images/avatar/64px/Avatar-" + pad(length) + ".png";
-
-
-                        if (FRIENDSLIST[invoices[i].InvoiceFrom].profileImage != '') {
-                            imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(FRIENDSLIST[invoices[i].InvoiceFrom].profileImage) + "?crop=faces&fit=crop&h=64&w=64&mask=ellipse&border=1,d0d0d0";
-                        }
-
-
-                        if (Engine.Device.isChromeApp()) {
-                            var xhrsm = new XMLHttpRequest();
-                            xhrsm.open('GET', imageSrcSmall, true);
-                            xhrsm.responseType = 'blob';
-                            xhrsm.index = i;
-                            xhrsm.onload = function (e) {
-                                $("#tblinvoicepay #imginvoice" + this.index).attr("src", window.URL.createObjectURL(this.response));
-                            };
-                            xhrsm.send();
-                        } else {
-
-                            //can we use chrome method here?
-                            $("#tblinvoicepay #imginvoice" + i).attr("src", imageSrcSmall);
-                        }
-
-
-                    }
+                    displayInvoices(invoices, 'forme');
 
                 }
 
             }
+
+        });
+
+    }
+
+
+    var lastInvoiceByUserCount = 0;
+    var lastInvByUserTimestamp = 0
+    var lastInvByUserLKey = 0;
+    var invByPageFrom = 0;
+    var invByPageTo = invByPageFrom + invoicesByMePerPage;
+    var totalInvBy = 0;
+    var cachedInvoicesByUser = [];
+
+    function showInvoiceByUserList(callback) {
+        //get back the list of invoices to pay
+
+        if (!invoiceByMeFilterOn) {
+
+            var lkey = 0;
+            var timestamp = lastInvByUserTimestamp;
+
+            Engine.getInvoiceByUserList(timestamp, lkey, invByPageFrom, invByPageTo, function (err, invoices) {
+
+                if (!err) {
+
+                    if (invoices == -1) {
+
+                        if (callback) {
+                            callback();
+                        }
+
+                    } else {
+
+
+                        if (invoices.timestamp) {
+                            lastInvByUserTimestamp = invoices.timestamp;
+                        }
+
+                        var total = invoices.total;
+
+                        totalInvBy = total;
+
+                        var noofpages = Math.floor((total / invoicesByMePerPage));
+
+                        invoices = invoices.data;
+
+                        cachedInvoicesByUser = [];
+
+                        for (var i = 0; i < invoices.length; i++) {
+
+                            cachedInvoicesByUser.push(invoices[i]);
+                        }
+
+                        displayInvoices(invoices, 'byme');
+
+                        if (callback) {
+                            callback();
+                        }
+
+                    }
+
+                } else {
+
+                    if (callback) {
+                        callback();
+                    }
+                }
+
+            });
+
+        } else {
 
             if (callback) {
                 callback();
             }
 
+        }
+    }
+
+
+    function filterInvoiceUserList() {
+
+        var lkey = 0;
+
+        Engine.getInvoiceByUserList(0, lkey, invPageFrom, 1000, function (err, invoices) {
+
+            if (!err) {
+
+                if (invoices == -1) {
+
+                    if (callback) {
+                        callback();
+                    }
+
+                } else {
+
+                    invoices = invoices.data;
+
+                    if (currentByMeInvoiceFilter == "Pending") {
+
+                        invoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 0; });
+                    }
+
+                    if (currentByMeInvoiceFilter == "Paid") {
+
+                        invoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 1; });
+                    }
+
+                    if (currentByMeInvoiceFilter == "Rejected") {
+
+                        invoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 2; });
+                    }
+
+                    if (currentByMeInvoiceFilter == "Search") {
+                        var search = $('#txtSearchInvByMe').val();
+                        invoices = _.filter(invoices, function (inv) { return inv.InvoiceFrom.search(search) > -1; });
+                    }
+
+                    cachedInvoicesByUser = [];
+
+                    for (var i = 0; i < invoices.length; i++) {
+
+                        cachedInvoicesByUser.push(invoices[i]);
+                    }
+
+                    displayInvoices(invoices, 'byme');
+
+                }
+
+            }
+
         });
+
+    }
+
+
+
+    function displayInvoices(invoices, invtype) {
+
+
+        var table = 'tblinvoicepay';
+
+        if (invtype == 'byme') {
+            table = 'tblinvoicebyme';
+        }
+
+        var s = '';
+        $('#' + table + ' tbody').empty();
+
+        for (var i = 0; i < invoices.length; i++) {
+
+            var d1 = new Date(invoices[i].InvoiceDate);
+            invoices[i].JsDate = d1;
+
+            var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1).toLocaleString();
+            var invpaydate = '';
+            if (invoices[i].InvoicePaidDate) {
+                invpaydate = new Date(invoices[i].InvoicePaidDate.match(/\d+/)[0] * 1).toLocaleString();
+            }
+
+            var statusbox = '';
+            if (invoices[i].InvoiceStatus == 0) {
+                statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
+            }
+            else if (invoices[i].InvoiceStatus == 1) {
+                statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
+            }
+            else if (invoices[i].InvoiceStatus == 2) {
+                statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
+            }
+
+            s += "<tr><td><label class=\"checkbox m-n i-checks\"><input type=\"checkbox\" name=\"post[]\"><i></i></label></td><td>" + _.escape(invdate) + "</td>";
+
+            s += "<td><span class=\"thumb-sm\"><img id=\"imginvoice" + i + "\" alt=\"\" class=\"img-circle\"></span><span class=\"m-s\"> ";
+
+            s += _.escape(invoices[i].InvoiceFrom) + "</span></td>";
+
+            s += "<td><a href=\"#\" class=\"active\">" + statusbox + "</a></td><td>" + _.escape(invpaydate) + "</td><td><button type=\"button\" class=\"btn btn-sm btn-default\" id=\"viewinvoice" + i + "\">View</button></td></tr>";
+        }
+
+        $('#' + table + ' tbody').append(s);
+
+        for (var i = 0; i < invoices.length; i++) {
+
+            $("#" + table + " #viewinvoice" + i).click({
+                index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
+            }, function (event) {
+                displayInvoice(event.data.index, event.data.username, invtype, function (err, res) {
+                    uiInvoiceReturnToNetwork = false;
+                    $('#sbinvoice').click();
+                });
+            });
+
+
+            var length = invoices[i].InvoiceFrom.length;
+            if (length > 20) {
+                length = 20;
+            }
+
+            var imageSrcSmall = "images/avatar/64px/Avatar-" + pad(length) + ".png";
+
+
+            if (FRIENDSLIST[invoices[i].InvoiceFrom].profileImage != '') {
+                imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(FRIENDSLIST[invoices[i].InvoiceFrom].profileImage) + "?crop=faces&fit=crop&h=64&w=64&mask=ellipse&border=1,d0d0d0";
+            }
+
+
+            if (Engine.Device.isChromeApp()) {
+                var xhrsm = new XMLHttpRequest();
+                xhrsm.open('GET', imageSrcSmall, true);
+                xhrsm.responseType = 'blob';
+                xhrsm.index = i;
+                xhrsm.onload = function (e) {
+                    $("#" + table + " #imginvoice" + this.index).attr("src", window.URL.createObjectURL(this.response));
+                };
+                xhrsm.send();
+            } else {
+
+                //can we use chrome method here?
+                $("#" + table + " #imginvoice" + i).attr("src", imageSrcSmall);
+            }
+
+
+        }
+
+
+
     }
 
 
 
     var lastInvoiceToPayNetCount = 0;
     var uiInvoiceReturnToNetwork = false;
+    var uiInvoiceReturnToDashboard = false;
+
+
+    var lastInvPayNetTimestamp = 0
+    var lastInvPayNetLKey = 0;
+    var invPayNetPageFrom = 0;
+    var invPayNetPageTo = invPayNetPageFrom + 10;
+    var totalInvPayNet = 0;
+
     function showInvoiceListNetwork(callback) {
 
         if (SELECTEDFRIEND != '') {
 
 
-            var invoices = _.filter(cachedInvoices, function (inv) { return inv.InvoiceFrom == SELECTEDFRIEND; });
+            var lkey = 0;
+            var timestamp = lastInvPayNetTimestamp;
+
+            Engine.getInvoicesToPayNetwork(SELECTEDFRIEND, timestamp, lkey, invPayNetPageFrom, invPayNetPageTo, function (err, invoices) {
+
+                if (!err) {
+
+                    if (invoices == -1) {
+
+                        if (callback) {
+                            callback();
+                        }
+
+                    } else {
 
 
-            if (invoices.length == 0) {
-                $('#tblnetinvforme tbody').empty();
-                $('#tblnetinvforme').hide();
-            }
+                        if (invoices.timestamp) {
+                            lastInvPayNetTimestamp = invoices.timestamp;
+                        }
+
+                        var total = invoices.total;
+
+                        totalInvPayNet = total;
+
+                        invoices = invoices.data;
+
+                        $('#tblnetinvforme tbody').empty();
+
+                        var s = '';
 
 
-            if (lastInvoiceToPayNetCount < invoices.length) {
+                        for (var i = 0; i < invoices.length; i++) {
 
-                lastInvoiceToPayNetCount = invoices.length;
+                            var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1).toLocaleString();
+                            var invpaydate = '';
+                            if (invoices[i].InvoicePaidDate) {
+                                invpaydate = new Date(invoices[i].InvoicePaidDate.match(/\d+/)[0] * 1).toLocaleString();
+                            }
 
-                var s = '';
-                $('#tblnetinvforme tbody').empty();
+                            var statusbox = '';
+                            if (invoices[i].InvoiceStatus == 0) {
+                                statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
+                            }
+                            else if (invoices[i].InvoiceStatus == 1) {
+                                statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
+                            }
+                            else if (invoices[i].InvoiceStatus == 2) {
+                                statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
+                            }
 
-                for (var i = 0; i < invoices.length; i++) {
-
-                    var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1).toLocaleString();
-                    var invpaydate = '';
-                    if (invoices[i].InvoicePaidDate) {
-                        invpaydate = new Date(invoices[i].InvoicePaidDate.match(/\d+/)[0] * 1).toLocaleString();
-                    }
-
-                    var statusbox = '';
-                    if (invoices[i].InvoiceStatus == 0) {
-                        statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
-                    }
-                    else if (invoices[i].InvoiceStatus == 1) {
-                        statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
-                    }
-                    else if (invoices[i].InvoiceStatus == 2) {
-                        statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
-                    }
-
-                    s += "<tr><td>" + _.escape(invdate) + "</td>" +
+                            s += "<tr><td>" + _.escape(invdate) + "</td>" +
                                  "<td><a href=\"#\" class=\"active\">" + statusbox + "</a></td><td>" + _.escape(invpaydate) + "</td><td><button type=\"button\" class=\"btn btn-sm btn-default\" id=\"viewinvoicenetfrom" + _.escape(invoices[i].InvoiceFrom + invoices[i].InvoiceId) + "\">View</button></td></tr>";
+                        }
+
+                        $('#tblnetinvforme tbody').append(s);
+
+                        for (var i = 0; i < invoices.length; i++) {
+
+                            $("#tblnetinvforme #viewinvoicenetfrom" + _.escape(invoices[i].InvoiceFrom) + _.escape(invoices[i].InvoiceId)).click({
+                                index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
+                            }, function (event) {
+                                displayInvoice(event.data.index, event.data.username, 'forme', function (err, res) {
+                                    uiInvoiceReturnToNetwork = true;
+                                    $('#sbinvoice').click();
+                                });
+                            });
+                        }
+
+                        $('#tblnetinvforme').show();
+                        //$('#pnlfriendinv').show();
+                    }
+
                 }
 
-                $('#tblnetinvforme tbody').append(s);
-
-                for (var i = 0; i < invoices.length; i++) {
-
-                    $("#tblnetinvforme #viewinvoicenetfrom" + _.escape(invoices[i].InvoiceFrom) + _.escape(invoices[i].InvoiceId)).click({
-                        index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
-                    }, function (event) {
-                        displayInvoice(event.data.index, event.data.username, 'forme', function (err, res) {
-                            uiInvoiceReturnToNetwork = true;
-                            $('#hinvoices').click();
-                        });
-                    });
-                }
-
-                $('#tblnetinvforme').show();
-
-
-            }
-
-            $('#pnlfriendinv').show();
+            });
 
         }
 
@@ -4587,260 +5471,105 @@ function UI() {
     }
 
     var lastInvoiceByMeNetCount = 0;
-    function showInvoiceByMeListNetwork() {
-
-        var invoices = _.filter(cachedInvoicesByUser, function (inv) { return inv.InvoiceFrom == SELECTEDFRIEND; });
 
 
 
-        if (invoices.length == 0) {
-            $('#tblnetinvbyme tbody').empty();
-            $('#tblnetinvbyme').hide();
-        }
+    var lastInvByMeNetTimestamp = 0
+    var lastInvByMeNetLKey = 0;
+    var invByMeNetPageFrom = 0;
+    var invByMeNetPageTo = invByMeNetPageFrom + 10;
+    var totalInvByMeNet = 0;
+
+    function showInvoiceByMeListNetwork(callback) {
+
+        if (SELECTEDFRIEND != '') {
 
 
-        if (lastInvoiceByMeNetCount < invoices.length) {
+            var lkey = 0;
+            var timestamp = lastInvByMeNetTimestamp;
 
-            lastInvoiceByMeNetCount = invoices.length;
+            Engine.getInvoicesByUserNetwork(SELECTEDFRIEND, timestamp, lkey, invByMeNetPageFrom, invByMeNetPageTo, function (err, invoices) {
 
-            var s = '';
-            $('#tblnetinvbyme tbody').empty();
+                if (!err) {
 
-            for (var i = 0; i < invoices.length; i++) {
+                    if (invoices == -1) {
 
-                var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1).toLocaleString();
-                var invpaydate = '';
-                if (invoices[i].InvoicePaidDate) {
-                    invpaydate = new Date(invoices[i].InvoicePaidDate.match(/\d+/)[0] * 1).toLocaleString();
-                }
-
-
-                var statusbox = '';
-                if (invoices[i].InvoiceStatus == 0) {
-                    statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
-                }
-                else if (invoices[i].InvoiceStatus == 1) {
-                    statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
-                }
-                else if (invoices[i].InvoiceStatus == 2) {
-                    statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
-                }
-
-                s += "<tr><td>" + _.escape(invdate) + "</td>" +
-                                 "<td><a href=\"#\" class=\"active\">" + statusbox + "</a></td><td>" + _.escape(invpaydate) + "</td><td><button type=\"button\" class=\"btn btn-sm btn-default\" id=\"viewinvoicenetby" + _.escape(invoices[i].InvoiceFrom) + _.escape(invoices[i].InvoiceId) + "\">View</button></td></tr>";
-            }
-
-            $('#tblnetinvbyme tbody').append(s);
-
-            for (var i = 0; i < invoices.length; i++) {
-
-                $("#tblnetinvbyme #viewinvoicenetby" + invoices[i].InvoiceFrom + invoices[i].InvoiceId).click({
-                    index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
-                }, function (event) {
-                    displayInvoice(event.data.index, event.data.username, 'byme', function (err, res) {
-                        uiInvoiceReturnToNetwork = true;
-                        $('#hinvoices').click();
-                    });
-                });
-            }
-
-            $('#tblnetinvbyme').show();
-
-
-        }
-
-        $('#pnlfriendinv').show();
-
-
-    }
-
-    var cachedInvoicesByUser = [];
-    var lastInvoiceByUserCount = 0;
-    function showInvoiceByUserList(callback) {
-        //get back the list of invoices to pay
-
-
-        Engine.getInvoiceByUserList(function (err, invoices) {
-
-            if (!err) {
-
-
-                for (var i = 0; i < invoices.length; i++) {
-                    var d1 = new Date(invoices[i].InvoiceDate);
-                    invoices[i].JsDate = d1;
-                }
-
-                invoices = _.sortBy(invoices, function (inv) { return -inv.JsDate; });
-
-                filteredByMeInvoices = invoices;
-
-                //perform all filters then set back to invoices
-
-                if (currentByMeInvoiceFilter == "Pending") {
-
-                    filteredByMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 0; });
-                }
-
-                if (currentByMeInvoiceFilter == "Paid") {
-
-                    filteredByMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 1; });
-                }
-
-                if (currentByMeInvoiceFilter == "Rejected") {
-
-                    filteredByMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceStatus == 2; });
-                }
-
-                if (currentByMeInvoiceFilter == "Search") {
-                    var search = $('#txtSearchInvByMe').val();
-                    filteredByMeInvoices = _.filter(invoices, function (inv) { return inv.InvoiceFrom.search(search) > -1; });
-                }
-
-                var noofpages = Math.floor((filteredByMeInvoices.length / invoicesByMePerPage));
-
-                var indexFrom = currentByMeInvoicePageIndex * invoicesByMePerPage;
-                var indexTo = indexFrom + invoicesByMePerPage;
-
-                if (indexTo > filteredByMeInvoices.length) {
-                    indexTo = filteredByMeInvoices.length;
-                }
-
-                $('#invbmpaglabel').text('Showing ' + (indexFrom + 1) + ' to ' + (indexTo) + ' of ' + filteredByMeInvoices.length);
-
-                invoices = filteredByMeInvoices;
-
-
-                if (lastInvoiceByUserCount < invoices.length) {
-
-
-                    pagedByMeInvoices = filteredByMeInvoices.slice(indexFrom, indexTo);
-
-                    invoices = pagedByMeInvoices;
-
-                    cachedInvoicesByUser = [];
-
-                    lastInvoiceByUserCount = invoices.length;
-
-                    var s = '';
-                    $('#tblinvoicebyme tbody').empty();
-                    for (var i = 0; i < invoices.length; i++) {
-
-                        var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1).toLocaleString();
-                        var invpaydate = '';
-                        if (invoices[i].InvoicePaidDate) {
-                            invpaydate = new Date(invoices[i].InvoicePaidDate.match(/\d+/)[0] * 1).toLocaleString();
+                        if (callback) {
+                            callback();
                         }
 
-                        cachedInvoicesByUser.push(invoices[i]);
+                    } else {
 
-                        var statusbox = '';
-                        if (invoices[i].InvoiceStatus == 0) {
-                            statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
-                        }
-                        else if (invoices[i].InvoiceStatus == 1) {
-                            statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
-                        }
-                        else if (invoices[i].InvoiceStatus == 2) {
-                            statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
+
+                        if (invoices.timestamp) {
+                            lastInvByMeNetTimestamp = invoices.timestamp;
                         }
 
+                        var total = invoices.total;
 
-                        s += "<tr><td><label class=\"checkbox m-n i-checks\"><input type=\"checkbox\" name=\"post[]\"><i></i></label></td><td>" + _.escape(invdate) + "</td><td><span class=\"thumb-sm\"><img alt=\"\"  id=\"imginvoicebyuser" + i + "\" class=\"img-circle\"></span><span class=\"m-s\"> " +
-                                 _.escape(invoices[i].InvoiceFrom) + "</span></td><td><a href=\"#\" class=\"active\">" + statusbox + "</a></td><td><span class=\"paid\">" + _.escape(invpaydate) + "</span></td><td><button type=\"button\" class=\"btn btn-sm btn-default\" id=\"viewinvoicebyuser" + i + "\">View</button></td></tr>";
-                    }
+                        totalInvByMeNet = total;
 
-                    $('#tblinvoicebyme tbody').append(s);
+                        invoices = invoices.data;
 
-                    for (var i = 0; i < invoices.length; i++) {
+                        var s = '';
+                        $('#tblnetinvbyme tbody').empty();
 
-                        $("#tblinvoicebyme #viewinvoicebyuser" + i).click({
-                            index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
-                        }, function (event) {
-                            displayInvoiceByUser(event.data.index, event.data.username, 'byme', function (err, res) {
+                        for (var i = 0; i < invoices.length; i++) {
 
-
-                            });
-                        });
-
-
-
-                        var length = invoices[i].InvoiceFrom.length;
-                        if (length > 20) {
-                            length = 20;
-                        }
-
-                        var imageSrcSmall = "images/avatar/64px/Avatar-" + pad(length) + ".png";
-
-
-                        if (FRIENDSLIST[invoices[i].InvoiceFrom].profileImage != '') {
-                            imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(FRIENDSLIST[invoices[i].InvoiceFrom].profileImage) + "?crop=faces&fit=crop&h=64&w=64&mask=ellipse&border=1,d0d0d0";
-                        }
-
-
-
-                        if (Engine.Device.isChromeApp()) {
-                            var xhrsm = new XMLHttpRequest();
-                            xhrsm.open('GET', imageSrcSmall, true);
-                            xhrsm.responseType = 'blob';
-                            xhrsm.index = i;
-                            xhrsm.onload = function (e) {
-                                $("#tblinvoicebyme #imginvoicebyuser" + this.index).attr("src", window.URL.createObjectURL(this.response));
-                            };
-                            xhrsm.send();
-                        } else {
-                            $("#tblinvoicebyme #imginvoicebyuser" + i).attr("src", imageSrcSmall);
-                        }
-
-
-                    }
-
-                    if (callback) {
-                        callback(false, "ok");
-                    }
-
-                } else {
-
-                    //no new invoices, but lets check for invoices with changed status
-                    cachedInvoicesByUser = invoices;
-
-                    $('#tblinvoicebyme tbody tr .active').each(function (index, elem) {
-                        var statusbox = '';
-                        if (cachedInvoicesByUser[index].InvoiceStatus == 0) {
-                            statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
-                        }
-                        else if (cachedInvoicesByUser[index].InvoiceStatus == 1) {
-                            statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
-                        }
-                        else if (cachedInvoicesByUser[index].InvoiceStatus == 2) {
-                            statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
-                        }
-                        //$(elem).text('');
-                        $(elem).html(statusbox);
-                    });
-
-                    $('#tblinvoicebyme tbody tr .paid').each(function (index, elem) {
-
-                        if (cachedInvoicesByUser[index].InvoiceStatus == 1 || cachedInvoicesByUser[index].InvoiceStatus == 1) {
-
+                            var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1).toLocaleString();
                             var invpaydate = '';
-                            if (cachedInvoicesByUser[index].InvoicePaidDate) {
-                                invpaydate = new Date(cachedInvoicesByUser[index].InvoicePaidDate.match(/\d+/)[0] * 1).toLocaleString();
+                            if (invoices[i].InvoicePaidDate) {
+                                invpaydate = new Date(invoices[i].InvoicePaidDate.match(/\d+/)[0] * 1).toLocaleString();
                             }
-                            $(elem).text(invpaydate);
+
+
+                            var statusbox = '';
+                            if (invoices[i].InvoiceStatus == 0) {
+                                statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
+                            }
+                            else if (invoices[i].InvoiceStatus == 1) {
+                                statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
+                            }
+                            else if (invoices[i].InvoiceStatus == 2) {
+                                statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
+                            }
+
+                            s += "<tr><td>" + _.escape(invdate) + "</td>" +
+                                 "<td><a href=\"#\" class=\"active\">" + statusbox + "</a></td><td>" + _.escape(invpaydate) + "</td><td><button type=\"button\" class=\"btn btn-sm btn-default\" id=\"viewinvoicenetby" + _.escape(invoices[i].InvoiceFrom) + _.escape(invoices[i].InvoiceId) + "\">View</button></td></tr>";
                         }
 
-                    });
+                        $('#tblnetinvbyme tbody').append(s);
+
+                        for (var i = 0; i < invoices.length; i++) {
+
+                            $("#tblnetinvbyme #viewinvoicenetby" + invoices[i].InvoiceFrom + invoices[i].InvoiceId).click({
+                                index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
+                            }, function (event) {
+                                displayInvoice(event.data.index, event.data.username, 'byme', function (err, res) {
+                                    uiInvoiceReturnToNetwork = true;
+                                    $('#sbinvoice').click();
+                                });
+                            });
+                        }
+
+                        $('#tblnetinvbyme').show();
+                        //$('#pnlfriendinv').show();
+                    }
 
                 }
 
-            }
+            });
 
-            if (callback) {
-                callback(false, "ok");
-            }
+        }
 
-        });
+        if (callback) {
+
+            callback(false, '');
+
+        }
     }
+
+
 
 
 
@@ -4856,6 +5585,8 @@ function UI() {
 
         $("#createinv").hide();
         $("#invoicestopay").hide();
+        $("#invoice").hide();
+
 
         $('#tblinvdisplay tbody').empty();
         var s = '';
@@ -5007,8 +5738,7 @@ function UI() {
     }
 
 
-    function payInvoice(friend, amount, invoiceNumber, twoFactorCode, callback) {
-
+    function payInvoice(friend, amount, invoiceNumber, twoFactorCode, minersfee, callback) {
 
         Engine.sendTransaction('invoice', friend, '', amount, twoFactorCode, function (err, transactionid) {
 
@@ -5019,12 +5749,6 @@ function UI() {
                     if (!err) {
 
                         $('#textCompleteSendInv').text('You paid invoice: ' + friend.toUpperCase() + invoiceNumber);
-                        //$('#textMessageSendInv').fadeOut(5000);
-                        //$('#sendinvprog').fadeOut(5000);
-
-                        //$("#invoicedisplay").hide();
-                        //$("#invoicestopay").show();
-                        //$("#createinv").show();
 
                         updateBalance();
                         lastInvoiceToPayCount = 0;
@@ -5069,8 +5793,6 @@ function UI() {
 
             }
 
-
-
         }, function (message, progress) {
 
             if (message) {
@@ -5081,9 +5803,7 @@ function UI() {
                 $('#sendinvprogstatus').width(progress);
             }
 
-        });
-
-
+        }, minersfee);
 
     }
 
@@ -5095,6 +5815,43 @@ function UI() {
 
     //event handlers
 
+
+    function loadPriceHistory() {
+
+        Ninki.API.getPriceHistory(function (err, history) {
+
+            if (!err) {
+
+                history = JSON.parse(history);
+
+                var d2 = [];
+                for (var i = 1; i < history.length; i++) {
+                    d2.push([history[i][0], parseFloat(history[i][1])]);
+                }
+
+                $("#flot-chart").length && $.plot($("#flot-chart"), [{
+                    data: d2,
+                    label: "&nbsp;Price"
+                }], {
+
+                    grid: {
+                        hoverable: true,
+                        clickable: true,
+                        tickColor: "#f0f0f0",
+                        borderWidth: 0
+                    },
+                    colors: ["#1bb399"],
+                    xaxis: { mode: "time",
+                        timezone: "browser",
+                        timeformat: "%H:%S"
+                    }
+                });
+
+            }
+
+        });
+
+    }
 
 
     //wrapper functions
@@ -5135,6 +5892,8 @@ function UI() {
             $("#mynickname").text(Engine.m_nickname);
             $("#usernameProfile").text(Engine.m_nickname);
             $("#mystatus").text(Engine.m_statusText);
+            $("#mystatus2").text(Engine.m_statusText);
+            $("#mynickname2").text(Engine.m_nickname);
             $("#txtTax").val((Engine.m_invoiceTax * 100) + '%');
 
 
@@ -5156,6 +5915,7 @@ function UI() {
 
                 xhr.onload = function (e) {
                     $("#imgProfile").attr("src", window.URL.createObjectURL(this.response));
+                    $("#imgProfile2").attr("src", window.URL.createObjectURL(this.response));
                 };
                 xhr.send();
 
@@ -5171,59 +5931,37 @@ function UI() {
             } else {
 
                 $("#imgProfile").attr("src", imageSrc);
-
+                $("#imgProfile2").attr("src", imageSrc);
                 $("#imgtoprightprofile").attr("src", imageSrcSmall);
             }
 
             $("#codeForFriend").text(Engine.m_pubKey.primaryKey.fingerprint);
 
-            Engine.getusernetworkcategory(function (err, categories) {
 
-                var catOptions = '<select id="nselnetcat" class="form-control">';
+            $("#sbdashboard").click();
 
-                for (var i = 0; i < categories.length; i++) {
-
-                    catOptions += '<option>' + _.escape(categories[i].Category) + '</option>';
-
-                }
-
-                catOptions += '</select>';
-
-                $("#netcatoptions").html(catOptions);
-
-                $("#nselnetcat").change(function () {
-
-                    $("#nselnetcat option:selected").each(function () {
-                        //update selected friend category
-                        Engine.updateusernetworkcategory(SELECTEDFRIEND, $(this).text(), function (err, result) {
-
-                            //refresh friend list
-                            if (!err) {
-                                lastNoOfFriends = 0;
-                                updateFriends();
-                            }
-
-                        });
-
-                    });
-                });
+            $("#pnlfriend").hide();
 
 
-                if (!err) {
+            $("#nav").show();
 
+            //if (!err) {
 
-                    document.onAway = function () { logout(); };
+                document.onAway = function () { logout(); };
+
+                listenForUpdates(function () {
+
+                    updateUI();
+
+                    updateRequestsMadeByMe();
 
                     setInterval(function () {
                         updateUI();
-                    }, 10000);
+                    }, 20000);
 
                     setInterval(function () {
-                        refreshSelectedFriend();
-                    }, 30000);
-
-
-
+                        listenForUpdates();
+                    }, 5000);
 
                     $('#showPhrases').hide();
                     $("#openWalletStart").hide();
@@ -5245,10 +5983,6 @@ function UI() {
                         }
                     }
 
-                    updateUI();
-
-                    updateRequestsMadeByMe();
-
                     readAccountSettings();
 
                     if (Engine.m_settings.Inactivity) {
@@ -5260,17 +5994,52 @@ function UI() {
                     $('#stdselcu').click();
                     $('#netselcu').click();
 
+
+                    Engine.getusernetworkcategory(function (err, categories) {
+
+                        var catOptions = '<select id="nselnetcat" class="form-control">';
+
+                        for (var i = 0; i < categories.length; i++) {
+
+                            catOptions += '<option>' + _.escape(categories[i].Category) + '</option>';
+
+                        }
+
+                        catOptions += '</select>';
+
+                        $("#netcatoptions").html(catOptions);
+
+                        $("#nselnetcat").change(function () {
+
+                            $("#nselnetcat option:selected").each(function () {
+                                //update selected friend category
+                                Engine.updateusernetworkcategory(SELECTEDFRIEND, $(this).text(), function (err, result) {
+
+                                    //refresh friend list
+                                    if (!err) {
+                                        lastNoOfFriends = 0;
+                                        lastUserNetworkTimestamp = 0;
+                                        updateFriends();
+                                    }
+
+                                });
+
+                            });
+                        });
+                    });
+
                     if (callback) {
 
                         return callback(false, "ok");
 
                     }
 
+                });
 
-                }
+            //}
 
 
-            });
+
 
         });
 
@@ -5282,14 +6051,22 @@ function UI() {
         return (n < 10) ? ("0" + n) : n;
     }
 
+
+    $('#sblogout').click(function () {
+
+        logout();
+
+    });
+
     function logout() {
 
         if (chrome) {
             if (chrome.runtime) {
-                if (chrome.runtime.reload) {
-                    chrome.runtime.reload()
+                if (chrome.runtime.close) {
+                    chrome.runtime.close();
                 } else {
-                    location.reload();
+                    //chrome.runtime.reload();
+                    window.close();
                 }
             } else {
                 location.reload();
@@ -5305,10 +6082,37 @@ function UI() {
     };
 
 
+    function listenForUpdates(callback) {
 
+        updateBalance(function (err, res) {
+
+            showTimeline(function (err, res) {
+
+                updateTransactions(function (err, res) {
+
+                    showNettrans(function (err, res) {
+
+                        if (callback) {
+                            callback();
+                        }
+
+                    });
+
+                });
+
+            });
+        });
+
+    }
 
 
     function updateUI() {
+
+
+        // updateCoinProfile(function (err, result) {
+
+
+        // });
 
 
         Ninki.API.getPrice(Engine.m_guid, Engine.m_settings.LocalCurrency, function (err, result) {
@@ -5325,7 +6129,7 @@ function UI() {
 
             var cprc = ires.toLocaleString(loc, { style: "currency", currency: Engine.m_settings.LocalCurrency });
 
-            $('#price').text(cprc + ' / BTC');
+            $('#price').text(cprc + " / BTC");
 
         });
 
@@ -5341,43 +6145,34 @@ function UI() {
         $("#fndsendcunit").text(COINUNIT);
 
 
-        updateCoinProfile(function (err, res) {
-
-        });
-
         updateDeviceList(function (err, res) {
 
         });
 
 
-        updateBalance(function (err, res) {
+        updateFriends(function (err, res) {
 
-            updateFriends(function (err, res) {
+            showInvoiceList(function (err, res) {
 
-                updateFriendRequests(function (err, res) {
+                showInvoiceByUserList(function (err, res) {
 
-                    updateRequestsMadeByMe(function (err, res) {
+                    showInvoiceListNetwork(function (err, res) {
 
-                        updateTransactions(function (err, res) {
+                        updateFriendRequests(function (err, res) {
 
-                            showInvoiceList(function (err, res) {
+                            updateRequestsMadeByMe(function (err, res) {
 
-                                showInvoiceByUserList(function (err, res) {
-
-                                    showInvoiceListNetwork(function (err, res) {
-
-
-                                    });
-
-
-                                });
 
                             });
                         });
+
                     });
+
                 });
+
             });
         });
+
     }
 
     function showCreateWalletStart() {
@@ -5646,6 +6441,21 @@ function UI() {
                     $('#lcCNY').prop('checked', true);
                 }
 
+                if (settingsObject['LocalCurrency'] == 'GBP') {
+                    $('#lcSelected').text('GBP');
+                    $('#lcGBP').prop('checked', true);
+                }
+
+                if (settingsObject['LocalCurrency'] == 'AUD') {
+                    $('#lcSelected').text('AUD');
+                    $('#lcAUD').prop('checked', true);
+                }
+
+                if (settingsObject['LocalCurrency'] == 'NZD') {
+                    $('#lcSelected').text('NZD');
+                    $('#lcNZD').prop('checked', true);
+                }
+
                 Engine.Device.getStorageItem("tfso" + Engine.m_guid, function (res) {
 
                     if (res == "") {
@@ -5820,6 +6630,26 @@ function UI() {
         }
     }
 
+
+    function formatCoinAmount(amount) {
+
+        var fmamt = '';
+
+        if (COINUNIT == "BTC") {
+            fmamt = accounting.formatNumber(amount, 8, ",", ".");
+        } else {
+            fmamt = accounting.formatNumber(amount, 2, ",", ".");
+        }
+
+        //if there is a dp then trim any 0 off the end
+        //if the last char is a dot then trim also
+
+        fmamt = fmamt.replace(/0+$/, '');
+        fmamt = fmamt.replace(/\.+$/, '');
+        return fmamt;
+    }
+
+
     function convertFromSatoshis(amount, toUnit) {
 
         if (toUnit == 'BTC') {
@@ -5875,11 +6705,11 @@ function UI() {
 
                 var pitem = outputs[i];
 
-                cchtml += '<div class="media"><div>' + _.escape(pitem.Amount) + '</div><div>' + _.escape(pitem.IsPending) + '</div><div><a target="_new" href="https://btc.blockr.io/tx/info/' + pitem.TransactionId + '">' + _.escape(pitem.TransactionId) + '</a></div><div>' + _.escape(pitem.OutputIndex) + '</div><div>' + _.escape(pitem.Address) + '</div><div>' + _.escape(pitem.NodeLevel) + '</div>';
+                cchtml += '<div>' + _.escape(pitem.Amount) + '</div><div>' + _.escape(pitem.IsPending) + '</div><div><a target="_new" href="https://btc.blockr.io/tx/info/' + pitem.TransactionId + '">' + _.escape(pitem.TransactionId) + '</a></div><div>' + _.escape(pitem.OutputIndex) + '</div><div>' + _.escape(pitem.Address) + '</div><div>' + _.escape(pitem.NodeLevel) + '</div>';
 
             }
 
-            $("#coincontrol").text(cchtml);
+            $("#coincontrol").html(cchtml);
 
         });
 
@@ -5929,6 +6759,109 @@ function UI() {
         });
 
     }
+
+
+    var lastMessageNetCount = 0;
+    var lastMessageTimestamp = 0;
+    var lastMessageLKey = 0;
+    function showMessageNetwork(callback) {
+
+        if (SELECTEDFRIEND != '') {
+
+            var append = lastMessageLKey;
+
+            Engine.getMessagesByUserNetwork(SELECTEDFRIEND, lastMessageTimestamp, lastMessageLKey, 0, 9, function (err, messages) {
+
+                if (messages == -1) {
+
+                    if (callback) {
+                        callback();
+                    }
+
+                } else {
+
+                    if (messages.timestamp) {
+                        lastMessageTimestamp = messages.timestamp;
+                    }
+
+                    if (messages.data) {
+
+                        Engine.UnpackMessages(messages.data, SELECTEDFRIEND, function (err, messages) {
+
+
+                            messages = messages.reverse();
+
+                            //check for existing but pending messages first then update the date
+                            for (var i = 0; i < messages.length; i++) {
+
+                                var s = '';
+
+                                var messdate = 0;
+                                if (messages[i].CreateDate.substring(0, 5) == '/Date') {
+                                    messdate = new Date(messages[i].CreateDate.match(/\d+/)[0] * 1);
+                                } else {
+                                    messdate = new Date(messages[i].CreateDate);
+                                }
+
+                                if (i == messages.length - 1) {
+                                    lastMessageLKey = messdate.toJSON();
+                                }
+
+                                messdate = messdate.toLocaleString();
+
+                                if ($('#usernetmessages ul #' + messages[i].MessageId + ' #messdate').length == 0) {
+
+                                    var statusbox = '';
+
+                                    var messageby = '';
+                                    if (messages[i].UserName == SELECTEDFRIEND || messages[i].UserName == "") {
+                                        messageby = 'Me';
+                                    } else {
+                                        messageby = SELECTEDFRIEND;
+                                    }
+
+                                    if (messageby == 'Me') {
+                                        s += '<li class="list-group-item m-t-xs"><p class="font-bold">' + _.escape(messageby) + '</p><p>' + _.escape(messages[i].message) + '</p><small class="block text-muted"><i class="fa fa-clock-o"></i>&nbsp;' + _.escape(messdate) + '</small></li>';
+                                    } else {
+                                        s += '<li class="list-group-item m-t-xs" style="background-color: #fcf8e3"><p class="font-bold">' + _.escape(messageby) + '</p><p>' + _.escape(messages[i].message) + '</p><small class="block text-muted"><i class="fa fa-clock-o"></i>&nbsp;' + _.escape(messdate) + '</small></li>';
+                                    }
+
+                                    if (append == 0) {
+
+                                        $('#usernetmessages ul').append(s);
+                                    } else {
+                                        $('#usernetmessages ul').append(s);
+                                    }
+
+
+                                } else {
+
+                                    $('#usernetmessages ul #' + messages[i].MessageId + ' #messdate').text(messdate);
+                                }
+                            }
+
+                            $('#messagescroll').scrollTop($('#messagescroll')[0].scrollHeight);
+
+
+                            if (callback) {
+                                callback();
+                            }
+
+                        });
+
+                    }
+
+
+                }
+
+            });
+
+        }
+
+    }
+
+
+
 
     function updateNetwork() {
 
@@ -6013,9 +6946,6 @@ function UI() {
                             template += '<div>';
                             template += _.escape(devices[i].DeviceId);
                             template += '</div>';
-
-
-
 
                             template += '<small class="text-muted"></small></div>';
                             template += '</div>';
@@ -6146,23 +7076,42 @@ function UI() {
     var invoiceSelectedAmount = 0;
     var selectedFriend = null;
 
+    var lastUserNetworkTimestamp = 0
+    var lastUserNetworkLKey = 0;
+    var userNetworkPageFrom = 0;
+    var userNetworkPageTo = userNetworkPageFrom + 10;
+    var totalUserNetwork = 0;
+
+
     function updateFriends(callback) {
 
         if (!noAlert == true) {
 
-
-            Engine.getUserNetwork(function (err, friends) {
-
+            Engine.getUserNetwork(lastUserNetworkTimestamp, lastUserNetworkLKey, userNetworkPageFrom, 1000, function (err, friends) {
 
                 if (!err) {
 
-                    $("#nfriends").text(friends.length);
+                    if (friends == -1) {
 
-                    if (friends.length == 0 && lastNoOfFriends == 0) {
-
-                        $("#networkpholder").show();
+                        if (callback) {
+                            callback();
+                        }
 
                     } else {
+
+
+                        if (friends.timestamp) {
+                            lastUserNetworkTimestamp = friends.timestamp;
+                        }
+
+                        var total = friends.total;
+
+                        totalUserNetwork = total;
+
+                        friends = friends.data;
+
+                        $("#nfriends").text(friends.length);
+
 
                         $("#networkpholder").hide();
 
@@ -6212,26 +7161,26 @@ function UI() {
                                 grouptemplate += '</a>';
                                 grouptemplate += '</div>';
                                 grouptemplate += '<div id="collapse' + g + '" class="panel-collapse in">';
-                                grouptemplate += '<div class="panel-body text-sm">';
+                                grouptemplate += '<div class="">';
 
                                 for (var i = 0; i < friendsgroup[key].length; i++) {
 
                                     var frnd = FRIENDSLIST[friends[i].userName];
 
-                                    var template = '<a href="#" class="media list-group-item" id="friend' + k + '"><div class="media">' +
-                                '<span class="pull-left thumb-sm"><img id="imgfriend' + k + '" alt="" class="img-circle"></span><div id="seltarget' + _.escape(friends[i].userName) + '">';
+                                    var template = '<a href="#" class="list-group-item frienditem" id="friend' + _.escape(friends[i].userName) + '"><div class="media">' +
+                                                    '<span class="pull-left thumb-sm"><img id="imgfriend' + k + '" alt="" class="img-circle"></span><div id="seltarget' + _.escape(friends[i].userName) + '">';
 
                                     if (frnd.validated) {
                                         template += '<div class="pull-right text-success m-t-sm">' +
-                                '<i class="fa fa-check-square" style="font-size:1.5em"></i>' +
-                                '</div>';
+                                                    '<i class="fa fa-check-square" style="font-size:1.5em"></i>' +
+                                                    '</div>';
                                     }
 
                                     template += '</div><div class="media-body">' +
-                                '<div>' + _.escape(friends[i].userName) + '</div>' +
-                                '<small class="text-muted">' + _.escape(frnd.status) + '</small>' +
-                                '</div>' +
-                                '</div></a>';
+                                                '<div>' + _.escape(friends[i].userName) + '</div>' +
+                                                '<small class="text-muted">' + _.escape(frnd.status) + '</small>' +
+                                                '</div>' +
+                                                '</div></a>';
 
 
                                     grouptemplate += template;
@@ -6291,15 +7240,31 @@ function UI() {
 
 
 
-                                    $("#myfriends #friend" + k).click({ userName: friends[i].userName }, function (event) {
+                                    $("#myfriends #friend" + _.escape(friends[i].userName)).click({ userName: friends[i].userName, index: k }, function (event) {
 
                                         SELECTEDFRIEND = event.data.userName;
                                         selectedFriend = FRIENDSLIST[event.data.userName];
+
+                                        $(".frienditem").attr("style", "");
+
+                                        $("#friend" + _.escape(event.data.userName)).attr("style", "background-color:#f2f4f8");
+
 
                                         //depreciate
 
 
                                         updateSelectedFriend();
+
+
+                                        $("#bmcontactsend").click();
+
+                                        $("#pnlfriend").show();
+                                        $("#networkspanel").show();
+
+                                        $("#pnlfriendinv").hide();
+                                        $("#pnlfriendmessage").hide();
+
+
                                         $("#friendAmount").keyup();
 
 
@@ -6312,13 +7277,17 @@ function UI() {
                             }
 
                         }
+
                     }
 
-                    return callback(false, "done");
+                    if (callback) {
+                        callback(false, "done");
+                    }
 
                 } else {
-
-                    return callback(true, "done");
+                    if (callback) {
+                        callback(true, "done");
+                    }
                 }
             });
         }
@@ -6340,18 +7309,18 @@ function UI() {
                         selectedFriend = friend;
                         FRIENDSLIST[SELECTEDFRIEND] = friend;
 
-                        if (selectedFriend.ICanSend) {
-                            $("#issend").show();
-                            $("#networksend").show();
-                        } else {
-                            $("#issend").hide();
-                            $("#networksend").hide();
-                        }
-                        if (selectedFriend.ICanReceive) {
-                            $("#isreceive").show();
-                        } else {
-                            $("#isreceive").hide();
-                        }
+                        //                        if (selectedFriend.ICanSend) {
+                        //                            $("#issend").show();
+                        //                            $("#networksend").show();
+                        //                        } else {
+                        //                            $("#issend").hide();
+                        //                            $("#networksend").hide();
+                        //                        }
+                        //                        if (selectedFriend.ICanReceive) {
+                        //                            $("#isreceive").show();
+                        //                        } else {
+                        //                            $("#isreceive").hide();
+                        //                        }
 
                         var imageSrc = "images/avatar/256px/Avatar-" + pad(SELECTEDFRIEND.length) + ".png";
 
@@ -6380,8 +7349,6 @@ function UI() {
                         }
 
 
-
-
                         if (selectedFriend.validated) {
                             $("#validateform").hide();
                             $("#isvalidated").show();
@@ -6389,6 +7356,8 @@ function UI() {
                             $("#btnconfmoneynet").prop('disabled', false);
                             $("#btnconfmoneynet").removeClass('disabled');
                             $("#friendvalreq").hide();
+                            $("#networksend").show();
+                            $("#bmcontactmessages").removeClass('disabled');
 
                         } else {
                             $("#validateform").show();
@@ -6397,6 +7366,9 @@ function UI() {
                             $("#btnconfmoneynet").prop('disabled', true);
                             $("#btnconfmoneynet").addClass('disabled');
                             $("#friendvalreq").show();
+                            $("#networksend").hide();
+                            $("#bmcontactmessages").addClass('disabled');
+
                         }
 
                         if (callback) {
@@ -6422,9 +7394,19 @@ function UI() {
 
     function updateSelectedFriend(callback) {
 
+        clearInterval(messageRefresh);
+
         //can optimise futher
         norefresh = true;
+
         if (SELECTEDFRIEND.length > 0) {
+
+
+            $('#tblnetinvbyme tbody').empty();
+            $('#tblnetinvforme tbody').empty();
+            $('#usernetmessages ul').empty();
+            $('#networktransfeed').empty();
+
 
             $('#sendnets1').show();
             $('#sendnets2').hide();
@@ -6443,8 +7425,6 @@ function UI() {
             $('#friendempty').hide();
 
             $('#textMessageSend').removeClass('alert alert-danger');
-
-
 
             $('#textMessageSend').hide();
             $('#sendfriendprog').hide();
@@ -6503,31 +7483,55 @@ function UI() {
 
 
             if (selectedFriend.validated) {
+
                 $("#validateform").hide();
                 $("#isvalidated").show();
                 $("#networkvalidate").hide();
                 $("#btnconfmoneynet").prop('disabled', false);
                 $("#btnconfmoneynet").removeClass('disabled');
                 $("#friendvalreq").hide();
+                $("#networksend").show();
+
+                $("#bmcontactmessages").removeClass('disabled');
 
             } else {
+
+                $("#networksend").hide();
                 $("#validateform").show();
                 $("#isvalidated").hide();
                 $("#networkvalidate").show();
                 $("#btnconfmoneynet").prop('disabled', true);
                 $("#btnconfmoneynet").addClass('disabled');
                 $("#friendvalreq").show();
+                $("#bmcontactmessages").addClass('disabled');
             }
 
             $("#pnlfriend").show();
 
-            $('#tblnetinvbyme tbody').empty();
-            $('#tblnetinvforme tbody').empty();
+            lastMessageNetCount = 0;
+            lastMessageTimestamp = 0;
+            lastMessageLKey = 0;
+
+            lastInvPayNetTimestamp = 0;
+            lastInvByMeNetTimestamp = 0;
 
             lastInvoiceToPayNetCount = 0;
             lastInvoiceByMeNetCount = 0;
+
+            lastNettransTimestamp = 0;
+
+            showNettrans(function (err, res) {
+
+            });
+
             showInvoiceListNetwork();
+
             showInvoiceByMeListNetwork();
+
+            setInterval(function () {
+                refreshSelectedFriend();
+            }, 30000);
+
         }
 
         norefresh = false;
@@ -6537,6 +7541,7 @@ function UI() {
 
     }
 
+    var messageRefresh = null;
 
     var lastNoOfFriendsReq = 0;
 
@@ -6548,35 +7553,37 @@ function UI() {
         //to do, move to handlebars templates
         Engine.getFriendRequests(function (err, friends) {
 
-            if (friends.length > 0) {
-                $("#contactrequestpanel").show();
-            } else {
-                $("#contactrequestpanel").hide();
-            }
-
-            $("#notifications").text(friends.length);
-            $("#notificationsright").text(friends.length);
-            $("#nfriendreq").text(friends.length);
-
-            if (lastNoOfFriendsReq != friends.length || friends.length == 0) {
-
-                lastNoOfFriendsReq = friends.length;
+            if (!err) {
 
                 if (friends.length > 0) {
-                    $("#notifications").attr("class", "badge bg-danger pull-right");
+                    $("#contactrequestpanel").show();
                 } else {
-                    $("#notifications").attr("class", "badge pull-right");
+                    $("#contactrequestpanel").hide();
                 }
+
+                $("#notifications").text(friends.length);
+                $("#notificationsright").text(friends.length);
                 $("#nfriendreq").text(friends.length);
-                $("#friendreq").text('');
-                for (var i = 0; i < friends.length; i++) {
 
-                    var length = friends[i].userName.length;
-                    if (length > 20) {
-                        length = 20;
+                if (lastNoOfFriendsReq != friends.length || friends.length == 0) {
+
+                    lastNoOfFriendsReq = friends.length;
+
+                    if (friends.length > 0) {
+                        $("#notifications").attr("class", "badge bg-danger pull-right");
+                    } else {
+                        $("#notifications").attr("class", "badge pull-right");
                     }
+                    $("#nfriendreq").text(friends.length);
+                    $("#friendreq").text('');
+                    for (var i = 0; i < friends.length; i++) {
 
-                    var template = '<li class="list-group-item"><a href="#" class="thumb pull-right m-l m-t-xs avatar">' +
+                        var length = friends[i].userName.length;
+                        if (length > 20) {
+                            length = 20;
+                        }
+
+                        var template = '<li class="list-group-item"><a href="#" class="thumb pull-right m-l m-t-xs avatar">' +
                                 '<img src="images/avatar/64px/Avatar-' + pad(length) + '.png" alt="" class="img-circle">' +
                                 '</a>' +
                                 '<div class="clear">' +
@@ -6585,310 +7592,993 @@ function UI() {
                                 '<div id="imgrequestwaiting"></div><button id=\"btnaccept' + i + '\" class="btn btn-xs btn-success m-t-xs">Accept</button> <button class="btn btn-xs btn-success m-t-xs" id=\"btnreject' + i + '\">Reject</button>' +
                                 '</div></li>';
 
-                    $("#friendreq").append(template);
-                    $("#btnaccept" + i).button();
+                        $("#friendreq").append(template);
+                        $("#btnaccept" + i).button();
+
+                    }
+
+                    for (var i = 0; i < friends.length; i++) {
+
+
+                        $("#friendreq #btnaccept" + i).click({
+                            userName: friends[i].userName, index: i
+                        }, function (event) {
+
+                            $(this).prop('disabled', true);
+                            $("#friendreq #btnreject" + event.data.index).prop('disabled', true);
+
+                            $("#imgrequestwaiting").show();
+                            var target = document.getElementById('imgrequestwaiting');
+                            var spinner = new Spinner(spinneropts).spin(target);
+
+                            var that = $(this);
+                            var thatrej = $("#friendreq #btnreject" + event.data.index);
+
+                            acceptFriend(event.data.userName, function (err, res) {
+
+                                if (!err) {
+                                    lastNoOfFriendsReq = 0;
+                                    updateFriendRequests();
+
+                                    updateFriends(function (err, res) {
+
+                                        if (FRIENDSLIST[event.data.userName]) {
+                                            SELECTEDFRIEND = event.data.userName;
+                                            selectedFriend = FRIENDSLIST[event.data.userName];
+                                            //switch to friend screen
+                                            $("#pnlfriend").show();
+                                            $("#pnlfriendinv").hide();
+                                            $("#pnlfriendmessage").hide();
+                                            $("#friendAmount").keyup();
+                                            $('#sbcontacts').click();
+                                            $("#bmcontactsend").click();
+
+                                            var index = event.data.userName;
+
+                                            updateSelectedFriend(function (err, res) {
+
+                                                $(".frienditem").attr("style", "");
+
+                                                $("#friend" + _.escape(index)).attr("style", "background-color:white");
+
+                                            });
+
+
+
+                                        }
+
+                                    });
+
+                                }
+
+                                $("#imgrequestwaiting").hide();
+                                $(that).prop('disabled', false);
+                                $(thatrej).prop('disabled', false);
+
+                            });
+                        });
+
+
+                        $("#friendreq #btnreject" + i).click({
+                            userName: friends[i].userName, index: i
+                        }, function (event) {
+
+                            $(this).prop('disabled', true);
+                            $("#friendreq #btnaccept" + event.data.index).prop('disabled', true);
+
+                            var that = $(this);
+                            var thatacc = $("#friendreq #btnaccept" + event.data.index);
+                            rejectFriend(event.data.userName, function (err, res) {
+
+                                if (!err) {
+                                    updateFriendRequests();
+                                }
+
+                                $(that).prop('disabled', false);
+                                $(thatacc).prop('disabled', false);
+                                //handle here instead
+
+                            });
+                        });
+
+
+                    }
+
+
 
                 }
-
-                for (var i = 0; i < friends.length; i++) {
-
-
-                    $("#friendreq #btnaccept" + i).click({
-                        userName: friends[i].userName, index: i
-                    }, function (event) {
-
-                        $(this).prop('disabled', true);
-                        $("#friendreq #btnreject" + event.data.index).prop('disabled', true);
-
-                        $("#imgrequestwaiting").show();
-                        var target = document.getElementById('imgrequestwaiting');
-                        var spinner = new Spinner(spinneropts).spin(target);
-
-                        var that = $(this);
-                        var thatrej = $("#friendreq #btnreject" + event.data.index);
-
-                        acceptFriend(event.data.userName, function (err, res) {
-
-                            if (!err) {
-                                lastNoOfFriendsReq = 0;
-                                updateFriendRequests();
-                            }
-
-                            $("#imgrequestwaiting").hide();
-                            $(that).prop('disabled', false);
-                            $(thatrej).prop('disabled', false);
-
-                        });
-                    });
-
-
-                    $("#friendreq #btnreject" + i).click({
-                        userName: friends[i].userName, index: i
-                    }, function (event) {
-
-                        $(this).prop('disabled', true);
-                        $("#friendreq #btnaccept" + event.data.index).prop('disabled', true);
-
-                        var that = $(this);
-                        var thatacc = $("#friendreq #btnaccept" + event.data.index);
-                        rejectFriend(event.data.userName, function (err, res) {
-
-                            if (!err) {
-                                updateFriendRequests();
-                            }
-
-                            $(that).prop('disabled', false);
-                            $(thatacc).prop('disabled', false);
-                            //handle here instead
-
-                        });
-                    });
-
-
+                if (callback) {
+                    callback(false, "done");
                 }
 
-
-
-            }
-            if (callback) {
-                callback(false, "done");
             }
         });
 
     }
 
-    var lastNoOfTrans = 0;
 
-    function updateTransactions(callback) {
+    $("#btnrepstddone").click(function () {
 
-        //if there are any new friends
-        //fade in the button
+        $("#repstd3").hide();
+        $("#repstdmodal").modal('hide');
+        $("#txtRepTwoFactor").val('');
+        $("#repstdprog").hide();
+        $("#textMessageRepStd").hide();
+        $('#btnrep').prop('disabled', false);
+
+    });
+
+    $("#btncancelrep").click(function () {
+
+        $('#btnrep').prop('disabled', false);
+        $("#repstd3").hide();
+        $("#repstdmodal").modal('hide');
+        $("#txtRepTwoFactor").val('');
+        $("#repstdprog").hide();
+        $("#textMessageRepStd").hide();
+
+    });
 
 
-        Engine.getTransactionRecords(function (err, transactions) {
+    $("#btnrep").click(function () {
+
+
+        var allok = true;
+        var twoFactorCode = $('#txtSendTwoFactor').val();
+
+        Engine.get2faOverride(selectedTransaction.Amount, function (err, result) {
 
             if (!err) {
 
-                allTransactions = transactions;
 
-                if (allTransactions.length != lastNoOfTrans) {
+                if (result == "") {
 
+                    if (twoFactorCode.length == 6) {
+                        $('input#txtSendTwoFactor').css("border-color", "#ccc");
+                    } else {
+                        $('input#txtSendTwoFactor').css("border-color", "#ffaaaa");
+                        allok = false;
+                    }
                 } else {
 
-                    transactions = pagedTransactions;
+                    twoFactorCode = result;
 
-                    //we ony need to update the confirmations
+                }
 
-                    $('#tbltran tbody tr .bcconf').each(function (index, elem) {
+                if (allok) {
 
-                        var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
+                    $('#btnrep').prop('disabled', true);
 
-                        if (tran.Confirmations < 6) {
-                            $(elem).html('<div class="btn btn-warning btn-icon btn-rounded"><i class="fa fa-clock-o">' + _.escape(tran.Confirmations) + '</i></div>');
+                    $('#textMessageRepStd').text('Creating transaction...');
+                    $('#textMessageRepStd').show();
+                    $('#repstdprogstatus').width('3%');
+                    $('#repstdprog').show();
+                    $('#repstdprogstatus').width('10%');
+
+                    Engine.replaceTransaction(selectedTransaction.TransactionId, twoFactorCode, 10000, false, function (err, res) {
+
+                        if (!err) {
+
+                            var confmess = 'Fee successfully increased.';
+
+                            $('#textCompleteRepStd').html(confmess);
+
+                            $('#repstd2').hide();
+                            $('#repstd3').show();
+
                         } else {
-                            $(elem).html('<div class="btn btn-success btn-icon btn-rounded"><i class="fa fa-check"></i></div>');
+
+                            if (res == "ErrInsufficientFunds") {
+                                $('#textMessageRepStd').text('Transaction Failed: Not enough funds are currently available to send this transaction');
+                            } else {
+                                $('#textMessageRepStd').text(res)
+                            }
+
+                            $('#repstdprogstatus').width('0%');
+                            $('#textMessageRepStd').addClass('alert alert-danger');
+
+                        }
+
+                    }, function (status, percent) {
+
+
+                        if (status) {
+                            $('#textMessageRepStd').text(status);
+                        }
+
+                        if (percent) {
+                            $('#repstdprogstatus').width(percent);
                         }
 
                     });
 
-                    if (callback) {
+                }
+            }
 
-                        return callback(false, "ok");
+        });
 
-                    }
+    });
+
+
+
+
+
+
+
+
+    var lastNoOfTrans = 0;
+    var lastTransTimestamp = 0;
+    var lastTransLKey = 0;
+    var tranPageFrom = 0;
+    var tranPageTo = tranPageFrom + transactionsPerPage;
+    var totalTrans = 0;
+    var selectedTransaction = '';
+
+
+    function filterTransactions(callback) {
+
+        trasactionFilterOn = true;
+
+        var target = document.getElementById('transpinner');
+        var spinner = new Spinner(spinneropts).spin(target);
+        $("#transpinner").data('spinner', spinner);
+        $("#transpinner").show();
+
+
+        Engine.getTransactionFeed(0, lastTransLKey, 0, 10000, function (err, transactions) {
+
+
+            if (!err) {
+
+                var total = transactions.total;
+
+                if (transactions.timestamp) {
+                    lastTransTimestamp = transactions.timestamp;
                 }
 
+                transactions = transactions.data;
 
-                for (var i = 0; i < allTransactions.length; i++) {
-                    var d1 = new Date(allTransactions[i].TransDateTime);
-                    allTransactions[i].JsDate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
-                    transactionIndex[allTransactions[i].TransactionId] = i;
+
+                for (var i = 0; i < transactions.length; i++) {
+                    var d1 = new Date(transactions[i].TransDateTime);
+                    transactions[i].JsDate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
+                    transactionIndex[transactions[i].TransactionId] = i;
                 }
-                //first convert to javascript dates
 
-                filteredTransactions = allTransactions;
-                //apply current filter currentTransactionFilter
+                //filter transactions
 
                 if (currentTransactionFilter == "Day") {
                     var lastDay = new Date();
                     lastDay = lastDay.setDate(lastDay.getDate() - 1);
-                    filteredTransactions = _.filter(allTransactions, function (trans) { return trans.JsDate > lastDay; });
+                    transactions = _.filter(transactions, function (trans) { return trans.JsDate > lastDay; });
                 }
 
                 if (currentTransactionFilter == "Week") {
                     var lastWeek = new Date();
                     lastWeek = lastWeek.setDate(lastWeek.getDate() - 7);
-                    filteredTransactions = _.filter(allTransactions, function (trans) { return trans.JsDate > lastWeek; });
+                    transactions = _.filter(transactions, function (trans) { return trans.JsDate > lastWeek; });
                 }
 
                 if (currentTransactionFilter == "Month") {
                     var lastMonth = new Date();
                     lastMonth = lastMonth.setDate(lastMonth.getDate() - 31);
-                    filteredTransactions = _.filter(allTransactions, function (trans) { return trans.JsDate > lastMonth; });
+                    transactions = _.filter(transactions, function (trans) { return trans.JsDate > lastMonth; });
                 }
 
                 if (currentTransactionFilter == "Search") {
                     var search = $('#txttransearch').val();
-                    filteredTransactions = _.filter(allTransactions, function (trans) { return trans.UserName.toLowerCase().search(search.toLowerCase()) > -1; });
+                    transactions = _.filter(transactions, function (trans) {
+                        if (trans.UserName.toLowerCase().search(search.toLowerCase()) > -1 || trans.Address.toLowerCase().search(search.toLowerCase()) > -1 || trans.TransactionId.toLowerCase().search(search.toLowerCase()) > -1) {
+                            return true;
+                        } else {
+                            return false;
+                        }
+                    });
                 }
 
                 if (currentTransactionSort == 'DateDesc') {
-                    filteredTransactions = _.sortBy(filteredTransactions, function (trans) { return -trans.JsDate; });
+                    transactions = _.sortBy(transactions, function (trans) { return -trans.JsDate; });
                 }
 
                 if (currentTransactionSort == 'DateAsc') {
-                    filteredTransactions = _.sortBy(filteredTransactions, function (trans) { return trans.JsDate; });
+                    transactions = _.sortBy(transactions, function (trans) { return trans.JsDate; });
                 }
 
                 if (currentTransactionSort == 'ContactAsc') {
-                    filteredTransactions = _.sortBy(filteredTransactions, function (trans) { return trans.UserName; });
+                    transactions = _.sortBy(transactions, function (trans) { return trans.UserName; });
                 }
 
                 if (currentTransactionSort == 'ContactDesc') {
-                    filteredTransactions = _.sortBy(filteredTransactions, function (trans) { return trans.UserName; });
-                    filteredTransactions.reverse();
+                    transactions = _.sortBy(transactions, function (trans) { return trans.UserName; });
+                    transactions.reverse();
                 }
 
-                var noofpages = Math.floor((filteredTransactions.length / transactionsPerPage));
 
-                var indexFrom = currentPageIndex * transactionsPerPage;
-                var indexTo = indexFrom + transactionsPerPage;
+                totalTrans = transactions.length;
+                tranPageTo = totalTrans;
 
-                if (indexTo > filteredTransactions.length) {
-                    indexTo = filteredTransactions.length;
+                //persist for lookups
+                allTransactions = transactions;
+
+
+                displayTransactions(transactions, true, tranPageTo);
+            }
+
+            $('#transpinner').data('spinner').stop()
+            $("#transpinner").hide();
+
+        });
+
+    }
+
+    function updateTransactions(callback) {
+
+        //if there is a new filter on we need to return the entire set and filter it
+
+        if (!trasactionFilterOn) {
+
+            Engine.getTransactionFeed(lastTransTimestamp, lastTransLKey, tranPageFrom, tranPageTo, function (err, transactions) {
+
+                if (!err) {
+
+
+                    if (transactions == -1) {
+
+                        if (callback) {
+                            callback();
+                        }
+
+                    } else {
+
+                        var total = transactions.total;
+
+                        if (transactions.timestamp) {
+                            lastTransTimestamp = transactions.timestamp;
+                        }
+
+                        transactions = transactions.data;
+
+                        totalTrans = total;
+
+                        //persist for lookups
+                        allTransactions = transactions;
+
+
+                        //var noofpages = Math.floor((total / transactionsPerPage));
+
+                        for (var i = 0; i < transactions.length; i++) {
+                            var d1 = new Date(transactions[i].TransDateTime);
+                            transactions[i].JsDate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
+                            transactionIndex[transactions[i].TransactionId] = i;
+                        }
+
+                        var repop = false;
+                        if (lastNoOfTrans != total) {
+                            repop = true;
+                        }
+
+                        displayTransactions(transactions, repop, total);
+
+                        lastNoOfTrans = total;
+
+                    }
+
+                    if (callback) {
+                        callback();
+                    }
+
+                } else {
+
+                    if (callback) {
+                        callback();
+                    }
+
                 }
 
-                $('#tranpaglabel').text('Showing ' + (indexFrom + 1) + ' to ' + (indexTo) + ' of ' + filteredTransactions.length);
+            });
 
-                transactions = filteredTransactions;
+        } else {
 
-                if (allTransactions.length != lastNoOfTrans) {
+            if (callback) {
+                callback();
+            }
+        }
 
-                    pagedTransactions = filteredTransactions.slice(indexFrom, indexTo);
+    }
 
-                    transactions = pagedTransactions;
+    function displayTransactions(transactions, repopulate, total) {
 
-                    lastNoOfTrans = allTransactions.length;
+        //first convert to javascript dates
 
-                    var template = '';
-                    $('#tbltran tbody').empty();
-                    for (var i = 0; i < transactions.length; i++) {
+        var tpage = tranPageTo;
 
-                        var dirTemplate = "";
-                        if (transactions[i].TransType == 'S') {
-                            dirTemplate = '<td><span class="m-s">' + _.escape(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + ' ' + _.escape(COINUNIT) + '</span></td><td></td>';
-                        }
-                        if (transactions[i].TransType == 'R') {
-                            dirTemplate = '<td></td><td><span class="m-s">' + _.escape(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + ' ' + _.escape(COINUNIT) + '</span></td>';
-                        }
+        if (tranPageTo > total) {
+            tpage = total;
+        }
 
-                        var tref = transactions[i].UserName;
-
-                        if (transactions[i].UserName == 'External') {
-                            tref = _.escape(transactions[i].Address.substring(0, 7)) + '...';
-                        }
-
-                        if (transactions[i].InvoiceId > 0) {
-                            tref += ' <i class="fa fa-list-alt text-success i-1x i-s"></i>';
-                        }
+        $('#tranpaglabel').text('Showing ' + (tranPageFrom + 1) + ' to ' + (tpage) + ' of ' + total);
 
 
+        if (repopulate) {
 
-                        var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1).toLocaleString();
+            var template = '';
+            $('#tbltran tbody').empty();
+            for (var i = 0; i < transactions.length; i++) {
+
+                var dirTemplate = "";
+                if (transactions[i].TransType == 'S') {
+                    dirTemplate = '<td><span class="m-s">' + _.escape(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + ' ' + _.escape(COINUNIT) + '</span></td><td></td>';
+                }
+                if (transactions[i].TransType == 'R') {
+                    dirTemplate = '<td></td><td><span class="m-s">' + _.escape(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + ' ' + _.escape(COINUNIT) + '</span></td>';
+                }
+
+                var tref = transactions[i].UserName;
+
+                if (transactions[i].UserName == 'External') {
+                    tref = _.escape(transactions[i].Address.substring(0, 7)) + '...';
+                }
+
+                if (transactions[i].InvoiceId > 0) {
+                    tref += ' <i class="fa fa-list-alt text-success i-1x i-s"></i>';
+                }
 
 
-                        template += '<tr>' +
+                var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1).toLocaleString();
+
+
+                template += '<tr>' +
                                 '<td><label class="checkbox m-n i-checks"><input type="checkbox" name="post[]"><i></i></label></td>' +
                                 '<td><span class="m-s">' + _.escape(trdate) + '</span>';
 
-                        template += '</td><td colspan="2">' +
+                template += '</td><td colspan="2">' +
                                 '<span class="thumb-sm"><img id="imgtran' + i + '" alt="" class="img-circle"></span><span class="m-s"> ' +
                                  tref + '</span></td>' +
                                 dirTemplate +
                                 '<td>';
 
-                        if (transactions[i].Confirmations < 6) {
-                            template += '<div class="bcconf"><div class="btn btn-warning btn-icon btn-rounded"><i class="fa fa-clock-o">' + _.escape(transactions[i].Confirmations) + '</i></div></div>';
-                        } else {
-                            template += '<div class="bcconf"><div class="btn btn-success btn-icon btn-rounded"><i class="fa fa-check"></i></div></div>';
-                        }
-                        template += '</td><td>';
-                        template += '<div id ="btnpop' + i + '"><div class="btn btn-info btn-icon btn-rounded"><i class="fa fa-info-circle"></i></div></div>';
+                if (transactions[i].Confirmations < 6) {
+                    template += '<div class="bcconf"><div class="btn btn-warning btn-icon btn-rounded"><i class="fa fa-clock-o">' + _.escape(transactions[i].Confirmations) + '</i></div></div>';
+                } else {
+                    template += '<div class="bcconf"><div class="btn btn-success btn-icon btn-rounded"><i class="fa fa-check"></i></div></div>';
+                }
 
-                        template += '</td></tr>';
+                template += '</td><td>';
+
+                if (transactions[i].Confirmations == 0 && transactions[i].Status == 1) {
+                    template += '<div class="btnpopa" id ="btnpop' + i + '"><div class="btn btn-warning btn-icon btn-rounded"><i class="fa fa-info-circle"></i></div></div>';
+                }
+                else if (transactions[i].Confirmations == 0 && transactions[i].Status == 2) {
+                    template += '<div class="btnpopa" id ="btnpop' + i + '"><div class="btn btn-danger btn-icon btn-rounded"><i class="fa fa-info-circle"></i></div></div>';
+                }
+                else if (transactions[i].Confirmations == 0 && transactions[i].Status == 3) {
+                    template += '<div class="btnpopa" id ="btnpop' + i + '"><div class="btn btn-default btn-icon btn-rounded"><i class="fa fa-arrow-circle-o-up"></i></div></div>';
+                }
+                else {
+                    template += '<div class="btnpopa" id ="btnpop' + i + '"><div class="btn btn-info btn-icon btn-rounded"><i class="fa fa-info-circle"></i></div></div>';
+                }
+
+                template += '</td><td>';
+
+                //                if (transactions[i].Confirmations == 0 && transactions[i].Status == 0 && transactions[i].TransType == 'S') {
+                //                    template += '<div class="btnrbf"><button class="btn btn-default btn-sm" id="btnrbf' + i + '"><i class="fa fa-arrow-circle-up"></i>&nbsp;Push</button></div>';
+                //                }
+
+                template += '</td></tr>';
+
+            }
+
+            $('#tbltran tbody').append(template);
+
+            for (var i = 0; i < transactions.length; i++) {
+
+                var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1).toLocaleString();
+
+                var popcontent = '';
+
+                popcontent += '<p><strong>Date:</strong> ';
+                popcontent += _.escape(trdate);
+                popcontent += '</p>';
+
+                popcontent += '<p><strong>TransactionId</strong></p>';
+                popcontent += '<p><a target="_new" href="https://btc.blockr.io/tx/info/' + transactions[i].TransactionId + '">';
+                popcontent += _.escape(transactions[i].TransactionId);
+                popcontent += '</a></p>';
+
+                popcontent += '<p><strong>Address:</strong> ';
+                popcontent += _.escape(transactions[i].Address);
+                popcontent += '</p>';
+
+                popcontent += '<p><strong>Amount:</strong> ';
+                popcontent += _.escape(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + ' ';
+                popcontent += _.escape(COINUNIT) + '</p>';
+
+                popcontent += '<p><strong>Fee:</strong> ';
+                popcontent += _.escape(convertFromSatoshis(transactions[i].MinersFee, COINUNIT)) + ' ';
+                popcontent += _.escape(COINUNIT) + '</p>';
+
+
+                popcontent += '<p><strong>Send/Receive:</strong> ';
+                popcontent += _.escape(transactions[i].TransType);
+                popcontent += '</p>';
+
+
+                $("#btnrbf" + i).click({ Transaction: transactions[i] }, function (event) {
+
+                    var transaction = event.data.Transaction;
+                    var transactionid = transaction.TransactionId;
+                    var bumpfee = transaction.MinersFee + 10000;
+
+                    selectedTransaction = transaction;
+
+                    $('#btnrep').prop('disabled', false);
+
+                    Engine.Device.getStorageItem("tfso" + Engine.m_guid, function (res) {
+
+                        if (res == "") {
+                            //get the current limit status from the server
+                            //and determine if we need 2fa or not
+
+
+
+                            $('#repstd2add').text(transactionid);
+                            $('#repstd2miners').text(convertFromSatoshis(bumpfee, COINUNIT) + ' ' + COINUNIT);
+
+                            //$("#sendstds1").hide();
+                            $("#repstd3").hide();
+                            $("#repstd2").show();
+                            $("#repstdmodal").modal('show');
+
+                        } else {
+
+                            Engine.getLimitStatus(function (err, limits) {
+
+                                var twofareq = false;
+                                if ((limits.No24hr + 1) > limits.NoOfTransactionsPerDay) {
+                                    twofareq = true;
+                                }
+                                if ((limits.No1hr + 1) > limits.NoOfTransactionsPerHour) {
+                                    twofareq = true;
+                                }
+
+                                var amount = convertToSatoshis($('#hdamount').val(), COINUNIT);
+
+                                if ((amount) > limits.SingleTransactionLimit) {
+                                    twofareq = true;
+                                }
+                                if ((limits.TotalAmount24hr + amount) > limits.DailyTransactionLimit) {
+                                    twofareq = true;
+                                }
+
+                                if (twofareq) {
+
+
+                                    $('#reptwofactreq').show();
+                                    $('#repstd2add').text(transactionid);
+                                    $('#srepstd2miners').text(convertFromSatoshis(bumpfee, COINUNIT) + ' ' + COINUNIT);
+
+                                    //$("#sendstds1").hide();
+                                    $("#repstd3").hide();
+                                    $("#repstd2").show();
+                                    $("#repstdmodal").modal('show');
+
+                                } else {
+
+
+                                    $('#reptwofactreq').hide();
+                                    $('#repstd2add').text(transactionid);
+                                    $('#repstd2miners').text(convertFromSatoshis(bumpfee, COINUNIT) + ' ' + COINUNIT);
+
+                                    //$("#sendstds1").hide();
+                                    $("#repstd3").hide();
+                                    $("#repstd2").show();
+                                    $("#repstdmodal").modal('show');
+
+                                }
+
+
+                            });
+
+                        }
+
+                    });
+
+                });
+
+                $("#btnpop" + i).popover({
+                    placement: 'left', // top, bottom, left or right
+                    title: 'Transaction Details<button type="button" class="close pull-right" data-dismiss="popover"><i class="i i-cross2"></i></button>',
+                    html: 'true',
+                    content: '<div>' + popcontent + '</div>'
+                });
+
+                var length = transactions[i].UserName.length;
+                if (length > 20) {
+                    length = 20;
+                }
+
+                var imageSrcSmall = "images/avatar/64px/Avatar-" + pad(length) + ".png";
+
+                if (transactions[i].UserName != 'External') {
+                    if (transactions[i].UserNameImage != '') {
+                        imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(transactions[i].UserNameImage) + "?crop=faces&fit=crop&h=64&w=64&mask=ellipse&border=1,d0d0d0";
+                    }
+                }
+                if (Engine.Device.isChromeApp()) {
+                    var xhrsm = new XMLHttpRequest();
+                    xhrsm.open('GET', imageSrcSmall, true);
+                    xhrsm.responseType = 'blob';
+                    xhrsm.index = i;
+                    xhrsm.onload = function (e) {
+                        $("#tbltran #imgtran" + this.index).attr("src", window.URL.createObjectURL(this.response));
+                    };
+                    xhrsm.send();
+                } else {
+                    $("#tbltran #imgtran" + i).attr("src", imageSrcSmall);
+                }
+
+
+            }
+
+
+
+
+        } else {
+
+            $('#tbltran tbody tr .bcconf').each(function (index, elem) {
+
+                var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
+
+                if (tran.Confirmations < 6) {
+                    $(elem).html('<div class="btn btn-warning btn-icon btn-rounded"><i class="fa fa-clock-o">' + _.escape(tran.Confirmations) + '</i></div>');
+                } else {
+                    $(elem).html('<div class="btn btn-success btn-icon btn-rounded"><i class="fa fa-check"></i></div>');
+                }
+
+            });
+
+
+            $('#tbltran tbody tr .btnpopa').each(function (index, elem) {
+
+                var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
+
+                if (tran.Confirmations == 0 && tran.Status == 1) {
+                    $(elem).html('<div class="btn btn-warning btn-icon btn-rounded"><i class="fa fa-info-circle"></i></div>');
+                }
+                else if (tran.Confirmations == 0 && tran.Status == 2) {
+                    $(elem).html('<div class="btn btn-danger btn-icon btn-rounded"><i class="fa fa-info-circle"></i></div>');
+                } else if (tran.Confirmations == 0 && tran.Status == 3) {
+                    $(elem).html('<div class="btn btn-default btn-icon btn-rounded"><i class="fa fa-arrow-circle-o-up"></i></div>');
+                } else {
+                    $(elem).html('<div class="btn btn-info btn-icon btn-rounded"><i class="fa fa-info-circle"></i></div>');
+                }
+
+            });
+
+            $('#tbltran tbody tr .btnrbf').each(function (index, elem) {
+
+                var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
+
+                if (tran.Confirmations == 0 && tran.Status == 0 && tran.TransType == 'S') {
+
+                    $(elem).html('<button class="btn btn-default btn-sm" id="btnrbf' + index + '"><i class="fa fa-arrow-circle-up"></i>&nbsp;Push</button>');
+
+                } else {
+
+                    $(elem).html('');
+
+                }
+
+            });
+
+        }
+
+    }
+
+
+
+
+    var prevtimeline = -1;
+    var timelineCache = [];
+    var allTimeline = [];
+
+    var timelinePerPage = 10;
+
+    var lastNoOfTimeline = 0;
+    var lastTimelineTimestamp = 0;
+    var lastTimelineLKey = 0;
+    var timelinePageFrom = 0;
+    var timelinePageTo = timelinePageFrom + timelinePerPage;
+    var totalTimeline = 0;
+    var selectedTimeline = '';
+
+
+    function showTimeline(callback) {
+
+        Engine.getTimeline(lastTimelineTimestamp, lastTimelineLKey, timelinePageFrom, timelinePageTo, function (err, timeline) {
+
+            if (!err) {
+
+                if (timeline == -1) {
+
+                    //update time
+
+                    $('#timelinefeed .trntime').each(function (index, elem) {
+
+
+                        var timeLabel = prettydate.format(allTimeline[index].JsDate);
+                        $(elem).text(timeLabel);
+
+                    });
+
+                    if (callback) {
+                        callback();
+                    }
+
+                } else {
+
+                    var total = timeline.total;
+
+                    if (timeline.timestamp) {
+                        lastTimelineTimestamp = timeline.timestamp;
+                    }
+
+                    timeline = timeline.data;
+
+                    //persist for refresh updates
+                    allTimeline = timeline;
+
+                    for (var i = 0; i < allTimeline.length; i++) {
+                        var d1 = new Date(allTimeline[i].TransDateTime);
+                        allTimeline[i].JsDate = new Date(timeline[i].TimelineDate.match(/\d+/)[0] * 1);
+                    }
+
+
+                    $('#timelinefeed').empty();
+
+                    var template = '';
+
+                    for (var i = 0; i < timeline.length; i++) {
+
+                        var amountLabel = "";
+                        var friendLabel = "";
+
+                        if (timeline[i].TimelineType == 'TS') {
+                            amountLabel = "sent " + formatCoinAmount(convertFromSatoshis(timeline[i].Amount, COINUNIT)) + " " + _.escape(COINUNIT);
+                            //amountLabel = " sent 1 BTC";
+                            friendLabel = "to " + _.escape(timeline[i].UserName);
+                        }
+
+                        if (timeline[i].TimelineType == 'TR') {
+                            amountLabel = "received " + formatCoinAmount(convertFromSatoshis(timeline[i].Amount, COINUNIT)) + " " + _.escape(COINUNIT);
+                            //amountLabel = " received 1 BTC";
+                            friendLabel = "from " + _.escape(timeline[i].UserName);
+                        }
+
+
+                        if (timeline[i].TimelineType == "IS") {
+                            amountLabel = "invoice";
+                            friendLabel = "sent to " + _.escape(timeline[i].UserName);
+                        }
+
+                        if (timeline[i].TimelineType == "IR") {
+                            amountLabel = "invoice";
+                            friendLabel = "from " + _.escape(timeline[i].UserName);
+                        }
+
+                        if (timeline[i].TimelineType == "FRS") {
+                            amountLabel = "contact request";
+                            friendLabel = "sent to " + _.escape(timeline[i].UserName);
+                        }
+
+                        if (timeline[i].TimelineType == "FRR") {
+                            amountLabel = "contact request";
+                            friendLabel = "from " + _.escape(timeline[i].UserName);
+                        }
+
+                        if (timeline[i].TimelineType == "MS") {
+                            amountLabel = "message";
+                            friendLabel = "from " + _.escape(timeline[i].UserName);
+                        }
+
+                        var trdate = new Date(timeline[i].TimelineDate.match(/\d+/)[0] * 1);
+                        var timeLabel = prettydate.format(trdate);
+
+                        template += '<a id="tl' + i + '" href="#" class="list-group-item clearfix" id="dtran' + i + '">';
+                        template += '<span class="pull-left thumb-sm avatar m-r">';
+
+                        template += '<img id="imgtl' + i + '"';
+                        template += ' alt="...">';
+
+                        template += '</span>';
+                        template += '<span class="clear">';
+                        template += '<span>';
+                        template += amountLabel;
+                        template += '</span>';
+
+                        template += '<span class="pull-right">';
+                        template += '<div class="trntime">';
+                        template += timeLabel;
+                        template += '</div>';
+                        template += '</span>';
+
+                        template += '<span class="clear">';
+                        template += '<span>';
+
+                        if (timeline[i].TimelineType == 'TS' || timeline[i].TimelineType == 'TR') {
+                            template += '<div class="conf">';
+                            if (timeline[i].Confirmations < 6) {
+                                template += '<span class="badge bg-warning pull-right">';
+                                template += _.escape(timeline[i].Confirmations);
+                                template += '</span>';
+                            }
+                            template += '</div>';
+                        }
+
+
+                        if (timeline[i].TimelineType == 'IS') {
+
+
+                            var statusbox = '<span class=\"pull-right\">';
+                            if (timeline[i].InvoiceStatus == 0) {
+                                statusbox += '<i class=\"fa fa-clock-o text-warning text-active \"></i> <span class="label bg-warning">Pending</span>';
+                            }
+                            else if (timeline[i].InvoiceStatus == 1) {
+                                statusbox += '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
+                            }
+                            else if (timeline[i].InvoiceStatus == 2) {
+                                statusbox += '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
+                            }
+                            statusbox += '</span>';
+
+                            // template += '<div class="conf">';
+                            template += statusbox;
+                            //template += '</div>';
+                        }
+
+                        if (timeline[i].TimelineType == 'IR') {
+
+
+                            var statusbox = '<span class=\"pull-right\">';
+                            if (timeline[i].InvoiceStatusR == 0) {
+                                statusbox += '<i class=\"fa fa-clock-o text-warning text-active \"></i> <span class="label bg-warning">Pending</span>';
+                            }
+                            else if (timeline[i].InvoiceStatusR == 1) {
+                                statusbox += '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
+                            }
+                            else if (timeline[i].InvoiceStatusR == 2) {
+                                statusbox += '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
+                            }
+                            statusbox += '</span>';
+
+                            // template += '<div class="conf">';
+                            template += statusbox;
+                            //template += '</div>';
+                        }
+
+                        template += '<small class="text-muted clear text-ellipsis">';
+                        template += friendLabel;
+                        template += '</small>';
+                        template += '</span>';
+                        template += '</a>';
+
+
 
                     }
 
-                    $('#tbltran tbody').append(template);
+                    $('#timelinefeed').html(template);
 
-                    for (var i = 0; i < transactions.length; i++) {
+                    //iterate again and add events
+                    for (var i = 0; i < timeline.length; i++) {
 
-                        var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1).toLocaleString();
 
-                        var popcontent = '';
-
-                        popcontent += '<p><strong>Date:</strong> ';
-                        popcontent += _.escape(trdate);
-                        popcontent += '</p>';
-
-                        popcontent += '<p><strong>TransactionId</strong></p>';
-                        popcontent += '<p><a target="_new" href="https://btc.blockr.io/tx/info/' + transactions[i].TransactionId + '">';
-                        popcontent += _.escape(transactions[i].TransactionId);
-                        popcontent += '</a></p>';
-
-                        popcontent += '<p><strong>Address:</strong> ';
-                        popcontent += _.escape(transactions[i].Address);
-                        popcontent += '</p>';
-
-                        popcontent += '<p><strong>Amount:</strong> ';
-                        popcontent += _.escape(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + ' ';
-                        popcontent += _.escape(COINUNIT) + '</p>';
-
-                        popcontent += '<p><strong>Send/Receive:</strong> ';
-                        popcontent += _.escape(transactions[i].TransType);
-                        popcontent += '</p>';
-
-                        $("#btnpop" + i).popover({
-                            placement: 'left', // top, bottom, left or right
-                            title: 'Transaction Details<button type="button" class="close pull-right" data-dismiss="popover"><i class="i i-cross2"></i></button>',
-                            html: 'true',
-                            content: '<div>' + popcontent + '</div>'
-                        });
-
-                        var length = transactions[i].UserName.length;
+                        var length = timeline[i].UserName.length;
                         if (length > 20) {
                             length = 20;
                         }
 
                         var imageSrcSmall = "images/avatar/64px/Avatar-" + pad(length) + ".png";
 
-                        if (transactions[i].UserName != 'External') {
-                            if (FRIENDSLIST[transactions[i].UserName].profileImage != '') {
-                                imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(FRIENDSLIST[transactions[i].UserName].profileImage) + "?crop=faces&fit=crop&h=64&w=64&mask=ellipse&border=1,d0d0d0";
+                        if (timeline[i].UserName != 'External') {
+                            if (timeline[i].UserNameImage) {
+                                if (timeline[i].UserNameImage != '') {
+                                    imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(timeline[i].UserNameImage) + "?crop=faces&fit=crop&h=128&w=128&mask=ellipse&border=1,d0d0d0";
+                                }
                             }
                         }
+
                         if (Engine.Device.isChromeApp()) {
                             var xhrsm = new XMLHttpRequest();
                             xhrsm.open('GET', imageSrcSmall, true);
                             xhrsm.responseType = 'blob';
                             xhrsm.index = i;
                             xhrsm.onload = function (e) {
-                                $("#tbltran #imgtran" + this.index).attr("src", window.URL.createObjectURL(this.response));
+                                $("#timelinefeed #imgtl" + this.index).attr("src", window.URL.createObjectURL(this.response));
                             };
                             xhrsm.send();
                         } else {
-                            $("#tbltran #imgtran" + i).attr("src", imageSrcSmall);
+                            $("#timelinefeed #imgtl" + i).attr("src", imageSrcSmall);
                         }
 
 
+                        if (timeline[i].TimelineType == "TS" || timeline[i].TimelineType == "TR") {
+
+                            $("#tl" + i).click(function (event) {
+
+                                $('#sbpayments').click();
+
+                            });
+                        }
+
+
+                        if (timeline[i].TimelineType == "IR") {
+
+                            $("#tl" + i).click({ invoiceid: timeline[i].InvoiceId, username: timeline[i].UserName }, function (event) {
+
+                                displayInvoice(event.data.invoiceid, event.data.username, 'forme', function (err, res) {
+                                    uiInvoiceReturnToDashboard = true;
+                                    $('#sbinvoice').click();
+                                });
+
+                            });
+                        }
+
+                        if (timeline[i].TimelineType == "IS") {
+
+                            $("#tl" + i).click({ invoiceid: timeline[i].InvoiceId, username: timeline[i].UserName }, function (event) {
+
+                                displayInvoice(event.data.invoiceid, event.data.username, 'byme', function (err, res) {
+                                    uiInvoiceReturnToDashboard = true;
+                                    $('#sbinvoice').click();
+                                });
+
+                            });
+                        }
+
+                        if (timeline[i].TimelineType == "FRR" || timeline[i].TimelineType == "FRS") {
+
+                            $("#tl" + i).click({ invoiceid: timeline[i].InvoiceId, username: timeline[i].UserName }, function (event) {
+
+                                $('#sbcontactrequests').click();
+
+                            });
+                        }
+
+                        if (timeline[i].TimelineType == "MS") {
+
+                            $("#tl" + i).click({ username: timeline[i].UserName }, function (event) {
+
+                                //set selected friend
+                                //initialise network state
+                                //navigate
+
+                                if (SELECTEDFRIEND != event.data.username) {
+                                    SELECTEDFRIEND = event.data.username;
+                                    selectedFriend = FRIENDSLIST[event.data.username];
+                                    $('#usernetmessages ul').empty();
+                                    updateSelectedFriend();
+                                }
+
+                                //depreciate
+                                $("#pnlfriend").show();
+                                $("#pnlfriendinv").hide();
+                                $("#pnlfriendmessage").hide();
+                                $("#friendAmount").keyup();
+                                $('#sbcontacts').click();
+                                $('#bmcontactmessages').click();
+
+                            });
+
+                        }
+
+                    }
+
+                    if (callback) {
+                        callback();
                     }
 
                 }
 
-            }
-
-            if (callback) {
-                callback();
             }
 
         });
@@ -6896,10 +8586,152 @@ function UI() {
     }
 
 
+    var prevnettrans = -1;
+    var nettransCache = [];
+    var allNettrans = [];
 
+    var nettransPerPage = 20;
+
+    var lastNoOfNettrans = 0;
+    var lastNettransTimestamp = 0;
+    var lastNettransLKey = 0;
+    var nettransPageFrom = 0;
+    var nettransPageTo = nettransPageFrom + nettransPerPage;
+    var totalNettrans = 0;
+    var selectedNettrans = '';
+
+
+    function showNettrans(callback) {
+
+        if (SELECTEDFRIEND) {
+
+            Engine.getTransactionsForNetwork(SELECTEDFRIEND, lastNettransTimestamp, lastNettransLKey, nettransPageFrom, nettransPageTo, function (err, nettrans) {
+
+                if (!err) {
+
+                    if (nettrans == -1) {
+
+                        //update time
+
+                        $('#networktransfeed .trntime').each(function (index, elem) {
+
+                            var timeLabel = prettydate.format(allNettrans[index].JsDate);
+                            $(elem).text(timeLabel);
+
+                        });
+
+                        if (callback) {
+                            callback();
+                        }
+
+                    } else {
+
+                        var total = nettrans.total;
+
+                        if (nettrans.timestamp) {
+                            lastNettransTimestamp = nettrans.timestamp;
+                        }
+
+                        nettrans = nettrans.data;
+
+                        //persist for refresh updates
+                        allNettrans = nettrans;
+
+                        for (var i = 0; i < allNettrans.length; i++) {
+                            var d1 = new Date(allNettrans[i].TransDateTime);
+                            allNettrans[i].JsDate = new Date(allNettrans[i].TransDateTime.match(/\d+/)[0] * 1);
+                        }
+
+
+                        $('#networktransfeed').empty();
+
+                        var template = '';
+
+                        for (var i = 0; i < nettrans.length; i++) {
+
+                            var amountLabel = "";
+                            var friendLabel = "";
+
+                            if (nettrans[i].TransType == 'S') {
+                                amountLabel = "sent " + formatCoinAmount(convertFromSatoshis(nettrans[i].Amount, COINUNIT)) + " " + _.escape(COINUNIT);
+                                //amountLabel = " sent 1 BTC";
+                                friendLabel = "to " + _.escape(nettrans[i].UserName);
+                            }
+
+                            if (nettrans[i].TransType == 'R') {
+                                amountLabel = "received " + formatCoinAmount(convertFromSatoshis(nettrans[i].Amount, COINUNIT)) + " " + _.escape(COINUNIT);
+                                //amountLabel = " received 1 BTC";
+                                friendLabel = "from " + _.escape(nettrans[i].UserName);
+                            }
+
+
+                            var trdate = new Date(nettrans[i].TransDateTime.match(/\d+/)[0] * 1);
+                            var timeLabel = prettydate.format(trdate);
+
+                            template += '<a id="nt' + i + '" href="#" class="list-group-item clearfix" id="dtran' + i + '">';
+
+                            template += '<span class="clear">';
+                            template += '<span>';
+                            template += amountLabel;
+                            template += '</span>';
+
+                            template += '<span class="pull-right">';
+                            template += '<div class="trntime">';
+                            template += timeLabel;
+                            template += '</div>';
+                            template += '</span>';
+
+                            template += '<span class="clear">';
+                            template += '<span>';
+
+
+                            template += '<div class="conf">';
+                            if (nettrans[i].Confirmations < 6) {
+                                template += '<span class="badge bg-warning pull-right">';
+                                template += _.escape(nettrans[i].Confirmations);
+                                template += '</span>';
+                            }
+                            template += '</div>';
+
+
+                            template += '<small class="text-muted clear text-ellipsis">';
+                            template += friendLabel;
+                            template += '</small>';
+                            template += '</span>';
+                            template += '</a>';
+
+                        }
+
+                        $('#networktransfeed').html(template);
+
+                        if (callback) {
+                            callback();
+                        }
+
+                    }
+
+                } else {
+
+                    if (callback) {
+                        callback();
+                    }
+
+                }
+
+
+            });
+        } else {
+
+            if (callback) {
+                callback();
+            }
+        }
+
+    }
+
+    var addrHasBeenGenerated = false;
 
     function generateAddressClient() {
-
 
         var target = document.getElementById('craddrspin');
         var spinner = new Spinner(spinneropts).spin(target);
@@ -6919,6 +8751,8 @@ function UI() {
 
             $("#craddrspin").hide();
 
+            addrHasBeenGenerated = true;
+
 
         });
 
@@ -6926,6 +8760,12 @@ function UI() {
 
 
     function sendMoney(friend, index) {
+
+        var allok = true;
+
+
+        var minersfee = $('#txtFriendMinersFee').val();
+        minersfee = minersfee * 1.0;
 
         $('#textMessageSend').removeClass('alert alert-danger');
 
@@ -6938,23 +8778,15 @@ function UI() {
 
         var twoFactorCode = $('#txtFriendSend2FA').val();
 
-        var allok = true;
-        if (amount > 0) {
-            $('input#friendAmount').css("border-color", "#ccc");
-        } else {
-            $('input#friendAmount').css("border-color", "#ffaaaa");
-            allok = false;
-        }
-
 
         Engine.get2faOverride(amount, function (err, result) {
 
             if (result == "") {
 
                 if (twoFactorCode.length == 6) {
-                    $('input#txtSendTwoFactor').css("border-color", "#ccc");
+                    $('input#txtFriendSend2FA').css("border-color", "#ccc");
                 } else {
-                    $('input#txtSendTwoFactor').css("border-color", "#ffaaaa");
+                    $('input#txtFriendSend2FA').css("border-color", "#ffaaaa");
                     allok = false;
                 }
             } else {
@@ -6974,12 +8806,14 @@ function UI() {
                 $('#sendfriendprogstatus').width('3%');
                 $('#sendfriendprog').show();
                 $('#sendfriendprogstatus').width('10%');
+
                 Engine.sendTransaction('friend', friend, '', amount, twoFactorCode, function (err, transactionid) {
 
                     $('#btnSendToFriend').prop('disabled', false);
 
                     if (!err) {
                         updateBalance();
+                        updateSelectedFriend();
                         $('#textCompleteSendNet').text('You sent ' + convertFromSatoshis(amount, COINUNIT) + ' ' + COINUNIT + ' to ' + friend);
                         $('input#friendAmount').val('');
 
@@ -7017,7 +8851,7 @@ function UI() {
                         $('#sendfriendprogstatus').width(progress);
                     }
 
-                });
+                }, minersfee);
 
             }
 
@@ -7029,8 +8863,15 @@ function UI() {
 
     function sendMoneyStd() {
 
+
+
+        var allok = true;
+
         var amount = $('#hdamount').val();
         amount = convertToSatoshis(amount, COINUNIT);
+
+        var minersfee = $('#txtMinersFee').val();
+        minersfee = minersfee * 1.0;
 
         var address = $('input#toAddress').val();
 
@@ -7039,7 +8880,6 @@ function UI() {
         $('#textMessageSendStd').removeClass('alert alert-danger');
         //check for valid bitcoin address
 
-        var allok = true;
         if (Engine.isAddressValid(address)) {
             $('input#toAddress').css("border-color", "#ccc");
         } else {
@@ -7118,7 +8958,7 @@ function UI() {
                         $('#sendstdprogstatus').width(progress);
                     }
 
-                });
+                }, minersfee);
             }
 
         });

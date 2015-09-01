@@ -1,7 +1,7 @@
 var sanitizer = require('sanitizer');
 var common = require('./common');
 var config = require('./config');
-var localStorage = require('browser-storage');
+//var localStorage = require('browser-storage');
 var crypto = require('crypto');
 
 
@@ -136,7 +136,7 @@ function lpost(url, postData, callback) {
     } else {
 
         $.ajax({
-            url: "https://api.ninkip2p.com:443" + url,
+            url: "https://api.ninkip2p.com" + url,
             type: "POST",
             timeout: 10000,
             data: JSON.stringify(postData),
@@ -375,7 +375,7 @@ API.getWalletFromServer = function (guid, secret, twoFactorCode, rememberTwoFact
 //function getBalance gets the summary balance for all the account's  outputs
 API.getBalance = function (guid, sharedid, callback) {
     var postData = { guid: guid, sharedid: sharedid };
-    return lpost("/api/1/u/getbalance", postData, function (err, dataStr) {
+    return lpost("/api/2/u/getbalance", postData, function (err, dataStr) {
         if (err) {
             return callback(err, dataStr);
         } else {
@@ -470,6 +470,24 @@ API.getUnspentOutputs = function (guid, sharedid, callback) {
         }
     });
 };
+
+
+///
+
+//function returns all outputs unspent by the wallet
+API.getTransactionTemplate = function (guid, sharedid, transactionid, callback) {
+
+    var postData = { guid: guid, sharedid: sharedid, transactionid: transactionid };
+    return lpost("/api/1/u/gettransactiontemplate", postData, function (err, response) {
+        if (!err) {
+            var data = JSON.parse(response);
+            return callback(err, data);
+        } else {
+            return callback(err, response);
+        }
+    });
+};
+
 
 //function returns all outputs unspent by the wallet
 API.getCoinProfile = function (guid, sharedid, callback) {
@@ -575,28 +593,11 @@ API.getTransactionRecords = function (guid, sharedid, callback) {
 
 };
 
-API.getTransactionFeed = function (guid, sharedid, callback) {
+API.getTransactionFeed = function (guid, sharedid, timestamp, lkey, tranPageFrom, tranPageTo, callback) {
 
-    var postData = { guid: guid, sharedid: sharedid };
+    var postData = { guid: guid, sharedid: sharedid, timestamp: timestamp, lkey: lkey, tranPageFrom: tranPageFrom, tranPageTo: tranPageTo };
 
-    lpost("/api/1/u/gettransactionfeed", postData, function (err, transactions) {
-
-        if (!err) {
-            var jtran = JSON.parse(transactions);
-            return callback(err, jtran);
-        } else {
-            return callback(err, transactions);
-        }
-
-    });
-
-};
-
-API.getTransactionsForNetwork = function (guid, sharedid, username, callback) {
-
-    var postData = { guid: guid, sharedid: sharedid, username: username };
-
-    lpost("/api/1/u/gettransactionsfornetwork", postData, function (err, transactions) {
+    lpost("/api/2/u/gettransactionfeed", postData, function (err, transactions) {
 
         if (!err) {
             var jtran = JSON.parse(transactions);
@@ -609,12 +610,11 @@ API.getTransactionsForNetwork = function (guid, sharedid, username, callback) {
 
 };
 
+API.getTransactionsForNetwork = function (guid, sharedid, username, timestamp, lkey, tranPageFrom, tranPageTo, callback) {
 
-API.getTimeline = function (guid, sharedid, callback) {
+    var postData = { guid: guid, sharedid: sharedid, username: username, timestamp: timestamp, lkey: lkey, tranPageFrom: tranPageFrom, tranPageTo: tranPageTo };
 
-    var postData = { guid: guid, sharedid: sharedid };
-
-    lpost("/api/1/u/gettimeline", postData, function (err, transactions) {
+    lpost("/api/2/u/gettransactionsfornetwork", postData, function (err, transactions) {
 
         if (!err) {
             var jtran = JSON.parse(transactions);
@@ -627,11 +627,46 @@ API.getTimeline = function (guid, sharedid, callback) {
 
 };
 
-API.getInvoiceList = function (guid, sharedid, callback) {
 
-    var postData = { guid: guid, sharedid: sharedid };
+API.getTimeline = function (guid, sharedid, timestamp, lkey, tranPageFrom, tranPageTo, callback) {
 
-    lpost("/api/1/u/getinvoicestopay", postData, function (err, invoices) {
+    var postData = { guid: guid, sharedid: sharedid, timestamp: timestamp, lkey: lkey, tranPageFrom: tranPageFrom, tranPageTo: tranPageTo };
+
+    lpost("/api/1/u/gettimeline", postData, function (err, timeline) {
+
+        if (!err) {
+            var jtran = JSON.parse(timeline);
+            return callback(err, jtran);
+        } else {
+            return callback(err, timeline);
+        }
+
+    });
+
+};
+
+API.getInvoiceList = function (guid, sharedid, timestamp, lkey, pageFrom, pageTo, callback) {
+
+    var postData = { guid: guid, sharedid: sharedid, timestamp: timestamp, lkey: lkey, pageFrom: pageFrom, pageTo: pageTo };
+
+    lpost("/api/2/u/getinvoicestopay", postData, function (err, invoices) {
+
+        if (!err) {
+            var jtran = JSON.parse(invoices);
+            return callback(err, jtran);
+        } else {
+            return callback(err, invoices);
+        }
+
+    });
+
+};
+
+API.getInvoicesToPayNetwork = function (guid, sharedid, username, timestamp, lkey, pageFrom, pageTo, callback) {
+
+    var postData = { guid: guid, sharedid: sharedid, username: username, timestamp: timestamp, lkey: lkey, pageFrom: pageFrom, pageTo: pageTo };
+
+    lpost("/api/2/u/getinvoicestopaynetwork", postData, function (err, invoices) {
 
         if (!err) {
             var jtran = JSON.parse(invoices);
@@ -645,29 +680,12 @@ API.getInvoiceList = function (guid, sharedid, callback) {
 
 };
 
-API.getInvoicesToPayNetwork = function (guid, sharedid, username, callback) {
 
-    var postData = { guid: guid, sharedid: sharedid, username: username };
+API.getInvoiceByUserList = function (guid, sharedid, timestamp, lkey, pageFrom, pageTo, callback) {
 
-    lpost("/api/1/u/getinvoicestopaynetwork", postData, function (err, invoices) {
+    var postData = { guid: guid, sharedid: sharedid, timestamp: timestamp, lkey: lkey, pageFrom: pageFrom, pageTo: pageTo };
 
-        if (!err) {
-            var jtran = JSON.parse(invoices);
-
-            return callback(err, jtran);
-        } else {
-            return callback(err, invoices);
-        }
-
-    });
-
-};
-
-API.getInvoiceByUserList = function (guid, sharedid, callback) {
-
-    var postData = { guid: guid, sharedid: sharedid };
-
-    lpost("/api/1/u/getinvoicesbyuser", postData, function (err, invoices) {
+    lpost("/api/2/u/getinvoicesbyuser", postData, function (err, invoices) {
 
         if (!err) {
             var jtran = JSON.parse(invoices);
@@ -680,14 +698,16 @@ API.getInvoiceByUserList = function (guid, sharedid, callback) {
 
 };
 
-API.getInvoicesByUserNetwork = function (guid, sharedid, username, callback) {
 
-    var postData = { guid: guid, sharedid: sharedid, username: username };
+API.getInvoicesByUserNetwork = function (guid, sharedid, username, timestamp, lkey, pageFrom, pageTo, callback) {
 
-    lpost("/api/1/u/getinvoicesbyusernetwork", postData, function (err, invoices) {
+    var postData = { guid: guid, sharedid: sharedid, username: username, timestamp: timestamp, lkey: lkey, pageFrom: pageFrom, pageTo: pageTo };
+
+    lpost("/api/2/u/getinvoicesbyusernetwork", postData, function (err, invoices) {
 
         if (!err) {
             var jtran = JSON.parse(invoices);
+
             return callback(err, jtran);
         } else {
             return callback(err, invoices);
@@ -705,6 +725,25 @@ API.updateInvoice = function (guid, sharedid, username, invoiceId, transactionId
         return callback(err, dataStr);
     });
 };
+
+
+API.getMessagesByUserNetwork = function (guid, sharedid, username, timestamp, lkey, pageFrom, pageTo, callback) {
+
+    var postData = { guid: guid, sharedid: sharedid, userName: username, timestamp: timestamp, lkey: lkey, pageFrom: pageFrom, pageTo: pageTo };
+
+    lpost("/api/1/u/getmessagesbyusernetwork", postData, function (err, messages) {
+
+        if (!err) {
+            var jtran = JSON.parse(messages);
+            return callback(err, jtran);
+        } else {
+            return callback(err, messages);
+        }
+
+    });
+
+};
+
 
 API.getVersion = function (callback) {
     var postData = {};
@@ -770,6 +809,16 @@ API.getDeviceToken = function (guid, sharedid, deviceName, twoFactorCode, callba
     });
 };
 
+API.getDeviceTokenRestore = function (guid, deviceName, secret, signaturecold, callback) {
+    var postData = { guid: guid, deviceName: deviceName, secret: secret, signaturecold: signaturecold };
+    return lpost("/api/1/u/getdevicetokenrestore", postData, function (err, dataStr) {
+        return callback(err, dataStr);
+    });
+};
+
+
+
+
 API.getDeviceTokenForApp = function (guid, sharedid, deviceName, callback) {
     var postData = { guid: guid, sharedid: sharedid, deviceName: deviceName };
     return lpost("/api/1/u/getdevicetokenforapp", postData, function (err, dataStr) {
@@ -788,8 +837,15 @@ API.getRecoveryPacket = function (guid, callback) {
 };
 
 API.getLimitStatus = function (guid, sharedid, callback) {
-    var postData = { guid: guid, sharedid: sharedid };
+    var postData = { guid: guid, sharedid: sharedid};
     return lpost("/api/1/u/getlimitstatus", postData, function (err, dataStr) {
+        return callback(err, dataStr);
+    });
+};
+
+API.prepareTransaction = function (guid, sharedid, amount, callback) {
+    var postData = { guid: guid, sharedid: sharedid, amount: amount };
+    return lpost("/api/1/u/preparetransaction", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
 };
@@ -805,6 +861,20 @@ API.createBackupCodes = function (guid, sharedid, twoFactorCode, callback) {
 API.updateEmailAddress = function (guid, sharedid, emailAddress, callback) {
     var postData = { guid: guid, sharedid: sharedid, emailAddress: emailAddress };
     return lpost("/api/1/u/updateemailaddress", postData, function (err, dataStr) {
+        return callback(err, dataStr);
+    });
+};
+
+API.resetTwoFactorAccount = function (guid, signaturecold, secret, callback) {
+    var postData = { guid: guid, signaturecold: signaturecold, secret: secret };
+    return lpost("/api/1/u/resettwofactoraccount", postData, function (err, dataStr) {
+        return callback(err, dataStr);
+    });
+};
+
+API.getSigChallenge = function (guid, secret, callback) {
+    var postData = { guid: guid, secret: secret };
+    return lpost("/api/1/u/getsigchallenge", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
 };
@@ -872,6 +942,13 @@ API.authMigration = function (guid, sharedid, twoFactorToken, authreqtoken, call
 API.getAuthMigrationToken = function (guid, secret, authreqtoken, callback) {
     var postData = { guid: guid, secret: secret, authreqtoken: authreqtoken };
     return lpost("/api/1/u/getauthmigrationtoken", postData, function (err, dataStr) {
+        return callback(err, dataStr);
+    });
+};
+
+API.getPriceHistory = function (callback) {
+    var postData = {};
+    return lpost("/api/1/u/getpricehistory", postData, function (err, dataStr) {
         return callback(err, dataStr);
     });
 };

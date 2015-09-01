@@ -58,6 +58,7 @@ function UI() {
 
     var pintaps = 0;
     var prevpin = '';
+    var deviceid = '';
 
     var ONE_HOUR = 60 * 60 * 1000;
 
@@ -184,14 +185,14 @@ function UI() {
 
 
 
-    if (msie > 0 || !!navigator.userAgent.match(/Trident.*rv\:11\./)) {
-        document.write("Internet Explorer is not supported. Please use the latest Chrome, Safari or Firefox.");
+    //if (msie > 0 || !!navigator.userAgent.match(/Trident.*rv\:11\./)) {
+    //    document.write("Internet Explorer is not supported. Please use the latest Chrome, Safari or Firefox.");
 
-    }
+    //}
 
-    if (typeof window.crypto.getRandomValues == 'undefined') {
-        document.write("This browser does not support window.crypto. Please use the latest chrome, safari or firefox.");
-    }
+    //if (typeof window.crypto.getRandomValues == 'undefined') {
+    //    document.write("This browser does not support window.crypto. Please use the latest chrome, safari or firefox.");
+    // }
 
     var spinneropts = {
         lines: 13, // The number of lines to draw
@@ -276,12 +277,19 @@ function UI() {
 
     jQuery(document).ready(function () {
 
+
+        setTimeout(function () {
+            Engine.Device.getDeviceId(function (res) {
+
+                deviceid = res;
+
+            });
+
+        },1000);
+
+
         var $body = jQuery('body');
 
-
-        $("#dashboard").on("scroll", function () {
-            scrolling = true;
-        });
 
         $("#dashboard").on("touchstart", function () {
 
@@ -289,15 +297,77 @@ function UI() {
 
         });
 
-        $("#pnlfriend").on("scroll", function () {
+
+        $('#dashboard').on('scroll', function () {
+
+            scrolling = true;
+            if ($(this).scrollTop() + $(this).innerHeight() >= this.scrollHeight) {
+
+                pageTransactions();
+
+            }
+        })
+
+
+        $('#pnlfriend').on('scroll', function () {
+
             scrollingnettran = true;
+            if ($(this).scrollTop() + $(this).innerHeight() >= this.scrollHeight) {
+
+                if (scrollmode == "trans") {
+                    pageTransactionNetwork();
+                }
+
+                if (scrollmode == "invforme") {
+                    pageInvoiceListNetwork();
+                }
+                if (scrollmode == "invbyme") {
+                    pageInvoiceListByMeListNetwork();
+                }
+
+
+            }
+        })
+
+
+        var scrollmode = "trans";
+        $("#tapnetpayments").on("touchstart", function () {
+
+            scrollmode = "trans";
+
         });
+
+        $("#tapinvoicefriend").on("touchstart", function () {
+
+            if ($("#lifor").hasClass('active')) {
+                scrollmode = "invforme";
+            }
+
+            if ($("#liby").hasClass('active')) {
+                scrollmode = "invbyme";
+            }
+
+        });
+
+        $("#invformelink").on("touchstart", function () {
+
+            scrollmode = "invforme";
+        });
+
+        $("#invbymelink").on("touchstart", function () {
+
+            scrollmode = "invbyme";
+
+        });
+
 
         $("#pnlfriend").on("touchstart", function () {
 
             scrollingnettran = false;
 
         });
+
+
 
         $("#networklist").on("scroll", function () {
             scrollingnetlist = true;
@@ -341,11 +411,46 @@ function UI() {
 
             } else {
 
-                Engine.fillElementWithGuid($("#createWalletStart input#guid"));
 
-                isCreate = true;
-                $("#createWalletStart").show();
-                $("#pinpair").show();
+                Engine.getVersion(function (err, ret) {
+
+                    if (!err) {
+
+                        if (ret.CreateMobOff) {
+
+                            Engine.fillElementWithGuid($("#createWalletStart input#guid"));
+
+                            isCreate = true;
+
+                            $("#createWalletStart").show();
+                            $("#pinpair").show();
+                            $("#newzone").hide();
+                            $("#termslink").hide();
+
+                        } else {
+
+                            Engine.fillElementWithGuid($("#createWalletStart input#guid"));
+
+                            isCreate = true;
+
+                            $("#createWalletStart").show();
+                            $("#pinpair").show();
+
+                        }
+
+                    } else {
+
+                        Engine.fillElementWithGuid($("#createWalletStart input#guid"));
+
+                        isCreate = true;
+
+                        $("#createWalletStart").show();
+                        $("#pinpair").show();
+
+                    }
+
+                });
+
             }
 
         });
@@ -1487,17 +1592,20 @@ function UI() {
 
         $('.sccy').bind('click', function () {
 
-            $('.sccy').find("label").html('');
+            if (!disableccytap) {
 
-            $(this).find("label").html('<i class="fa fa-check text-active"></i>');
+                $('.sccy').find("label").html('');
 
-            var sel = $.trim($(this).text());
+                $(this).find("label").html('<i class="fa fa-check text-active"></i>');
 
-            Engine.Device.setStorageItem("currency", sel);
+                var sel = $.trim($(this).text());
 
-            Engine.m_settings.LocalCurrency = sel;
+                Engine.Device.setStorageItem("currency", sel);
 
-            updatePrice();
+                Engine.m_settings.LocalCurrency = sel;
+
+                updatePrice();
+            }
 
         });
 
@@ -2081,15 +2189,21 @@ function UI() {
 
         });
 
+        var disableccytap = true;
         $('#tapcurrency').bind('touchstart', function () {
-
+            disableccytap = true;
             $("#settingscurrency").removeClass("invis");
             //$("#seccheck").addClass("slideUp");
-            $("#settingscurrency").show();
 
             $(".footer").hide();
             $("#settingsheader").hide();
             $("#mainWallet").hide();
+            $("#settingscurrency").show();
+
+            setTimeout(function () {
+                disableccytap = false
+            }, 100);
+
 
         });
 
@@ -3047,20 +3161,22 @@ function UI() {
 
         });
 
-        $("#tapeditamt").bind('touchstart', function () {
 
+        var editamountmode = false;
+        $("#tapeditamt").bind('touchstart', function () {
 
             $('#paddelconf').hide();
             $("#pinconfirm").hide();
 
-            //$("#dashsend").addClass("invis");
-            //$("#dashsend").removeClass("slideUp");
+            $("#pinpreconfirm").addClass("invis");
+            $("#pinpreconfirm").hide();
+
             $("#dashsend").hide();
 
             $("#dashsendamt").show();
             $("#dashsendamt").removeClass("invis");
-            $("#dashsendamt").addClass("slideUp");
 
+            editamountmode = true;
 
         });
 
@@ -3269,29 +3385,76 @@ function UI() {
 
         $("#btnCloseStdSndAmt").bind('touchstart', function () {
 
-            $("#sendstdlabel").text('');
-            $("#sendstds2add").text('');
-            $("#sendstdlbli").hide();
 
-            closeSendNet();
+            if (!editamountmode) {
+                window.updateUIInterval = setInterval(function () {
+
+                    updateUI();
+
+                }, 5000);
+
+                $("#sendstdlabel").text('');
+                $("#sendstds2add").text('');
+                $("#sendstdlbli").hide();
+
+                closeSendNet();
+
+            } else {
+
+                editamountmode = false;
+
+                $("#pinpreconfirm").removeClass("invis");
+                $("#pinpreconfirm").show();
+
+                $("#dashsendamt").addClass("invis");
+                $("#dashsendamt").hide();
+
+            }
 
         });
 
-        $("#btnCloseStdSndPIN").bind('touchstart', function () {
+        $("#btnClosePreConf").bind('touchstart', function () {
 
+            //            window.updateUIInterval = setInterval(function () {
+
+            //                updateUI();
+
+            //            }, 5000);
+
+
+            $('#paddelconf').hide();
+            $("#pinconfirm").hide();
+
+            $("#pinpreconfirm").addClass("invis");
+            $("#pinpreconfirm").hide();
+
+            if (sendmode == "inv") {
+                $("#invoices").show();
+            } else {
+                $("#dashsend").hide();
+                $("#dashsendamt").removeClass("invis");
+                $("#dashsendamt").show();
+
+            }
+
+
+        });
+
+
+        $("#btnCloseStdSndPIN").bind('touchstart', function () {
 
             window.updateUIInterval = setInterval(function () {
 
                 updateUI();
 
-            }, 10000);
+            }, 5000);
 
-            $("#sendstdlabel").text('');
-            $("#sendstds2add").text('');
+            //$("#sendstdlabel").text('');
+            //$("#sendstds2add").text('');
+
+
             $("#sendstdlbli").hide();
             $("#pinconfdets").show();
-
-
 
             window.resetPin();
 
@@ -3304,9 +3467,17 @@ function UI() {
 
 
             if (sendmode == "std") {
-                closeSendStd();
+
+                $("#pinpreconfirm").removeClass("invis");
+                $("#pinpreconfirm").show();
+                $("#pinconfirm").hide();
+
             } else if (sendmode == "net") {
-                closeSendNet();
+
+                $("#pinpreconfirm").removeClass("invis");
+                $("#pinpreconfirm").show();
+                $("#pinconfirm").hide();
+
             } else if (sendmode == "viewkey") {
 
 
@@ -3338,6 +3509,7 @@ function UI() {
 
         $("#btnCloseRec").bind('touchstart', function () {
 
+            recAlertDone = false;
             closeSendStd();
 
         });
@@ -3369,51 +3541,203 @@ function UI() {
 
                 updateUI();
 
-            }, 10000);
+            }, 5000);
+
+        });
+
+
+
+        $("#btnpreconfirm").bind('touchstart', function () {
+
+            $("#pinpreconfirm").addClass("invis");
+            $("#pinpreconfirm").removeClass("slideUp");
+            $("#pinpreconfirm").hide();
+
+            $("#pinconfirm").removeClass("blind");
+            $("#pinconfirm").show();
+
+        });
+
+
+
+        $("#feeplus").hammer(null).bind("tap", function () {
+            var feeinsatoshis = $('#hdfee').val();
+            feeinsatoshis = feeinsatoshis * 1.0
+            feeinsatoshis += 10000;
+            $('#hdfee').val(feeinsatoshis);
+            $('#feestds2amt').text(convertFromSatoshis(feeinsatoshis, COINUNIT) + ' ' + COINUNIT);
+        });
+
+        $("#feeminus").hammer(null).bind("tap", function () {
+            var feeinsatoshis = $('#hdfee').val();
+            feeinsatoshis = feeinsatoshis * 1.0
+            feeinsatoshis -= 10000;
+
+            if (feeinsatoshis < 10000) {
+                feeinsatoshis = 10000;
+            }
+
+            $('#hdfee').val(feeinsatoshis);
+            $('#feestds2amt').text(convertFromSatoshis(feeinsatoshis, COINUNIT) + ' ' + COINUNIT);
+        });
+
+
+        $("#friendselector").hide();
+        $("#invoice").hide();
+        $("#invoicedisplay").hide();
+
+        $("#btnpayinvoice").bind('touchstart', function () {
+
+            var amount = selectedInvoiceAmount * 1.0;
+
+            //$("#hdamount").val(amount);
+
+            Engine.prepareTransaction(amount, function (err, limits) {
+
+                if (!err) {
+
+                    var byteEstimate = Engine.estimateTranBytes(limits.NoOfOuts, 2, amount);
+                    var feeEstimate = Engine.calcMinerFee(byteEstimate, limits.FeeHigh);
+
+                    $("#sendstds2amt").text(convertFromSatoshis(selectedInvoiceAmount, COINUNIT) + ' ' + COINUNIT);
+
+                    $('#hdfee').val(feeEstimate);
+
+                    $('#feestds2amt').text(convertFromSatoshis(feeEstimate, COINUNIT) + ' ' + COINUNIT);
+
+                    $('#paddelconf').hide();
+                    $("#dashsendamt").hide();
+
+                    if (window.updateUIInterval) {
+                        clearInterval(window.updateUIInterval);
+                    }
+
+                    $("#pinconfdets").show();
+
+                    $("#pinpreconfirm").removeClass("invis");
+                    $("#pinpreconfirm").show();
+                    $("#sendstds2add").text(SELECTEDFRIEND);
+
+
+                    $("#btnpayinvoice").button('loading');
+
+                    $(".footer").hide();
+
+                    sendmode = 'inv';
+
+                    $('.numdone').attr("style", "background-color:white");
+                    $("#sendstdpin").val('');
+
+                    pintaps = 0;
+                    prevpin = '';
+
+                    networkpagestate = "friend";
+
+                    $("#invoices").hide();
+                    $("#mainWallet").hide();
+
+                    if (window.updateUIInterval) {
+                        clearInterval(window.updateUIInterval);
+                    }
+
+                    $("#tapeditamt").hide();
+
+                    $(".footer").hide();
+
+                }
+
+                $("#btnpayinvoice").button('reset');
+
+            });
+
 
         });
 
 
         $("#btnsendmoneystd").bind('touchstart', function () {
 
+            //prepare transaction
 
-            $('#paddelconf').hide();
+            $('#feeminus').removeClass('disabled');
+            $('#feeplus').removeClass('disabled');
 
-            $("#dashsendamt").hide();
+            $("#btnsendmoneystd").button('loading');
+
+            var amount = $("#hdamount").val();
+            amount = convertToSatoshis(amount * 1.0, COINUNIT);
+
+            var balanceSat = convertToSatoshis(currentBalance, COINUNIT);
+
+            var feeEstimate = 10000;
+
+            if (balanceSat < (feeEstimate + amount)) {
+
+                setTimeout(function () {
+                    bootbox.alert('The transaction amount, including the minimum fee, would exceed your balance.', function () {
+
+                        $("#btnsendmoneystd").button('reset');
+
+                    });
+                }, 500);
+
+            } else {
+
+                Engine.prepareTransaction(amount, function (err, limits) {
+
+                    if (!err) {
+
+                        var byteEstimate = Engine.estimateTranBytes(limits.NoOfOuts, 2, amount);
+
+                        feeEstimate = Engine.calcMinerFee(byteEstimate, limits.FeeHigh);
+
+                        //if amount + fee estimate > balance then set to min fee 
+
+                        if (balanceSat < (feeEstimate + amount)) {
+
+                            feeEstimate = balanceSat - amount;
+
+                            $('#feeminus').addClass('disabled');
+                            $('#feeplus').addClass('disabled');
+
+                        }
+
+                        $('#hdfee').val(feeEstimate);
+
+                        $('#feestds2amt').text(convertFromSatoshis(feeEstimate, COINUNIT) + ' ' + COINUNIT);
+
+                        $('#paddelconf').hide();
+                        $("#dashsendamt").hide();
+
+                        if (window.updateUIInterval) {
+                            clearInterval(window.updateUIInterval);
+                        }
+
+                        $("#pinconfdets").show();
+
+                        $("#pinpreconfirm").removeClass("invis");
+                        $("#pinpreconfirm").show();
+
+                        if (sendmode == 'std') {
+                            $("#sendstds2add").text($('#toAddress').val());
+                        } else if (sendmode == 'net') {
+                            $("#sendstds2add").text(SELECTEDFRIEND);
+                        }
+
+                        $("#sendstds2amt").text(formatCoinAmount($("#hdamount").val()) + ' ' + COINUNIT);
+                        $("#dashsend").hide();
+
+                        $("#dashsendamt").addClass("invis");
+                        $("#dashsendamt").removeClass("slideUp");
+                        $("#dashsendamt").hide();
 
 
-            if (window.updateUIInterval) {
-                clearInterval(window.updateUIInterval);
+
+                    }
+
+                    $("#btnsendmoneystd").button('reset');
+
+                });
             }
-
-            $("#pinconfdets").show();
-            $("#pinconfirm").removeClass("blind");
-            $("#pinconfirm").show();
-
-            if (sendmode == 'std') {
-
-                $("#sendstds2add").text($('#toAddress').val());
-
-
-
-            } else if (sendmode == 'net') {
-                $("#sendstds2add").text(SELECTEDFRIEND);
-            }
-
-
-            $("#sendstds2amt").text(formatCoinAmount($("#hdamount").val()) + ' ' + COINUNIT);
-
-            //$("#dashsend").addClass("invis");
-            //$("#dashsend").removeClass("slideUp");
-            $("#dashsend").hide();
-
-
-            $("#dashsendamt").addClass("invis");
-            $("#dashsendamt").removeClass("slideUp");
-            $("#dashsendamt").hide();
-
-
-            //sendMoneyStd();
 
         });
 
@@ -3440,7 +3764,7 @@ function UI() {
             sendmode = "net";
 
 
-            $("#btnsendmoneystd").addClass("disabled");
+            //$("#btnsendmoneystd").addClass("disabled");
 
             $("#addressinvalid").hide();
             $("#sendstdlbli").hide();
@@ -3493,7 +3817,7 @@ function UI() {
 
 
 
-            $("#btnsendmoneystd").addClass("disabled");
+            //$("#btnsendmoneystd").addClass("disabled");
             $("#addressinvalid").hide();
             $("#sendstdlbli").hide();
 
@@ -3841,43 +4165,7 @@ function UI() {
 
         //INVOICE STUFF START------------------------------------------
 
-        $("#friendselector").hide();
-        $("#invoice").hide();
-        $("#invoicedisplay").hide();
 
-        $("#btnpayinvoice").bind('touchstart', function () {
-
-            $("#tapeditamt").hide();
-
-            $(".footer").hide();
-
-            $("#sendstds2add").text(SELECTEDFRIEND);
-
-            $("#sendstds2amt").text(formatCoinAmount(convertFromSatoshis(selectedInvoiceAmount, COINUNIT)) + ' ' + COINUNIT);
-
-            sendmode = 'inv';
-
-            $('.numdone').attr("style", "background-color:white");
-            $("#sendstdpin").val('');
-            pintaps = 0;
-            prevpin = '';
-
-            networkpagestate = "friend";
-
-            $("#invoices").hide();
-            $("#mainWallet").hide();
-
-            if (window.updateUIInterval) {
-                clearInterval(window.updateUIInterval);
-            }
-
-            $("#pinconfdets").show();
-            $("#pinconfirm").removeClass("blind");
-            $("#pinconfirm").show();
-
-
-
-        });
 
         $("#btnrejectinvoice").bind('touchstart', function () {
 
@@ -3915,7 +4203,7 @@ function UI() {
             $("#pnlfriend").show();
             $("#friendheader").show();
             $(".footer").show();
-            $("#tapeditamt").show();
+            //$("#tapeditamt").show();
 
             //if (uiInvoiceReturnToNetwork) {
             //$("#hnetwork").click();
@@ -3928,177 +4216,302 @@ function UI() {
     });
 
 
-    var lastInvoiceToPayNetCount = 0;
-    var uiInvoiceReturnToNetwork = false;
 
     var cachedInvoices = [];
     var cachedInvoicesByUser = [];
 
-    function showInvoiceListNetwork() {
+    var lastInvoiceToPayNetCount = 0;
+    var uiInvoiceReturnToNetwork = false;
+    var uiInvoiceReturnToDashboard = false;
 
-        //var invoices = _.filter(cachedInvoices, function (inv) { return inv.InvoiceFrom == SELECTEDFRIEND; });
-
-        Engine.getInvoicesToPayNetwork(SELECTEDFRIEND, function (err, invoices) {
-
-
-            if (invoices.length == 0) {
-                $('#invfornet').empty();
-                $('#invfornet').hide();
-            }
+    var lastInvPayNetTimestamp = 0
+    var lastInvPayNetLKey = 0;
+    var invPayNetPageFrom = 0;
+    var invPayNetPageTo = invPayNetPageFrom + 10;
+    var totalInvPayNet = 0;
 
 
-            //if (lastInvoiceToPayNetCount < invoices.length) {
+    var ispaginginvforme = false;
+    function pageInvoiceListNetwork() {
 
-            lastInvoiceToPayNetCount = invoices.length;
+        if (!ispaginginvforme) {
+            ispaginginvforme = true;
+            lastInvPayNetTimestamp = 0
+            invPayNetPageTo = invPayNetPageTo + 10;
+            //loading
+            var loading = '<a href="#" style="border-radius: 0px;" class="list-group-item clearfix">loading...</a>';
+            $('#invfornet').append(loading);
 
-            var s = '';
-            $('#invfornet').empty();
+            setTimeout(function () {
 
-            for (var i = 0; i < invoices.length; i++) {
+                showInvoiceListNetwork(function () {
 
-                var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1);
-
-                var timeLabel = prettydate.format(invdate);
-
-                var statusbox = '';
-                if (invoices[i].InvoiceStatus == 0) {
-                    statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
-                }
-                else if (invoices[i].InvoiceStatus == 1) {
-                    statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
-                }
-                else if (invoices[i].InvoiceStatus == 2) {
-                    statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
-                }
-
-                s += "<div style=\"border-top-left-radius: 0px;border-top-right-radius: 0px\" id=\"viewinvoicenetfrom" + _.escape(invoices[i].InvoiceFrom) + _.escape(invoices[i].InvoiceId) + "\" class=\"media list-group-item\"><div class=\"pull-left\">" + _.escape(timeLabel) + "</div>" +
-                                 "<div class=\"pull-right m-t-xs\">" + statusbox + "</div></div>";
-            }
-
-            cachedInvoices = invoices;
-
-            $('#invfornet').append(s);
-
-            for (var i = 0; i < invoices.length; i++) {
-
-                $("#invfornet #viewinvoicenetfrom" + invoices[i].InvoiceFrom + invoices[i].InvoiceId).hammer(null).bind("tap", {
-                    index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
-                }, function (event) {
-
-                    $("#invtapspinner").show();
-                    var target = document.getElementById('invtapspinner');
-                    var spinner = new Spinner(spinneropts).spin(target);
-
-                    displayInvoice(event.data.index, event.data.username, 'forme', function (err, res) {
-                        uiInvoiceReturnToNetwork = true;
-
-                        networkpagestate = "invoice";
-                        friendpagestate = "invoice";
-
-                        $("#invtapspinner").hide();
-                        $('#pnlfriend').hide();
-                        $("#friendheader").hide();
-                        $(".footer").hide();
-                        $('#invoices').show();
-
-
-                    });
+                    //finshed loading
+                    ispaginginvforme = false;
                 });
-            }
 
-            $('#invfornet').show();
-
-
-        });
-
-
+            }, 1000);
+        }
     }
+
+
+
+    function showInvoiceListNetwork(callback) {
+
+        if (SELECTEDFRIEND != '') {
+
+            var lkey = 0;
+            var timestamp = lastInvPayNetTimestamp;
+
+            Engine.getInvoicesToPayNetwork(SELECTEDFRIEND, timestamp, lkey, invPayNetPageFrom, invPayNetPageTo, function (err, invoices) {
+
+                if (!err) {
+
+                    if (invoices == -1) {
+
+                        if (callback) {
+                            callback();
+                        }
+
+                    } else {
+
+
+                        if (invoices.timestamp) {
+                            lastInvPayNetTimestamp = invoices.timestamp;
+                        }
+
+                        var total = invoices.total;
+
+                        totalInvPayNet = total;
+
+                        invoices = invoices.data;
+
+                        if (invoices.length == 0) {
+                            $('#invfornet').empty();
+                            $('#invfornet').hide();
+                        }
+
+                        var s = '';
+                        $('#invfornet').empty();
+
+                        for (var i = 0; i < invoices.length; i++) {
+
+                            var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1);
+
+                            var timeLabel = prettydate.format(invdate);
+
+                            var statusbox = '';
+                            if (invoices[i].InvoiceStatus == 0) {
+                                statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
+                            }
+                            else if (invoices[i].InvoiceStatus == 1) {
+                                statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
+                            }
+                            else if (invoices[i].InvoiceStatus == 2) {
+                                statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
+                            }
+
+                            s += "<div style=\"border-top-left-radius: 0px;border-top-right-radius: 0px\" id=\"viewinvoicenetfrom" + _.escape(invoices[i].InvoiceFrom) + _.escape(invoices[i].InvoiceId) + "\" class=\"media list-group-item\"><div class=\"pull-left\">" + _.escape(timeLabel) + "</div>" +
+                                 "<div class=\"pull-right m-t-xs\">" + statusbox + "</div></div>";
+                        }
+
+                        cachedInvoices = invoices;
+
+                        $('#invfornet').append(s);
+
+                        for (var i = 0; i < invoices.length; i++) {
+
+                            $("#invfornet #viewinvoicenetfrom" + invoices[i].InvoiceFrom + invoices[i].InvoiceId).hammer(null).bind("tap", {
+                                index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
+                            }, function (event) {
+
+                                $("#invtapspinner").show();
+                                var target = document.getElementById('invtapspinner');
+                                var spinner = new Spinner(spinneropts).spin(target);
+
+                                displayInvoice(event.data.index, event.data.username, 'forme', function (err, res) {
+
+                                    uiInvoiceReturnToNetwork = true;
+
+                                    networkpagestate = "invoice";
+                                    friendpagestate = "invoice";
+
+                                    $("#invtapspinner").hide();
+                                    $('#pnlfriend').hide();
+                                    $("#friendheader").hide();
+                                    $(".footer").hide();
+                                    $('#invoices').show();
+
+
+                                });
+                            });
+                        }
+
+                        $('#invfornet').show();
+
+                        //$('#pnlfriendinv').show();
+                    }
+
+                }
+
+            });
+
+        }
+
+        if (callback) {
+
+            callback(false, '');
+
+        }
+    }
+
+
 
     var lastInvoiceByMeNetCount = 0;
-    function showInvoiceByMeListNetwork() {
 
-        //var invoices = _.filter(cachedInvoicesByUser, function (inv) { return inv.InvoiceFrom == SELECTEDFRIEND; });
-
-        Engine.getInvoicesByUserNetwork(SELECTEDFRIEND, function (err, invoices) {
-
-            if (invoices.length == 0) {
-                $('#invbynet').empty();
-                $('#invbynet').hide();
-            }
+    var lastInvByMeNetTimestamp = 0
+    var lastInvByMeNetLKey = 0;
+    var invByMeNetPageFrom = 0;
+    var invByMeNetPageTo = invByMeNetPageFrom + 10;
+    var totalInvByMeNet = 0;
 
 
-            if (lastInvoiceByMeNetCount < invoices.length) {
+    var ispaginginvbyme = false;
+    function pageInvoiceListByMeListNetwork() {
 
-                lastInvoiceByMeNetCount = invoices.length;
+        if (!ispaginginvbyme) {
+            ispaginginvbyme = true;
+            lastInvByMeNetTimestamp = 0
+            invByMeNetPageTo = invByMeNetPageTo + 10;
+            //loading
+            var loading = '<a href="#" style="border-radius: 0px;" class="list-group-item clearfix">loading...</a>';
+            $('#invbynet').append(loading);
 
-                var s = '';
-                $('#invbynet').empty();
+            setTimeout(function () {
 
-                for (var i = 0; i < invoices.length; i++) {
+                showInvoiceByMeListNetwork(function () {
 
-                    var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1);
+                    //finshed loading
+                    ispaginginvbyme = false;
+                });
 
-                    var timeLabel = prettydate.format(invdate);
-
-
-                    var statusbox = '';
-                    if (invoices[i].InvoiceStatus == 0) {
-                        statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
-                    }
-                    else if (invoices[i].InvoiceStatus == 1) {
-                        statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
-                    }
-                    else if (invoices[i].InvoiceStatus == 2) {
-                        statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
-                    }
-
-                    s += "<div style=\"border-top-left-radius: 0px;border-top-right-radius: 0px\" id=\"viewinvoicenetby" + invoices[i].InvoiceFrom + invoices[i].InvoiceId + "\" class=\"media list-group-item\"><div class=\"pull-left\">" + _.escape(timeLabel) + "</div>" +
-                                 "<div class=\"pull-right m-t-xs\">" + statusbox + "</div></div>";
-                }
-
-                cachedInvoicesByUser = invoices;
-
-                $('#invbynet').append(s);
-
-                for (var i = 0; i < invoices.length; i++) {
-
-                    $("#invbynet #viewinvoicenetby" + invoices[i].InvoiceFrom + invoices[i].InvoiceId).hammer(null).bind("tap", {
-                        index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
-                    }, function (event) {
-
-
-                        $("#invtapspinner").show();
-                        var target = document.getElementById('invtapspinner');
-                        var spinner = new Spinner(spinneropts).spin(target);
-
-                        displayInvoice(event.data.index, event.data.username, 'byme', function (err, res) {
-
-                            networkpagestate = "invoice";
-                            friendpagestate = "invoice";
-
-                            $("#invtapspinner").hide();
-                            $('#pnlfriend').hide();
-                            $("#friendheader").hide();
-                            $('.footer').hide();
-                            $('#invoices').show();
-
-                        });
-                    });
-                }
-
-                $('#invbynet').show();
-
-
-            }
-
-        });
-
-        // $('#pnlfriendinv').show();
-
-
+            }, 1000);
+        }
     }
 
 
+    function showInvoiceByMeListNetwork(callback) {
+
+        if (SELECTEDFRIEND != '') {
+
+
+            var lkey = 0;
+            var timestamp = lastInvByMeNetTimestamp;
+
+            Engine.getInvoicesByUserNetwork(SELECTEDFRIEND, timestamp, lkey, invByMeNetPageFrom, invByMeNetPageTo, function (err, invoices) {
+
+                if (!err) {
+
+                    if (invoices == -1) {
+
+                        if (callback) {
+                            callback();
+                        }
+
+                    } else {
+
+
+                        if (invoices.timestamp) {
+                            lastInvByMeNetTimestamp = invoices.timestamp;
+                        }
+
+                        var total = invoices.total;
+
+                        totalInvByMeNet = total;
+
+                        invoices = invoices.data;
+
+
+                        if (invoices.length == 0) {
+                            $('#invbynet').empty();
+                            $('#invbynet').hide();
+                        }
+
+                        var s = '';
+                        $('#invbynet').empty();
+
+                        for (var i = 0; i < invoices.length; i++) {
+
+                            var invdate = new Date(invoices[i].InvoiceDate.match(/\d+/)[0] * 1);
+
+                            var timeLabel = prettydate.format(invdate);
+
+
+                            var statusbox = '';
+                            if (invoices[i].InvoiceStatus == 0) {
+                                statusbox = '<i class=\"fa fa-clock-o text-warning text-active\"></i> <span class="label bg-warning">Pending</span>';
+                            }
+                            else if (invoices[i].InvoiceStatus == 1) {
+                                statusbox = '<i class=\"fa fa-check text-success text-active\"></i> <span class="label bg-success">Paid</span>';
+                            }
+                            else if (invoices[i].InvoiceStatus == 2) {
+                                statusbox = '<i class=\"fa fa-times text-danger text-active\"></i> <span class="label bg-danger">Rejected</span>';
+                            }
+
+                            s += "<div style=\"border-top-left-radius: 0px;border-top-right-radius: 0px\" id=\"viewinvoicenetby" + invoices[i].InvoiceFrom + invoices[i].InvoiceId + "\" class=\"media list-group-item\"><div class=\"pull-left\">" + _.escape(timeLabel) + "</div>" +
+                                 "<div class=\"pull-right m-t-xs\">" + statusbox + "</div></div>";
+                        }
+
+                        cachedInvoicesByUser = invoices;
+
+                        $('#invbynet').append(s);
+
+                        for (var i = 0; i < invoices.length; i++) {
+
+                            $("#invbynet #viewinvoicenetby" + invoices[i].InvoiceFrom + invoices[i].InvoiceId).hammer(null).bind("tap", {
+                                index: invoices[i].InvoiceId, username: invoices[i].InvoiceFrom
+                            }, function (event) {
+
+
+                                $("#invtapspinner").show();
+                                var target = document.getElementById('invtapspinner');
+                                var spinner = new Spinner(spinneropts).spin(target);
+
+                                displayInvoice(event.data.index, event.data.username, 'byme', function (err, res) {
+
+                                    networkpagestate = "invoice";
+                                    friendpagestate = "invoice";
+
+                                    $("#invtapspinner").hide();
+                                    $('#pnlfriend').hide();
+                                    $("#friendheader").hide();
+                                    $('.footer').hide();
+                                    $('#invoices').show();
+
+                                });
+                            });
+                        }
+
+                        $('#invbynet').show();
+
+                        if (callback) {
+                            callback();
+                        }
+
+                    }
+
+                }
+
+            });
+
+        }
+
+        if (callback) {
+
+            callback(false, '');
+
+        }
+    }
 
     var selectedInvoiceAmount = 0;
     var selectedInvoiceId = 0;
@@ -4277,6 +4690,9 @@ function UI() {
 
         var pin = $('#sendstdpin').val();
 
+        var minersFee = $('#hdfee').val();
+        minersFee = minersFee * 1.0;
+
         Engine.getDeviceKey(pin, function (err, ekey) {
 
             if (!err) {
@@ -4315,8 +4731,15 @@ function UI() {
                                     prevNetworkTransCount = -1;
                                     prevtransfeed = -1;
 
+                                    lastNoOfTrans = 0;
+
+                                    lastInvPayNetTimestamp = 0;
+                                    lastNettransTimestamp = 0;
+                                    lastTransTimestamp = 0;
+
+
                                     showTransactionNetwork();
-                                    showTransactionFeed();
+                                    updateTransactions();
 
                                     updateUI();
 
@@ -4382,7 +4805,7 @@ function UI() {
                             $('#sendstdprognum').text(progress);
                         }
 
-                    });
+                    }, minersFee);
                 }, 50);
 
             } else {
@@ -4588,14 +5011,14 @@ function UI() {
 
                 updateUI();
 
-            }, 10000);
+            }, 5000);
 
 
             window.updatePriceInterval = setInterval(function () {
 
                 updatePrice();
 
-            }, 10000);
+            }, 30000);
 
 
             return callback("ok");
@@ -4680,7 +5103,7 @@ function UI() {
         $("#networklist").show();
         //$("#networklistheader").show();
 
-        showTransactionFeed(function (err, res) {
+        updateTransactions(function () {
 
             updateBalance(function (err, hasChanged) {
 
@@ -4712,13 +5135,13 @@ function UI() {
 
                 updateUI();
 
-            }, 10000);
+            }, 5000);
 
             window.updatePriceInterval = setInterval(function () {
 
                 updatePrice();
 
-            }, 10000);
+            }, 30000);
 
 
 
@@ -4822,7 +5245,7 @@ function UI() {
         //Always
         updateBalance();
 
-        showTransactionFeed();
+        updateTransactions();
 
         updateSelectedFriend();
 
@@ -4850,6 +5273,8 @@ function UI() {
             cprc = accounting.formatMoney(result, "&dollar;", 2);
         } else if (Engine.m_settings.LocalCurrency == "CNY") {
             cprc = accounting.formatMoney(result, "&yen;", 2);
+        } else {
+            cprc = accounting.formatMoney(result, "&dollar;", 2);
         }
 
         $('#homeprice').html(cprc);
@@ -5132,11 +5557,6 @@ function UI() {
 
                 }
 
-                //cache the last balance result
-
-                //var balcache = JSON.stringify(result);
-                //Engine.Device.setSecureStorageObject("balance", balcache, Engine.m_password, Engine.encrypt, ONE_HOUR);
-
 
             } else {
 
@@ -5206,195 +5626,213 @@ function UI() {
 
     }
 
-
     var lastNoOfFriends = 0;
     var invoiceSelectedUser = '';
     var invoiceSelectedAmount = 0;
     var selectedFriend = null;
 
+    var lastUserNetworkTimestamp = 0
+    var lastUserNetworkLKey = 0;
+    var userNetworkPageFrom = 0;
+    var userNetworkPageTo = 500;
+    var totalUserNetwork = 0;
+
+
+
     function updateFriends(callback) {
 
         if (!noAlert == true) {
 
-
-            Engine.getUserNetwork(function (err, friends) {
-
+            Engine.getUserNetwork(lastUserNetworkTimestamp, lastUserNetworkLKey, userNetworkPageFrom, userNetworkPageTo, function (err, friends) {
 
                 if (!err) {
 
+                    if (friends == -1) {
 
+                        if (callback) {
+                            callback();
+                        }
 
-                    if (friends.length == 0 && lastNoOfFriends == 0) {
-                        //$('#welcomenet').show();
                     } else {
-                        $('#welcomenet').hide();
 
 
-                        //$("#nfriends").text(friends.length);
+                        if (friends.timestamp) {
+                            lastUserNetworkTimestamp = friends.timestamp;
+                        }
 
-                        if (friends.length > lastNoOfFriends) {
+                        var total = friends.total;
 
-                            lastNoOfFriends = friends.length;
+                        totalUserNetwork = total;
 
-                            FRIENDSLIST = {};
-
-                            for (var i = 0; i < friends.length; i++) {
-                                FRIENDSLIST[friends[i].userName] = friends[i];
-                            }
-
-                            //if selected friend is not isend and isreceive
-                            //then find in list and update
-
-                            //                    if (selectedFriend != null) {
-
-                            //                        if (!selectedFriend.ICanSend || !selectedFriend.ICanReceive) {
-                            //                            selectedFriend = FRIENDSLIST[selectedFriend.userName];
-                            //                            updateSelectedFriend();
-                            //                        }
-
-                            //                    }
+                        friends = friends.data;
 
 
-                            $("#nfriends").text(friends.length);
-                            $("#myfriends").text('');
+
+                        if (friends.length == 0 && lastNoOfFriends == 0) {
+                            //$('#welcomenet').show();
+                        } else {
+                            $('#welcomenet').hide();
 
 
-                            var grouptemplate = '';
+                            //$("#nfriends").text(friends.length);
 
-                            var friendsgroup = _.groupBy(friends, function (item) { return item.category; });
+                            if (friends.length > lastNoOfFriends) {
 
-                            grouptemplate += '<div class="panel-group" id="accordion2">';
+                                lastNoOfFriends = friends.length;
 
-                            var k = 0;
-                            var g = 1;
-                            for (var key in friendsgroup) {
+                                FRIENDSLIST = {};
 
-                                friends = friendsgroup[key];
-
-                                grouptemplate += '<div class="panel panel-default" style="border-radius: 0px; border-bottom: 0px;">';
-                                grouptemplate += '<div class="panel-heading" style="border-radius: 0px; border-bottom: 0px; background-color:#ffffff;" data-toggle="collapse" data-parent="#accordion2" href="#collapse' + g + '">';
-                                grouptemplate += '<a class="accordion-toggle h4 font-thin">';
-                                grouptemplate += _.escape(key);
-                                grouptemplate += '</a>';
-                                grouptemplate += '</div>';
-                                grouptemplate += '<div id="collapse' + g + '" class="panel-collapse in" style="border-radius: 0px; border-bottom: 0px;">';
+                                for (var i = 0; i < friends.length; i++) {
+                                    FRIENDSLIST[friends[i].userName] = friends[i];
+                                }
 
 
-                                for (var i = 0; i < friendsgroup[key].length; i++) {
-
-                                    var frnd = FRIENDSLIST[friends[i].userName];
-
-                                    var length = frnd.userName.length;
-                                    if (length > 20) {
-                                        length = 20;
-                                    }
+                                $("#nfriends").text(friends.length);
+                                $("#myfriends").text('');
 
 
-                                    var imageSrc = "images/avatar/64px/Avatar-" + pad(length) + ".png";
+                                var grouptemplate = '';
 
-                                    if (frnd.profileImage != '') {
-                                        imageSrc = "https://ninkip2p.imgix.net/" + _.escape(frnd.profileImage) + "?crop=faces&fit=crop&h=256&w=256&mask=ellipse&border=1,d0d0d0";
-                                        imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(frnd.profileImage) + "?crop=faces&fit=crop&h=128&w=128&mask=ellipse&border=1,d0d0d0";
-                                    }
+                                var friendsgroup = _.groupBy(friends, function (item) { return item.category; });
+
+                                grouptemplate += '<div class="panel-group" id="accordion2">';
+
+                                var k = 0;
+                                var g = 1;
+                                for (var key in friendsgroup) {
+
+                                    friends = friendsgroup[key];
+
+                                    grouptemplate += '<div class="panel panel-default" style="border-radius: 0px; border-bottom: 0px;">';
+                                    grouptemplate += '<div class="panel-heading" style="border-radius: 0px; border-bottom: 0px; background-color:#ffffff;" data-toggle="collapse" data-parent="#accordion2" href="#collapse' + g + '">';
+                                    grouptemplate += '<a class="accordion-toggle h4 font-thin">';
+                                    grouptemplate += _.escape(key);
+                                    grouptemplate += '</a>';
+                                    grouptemplate += '</div>';
+                                    grouptemplate += '<div id="collapse' + g + '" class="panel-collapse in" style="border-radius: 0px; border-bottom: 0px;">';
 
 
-                                    var template = '<a href="#" style="border-radius: 0px; border-bottom: 0px;" class="media list-group-item" id="friend' + k + '"><div class="media">' +
+                                    for (var i = 0; i < friendsgroup[key].length; i++) {
+
+                                        var frnd = FRIENDSLIST[friends[i].userName];
+
+                                        var length = frnd.userName.length;
+                                        if (length > 20) {
+                                            length = 20;
+                                        }
+
+
+                                        var imageSrc = "images/avatar/64px/Avatar-" + pad(length) + ".png";
+
+                                        if (frnd.profileImage != '') {
+                                            imageSrc = "https://ninkip2p.imgix.net/" + _.escape(frnd.profileImage) + "?crop=faces&fit=crop&h=256&w=256&mask=ellipse&border=1,d0d0d0";
+                                            imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(frnd.profileImage) + "?crop=faces&fit=crop&h=128&w=128&mask=ellipse&border=1,d0d0d0";
+                                        }
+
+
+                                        var template = '<a href="#" style="border-radius: 0px; border-bottom: 0px;" class="media list-group-item" id="friend' + k + '"><div class="media">' +
                                 '<span class="pull-left thumb-sm"><img src="' + _.escape(imageSrc) + '" alt="" class="img-circle"></span><div id="seltarget' + _.escape(friends[i].userName) + '">';
 
-                                    if (frnd.validated) {
-                                        template += '<div class="pull-right text-success m-t-sm">' +
+                                        if (frnd.validated) {
+                                            template += '<div class="pull-right text-success m-t-sm">' +
                                 '<i class="fa fa-check-square" style="font-size:1.5em"></i>' +
                                 '</div>';
-                                    }
+                                        }
 
-                                    template += '</div><div class="media-body">' +
+                                        template += '</div><div class="media-body">' +
                                 '<div>' + _.escape(friends[i].userName) + '</div>' +
                                 '<small class="text-muted">' + _.escape(frnd.status) + '</small>' +
                                 '</div>' +
                                 '</div></a>';
 
 
-                                    grouptemplate += template;
+                                        grouptemplate += template;
 
 
 
-                                    k++;
+                                        k++;
+                                    }
+
+
+                                    grouptemplate += '</div>';
+                                    grouptemplate += '</div>';
+                                    g++;
                                 }
 
-
                                 grouptemplate += '</div>';
-                                grouptemplate += '</div>';
-                                g++;
-                            }
 
-                            grouptemplate += '</div>';
-
-                            $("#myfriends").html(grouptemplate);
+                                $("#myfriends").html(grouptemplate);
 
 
+                                $('#myfriends #accordion2').on('touchstart.collapse.data-api', '[data-toggle=collapse]', function (e) {
+                                    var $this = $(this);
 
-                            $('#myfriends #accordion2').on('touchstart.collapse.data-api', '[data-toggle=collapse]', function (e) {
-                                var $this = $(this);
+                                    $this.click();
 
-                                $this.click();
-
-                                //href, target = $this.attr('data-target') || e.preventDefault() || (href = $this.attr('href')) //strip for ie7
-                                //,
-                                //option = $(target).data('collapse') ? 'show' : $this.data()
-                                //$(target).collapse(option)
-                            });
+                                });
 
 
-
-                            var k = 0;
-                            var g = 1;
-                            for (var key in friendsgroup) {
-
-                                friends = friendsgroup[key];
-                                for (var i = 0; i < friendsgroup[key].length; i++) {
+                                var k = 0;
+                                var g = 1;
+                                for (var key in friendsgroup) {
 
                                     friends = friendsgroup[key];
+                                    for (var i = 0; i < friendsgroup[key].length; i++) {
+
+                                        friends = friendsgroup[key];
 
 
-                                    //var btnfriend = $("#myfriends #friend" + k).get();
-                                    //var hammertime = new Hammer(btnfriend[0]);
-
-                                    $("#myfriends #friend" + k).hammer(null).bind("tap", { userName: friends[i].userName }, function (ev) {
+                                        $("#myfriends #friend" + k).hammer(null).bind("tap", { userName: friends[i].userName }, function (ev) {
 
 
-                                        if (!scrollingnetlist) {
+                                            if (!scrollingnetlist) {
 
-                                            SELECTEDFRIEND = ev.data.userName;
-                                            selectedFriend = FRIENDSLIST[ev.data.userName];
-                                            prevNetworkTransCount = 0;
+                                                SELECTEDFRIEND = ev.data.userName;
+                                                selectedFriend = FRIENDSLIST[ev.data.userName];
 
-                                            networkpagestate = "friend";
-                                            friendpagestate = "send";
-                                            $("#networklistheader").hide();
-                                            $("#friendheader").show();
-                                            $("#pnlfriend").show();
+                                                prevNetworkTransCount = 0;
+                                                lastNettransTimestamp = 0;
 
-                                            $('#netpayfeed').html('');
-                                            $("#networkpayments").show();
-                                            $("#networklist").hide();
+                                                lastInvPayNetTimestamp = 0;
+                                                lastInvPayNetLKey = 0;
 
-                                            $("#pnlfriendinv").hide();
+                                                lastInvByMeNetLKey = 0;
+                                                lastInvByMeNetTimestamp = 0;
 
-                                            //window.scrollTo(0, 0);
+                                                lastInvoiceToPayNetCount = 0;
+                                                lastInvoiceByMeNetCount = 0;
 
-                                            updateSelectedFriend();
+                                                networkpagestate = "friend";
+                                                friendpagestate = "send";
+                                                $("#networklistheader").hide();
+                                                $("#friendheader").show();
+                                                $("#pnlfriend").show();
 
-                                        }
+                                                $('#netpayfeed').html('');
+                                                $("#networkpayments").show();
+                                                $("#networklist").hide();
 
-                                    });
+                                                $("#pnlfriendinv").hide();
 
-                                    ////console.log("added click " + k + " for " + friends[i].userName);
+                                                $('#invfornet').empty();
+                                                $('#invbynet').empty();
 
-                                    k++;
+                                                //window.scrollTo(0, 0);
+
+                                                updateSelectedFriend();
+
+                                            }
+
+                                        });
+
+                                        ////console.log("added click " + k + " for " + friends[i].userName);
+
+                                        k++;
+                                    }
+                                    g++;
                                 }
-                                g++;
-                            }
 
+                            }
                         }
                     }
 
@@ -5476,7 +5914,6 @@ function UI() {
         norefresh = true;
         if (SELECTEDFRIEND.length > 0) {
 
-
             $('input#friendAmount').val('');
 
 
@@ -5536,10 +5973,6 @@ function UI() {
 
 
             showTransactionNetwork();
-
-            lastInvoiceToPayNetCount = 0;
-            lastInvoiceByMeNetCount = 0;
-
             showInvoiceListNetwork();
             showInvoiceByMeListNetwork();
 
@@ -5864,272 +6297,268 @@ function UI() {
 
     }
 
-
-
     var prevtransfeed = -1;
     var transactionCache = [];
 
-    function showTransactionFeed(callback) {
-
-        Engine.getTransactionFeed(function (err, transactions) {
-
-
-            if (!err) {
-
-                if (transactions.length == 0) {
-                    $('#welcometran').show();
-                    $('#nowelcome').hide();
-
-                } else {
-                    $('#welcometran').hide();
-                    $('#nowelcome').show();
-                }
+    var lastNoOfTrans = 0;
+    var lastTransTimestamp = 0;
+    var lastTransLKey = 0;
+    var tranPageFrom = 0;
+    var tranPageTo = tranPageFrom + transactionsPerPage;
+    var totalTrans = 0;
+    var selectedTransaction = '';
 
 
-                allTransactions = transactions;
-                transactionCache = transactions;
+    var ispagingtrans = false;
+    function pageTransactions() {
 
-                if (transactions.length != prevtransfeed) {
+        if (!ispagingtrans) {
+            ispagingtrans = true;
+            lastTransTimestamp = 0
+            lastNoOfTrans = 0;
+            tranPageTo = tranPageTo + transactionsPerPage;
+            //loading
+            var loading = '<a href="#" style="border-radius: 0px;" class="list-group-item clearfix" id="dloading">loading...</a>';
+            $('#transfeed').append(loading);
 
+            setTimeout(function () {
 
-                    for (var i = 0; i < allTransactions.length; i++) {
-                        var d1 = new Date(allTransactions[i].TransDateTime);
-                        allTransactions[i].JsDate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
-                        transactionIndex[allTransactions[i].TransactionId] = i;
-                    }
+                updateTransactions(function () {
 
+                    //finshed loading
+                    ispagingtrans = false;
+                });
 
+            }, 500);
+        }
+    }
 
-                    prevtransfeed = transactions.length;
+    var recAlertDone = false;
+    var lastRecAlert = '';
+    function updateTransactions(callback) {
 
-                    $('#transfeed').empty();
+        //if there is a new filter on we need to return the entire set and filter it
 
-                    var template = '';
+        if (!trasactionFilterOn) {
 
-                    for (var i = 0; i < transactions.length && i < 51; i++) {
+            Engine.getTransactionFeed(lastTransTimestamp, lastTransLKey, tranPageFrom, tranPageTo, function (err, transactions) {
 
-                        var length = transactions[i].UserName.length;
-                        if (length > 20) {
-                            length = 20;
-                        }
-
-                        var imageSrcSmall = "images/avatar/64px/Avatar-" + pad(length) + ".png";
-
-                        if (transactions[i].UserName != 'External') {
-                            if (transactions[i].UserNameImage) {
-                                if (transactions[i].UserNameImage != '') {
-                                    imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(transactions[i].UserNameImage) + "?crop=faces&fit=crop&h=128&w=128&mask=ellipse&border=1,d0d0d0";
-                                }
-                            }
-                        }
-
-                        var amountLabel = "";
-                        var friendLabel = "";
-
-                        if (transactions[i].TransType == 'S') {
-                            amountLabel = "sent " + formatCoinAmount(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + " " + _.escape(COINUNIT);
-                            friendLabel = "to " + _.escape(transactions[i].UserName);
-                        }
-
-                        if (transactions[i].TransType == 'R') {
-                            amountLabel = "received " + formatCoinAmount(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + " " + _.escape(COINUNIT);
-                            friendLabel = "from " + _.escape(transactions[i].UserName);
-                        }
+                if (!err) {
 
 
-                        var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
-                        var timeLabel = prettydate.format(trdate);
-
-                        template += '<a href="#" style="border-radius: 0px;" class="list-group-item clearfix" id="dtran' + i + '">';
-                        template += '<span class="pull-left thumb-sm avatar m-r">';
-                        template += '<img src="';
-                        template += imageSrcSmall;
-                        template += '" alt="...">';
-
-                        template += '</span>';
-                        template += '<span class="clear">';
-                        template += '<span>';
-                        template += amountLabel;
-                        template += '</span>';
-
-                        template += '<span class="pull-right">';
-                        template += '<div class="trntime">';
-                        template += timeLabel;
-                        template += '</div>';
-                        template += '</span>';
-
-                        template += '<span class="clear">';
-                        template += '<span><div class="conf">';
-                        if (transactions[i].Confirmations < 6) {
-                            template += '<span class="badge bg-warning pull-right">';
-                            template += _.escape(transactions[i].Confirmations);
-                            template += '</span>';
-                        }
-                        template += '</div>';
-                        template += '<small class="text-muted clear text-ellipsis">';
-                        template += friendLabel;
-                        template += '</small>';
-                        template += '</span>';
-                        template += '</a>';
-
-                    }
-
-                    $('#transfeed').html(template);
-
-                    for (var i = 0; i < transactions.length && i < 51; i++) {
+                    if (transactions == -1) {
 
 
-                        $('#dtran' + i).hammer(null).bind("tap", {
-                            index: i
-                        }, function (event) {
+                        $('#transfeed .trntime').each(function (index, elem) {
 
-                            if (!scrolling) {
+                            var tran = allTransactions[index];
 
-                                displayTransactionDetails(transactions[event.data.index], "dashboard");
+                            var timeLabel = prettydate.format(tran.JsDate);
 
-
-                            }
+                            $(elem).html(timeLabel);
 
                         });
-                    }
 
 
-                } else {
-
-                    //optimise
-
-                    $('#transfeed .conf').each(function (index, elem) {
-
-                        var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
-
-                        var template = '';
-                        if (tran.Confirmations < 6) {
-                            template += '<span class="badge bg-warning pull-right">';
-                            template += _.escape(tran.Confirmations);
-                            template += '</span>';
+                        if (callback) {
+                            callback();
                         }
 
-                        $(elem).html(template);
+                    } else {
 
-                    });
+                        var total = transactions.total;
 
-                    $('#transfeed .trntime').each(function (index, elem) {
+                        if (transactions.timestamp) {
+                            lastTransTimestamp = transactions.timestamp;
+                        }
 
-                        var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
+                        transactions = transactions.data;
 
-                        var trdate = new Date(tran.TransDateTime.match(/\d+/)[0] * 1);
+                        totalTrans = total;
 
-                        var timeLabel = prettydate.format(trdate);
+                        //persist for lookups
+                        allTransactions = transactions;
 
-                        $(elem).html(timeLabel);
 
-                    });
+                        //if there is a new transaction alert on the receive screen
+
+                        if (transactions.length > 0) {
+
+                            var newtran = transactions[0];
+                            if (newtran) {
+
+                                if (newtran.Address == $('#requestaddresstxt').text()) {
+
+                                    //show alert for subsequent tx but don't repeat the first one
+                                    if (lastRecAlert != newtran.TransactionId) {
+
+                                        var rectext = "received " + formatCoinAmount(convertFromSatoshis(newtran.Amount, COINUNIT)) + " " + _.escape(COINUNIT);
+
+                                        $('#receivealert').text(rectext);
+                                        $("#receivealert").show();
+                                        $("#receivealert").fadeOut(10000);
+
+                                        recAlertDone = true;
+                                        lastRecAlert = newtran.TransactionId;
+
+                                    }
+                                }
+
+                            }
+
+                        }
+
+
+                        //var noofpages = Math.floor((total / transactionsPerPage));
+
+                        for (var i = 0; i < transactions.length; i++) {
+                            var d1 = new Date(transactions[i].TransDateTime);
+                            transactions[i].JsDate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
+                            transactionIndex[transactions[i].TransactionId] = i;
+                        }
+
+                        var repop = false;
+                        if (lastNoOfTrans != totalTrans) {
+                            repop = true;
+                        }
+
+                        displayTransactions(transactions, repop, total);
+
+                        lastNoOfTrans = totalTrans;
+
+                    }
+
+                    if (callback) {
+                        callback();
+                    }
 
                 }
 
+            });
 
-                //cache main screen items
-                //transaction list / price / balance
+        } else {
 
-                if (callback) {
-                    return callback(err, "ok");
-                }
-
-            } else {
-
-                if (callback) {
-                    return callback(err, transactions);
-                }
+            if (callback) {
+                callback();
             }
-
-        });
+        }
 
     }
 
-    var prevNetworkTransCount = 0;
-
-    function showTransactionNetwork(callback) {
-
-        Engine.getTransactionsForNetwork(SELECTEDFRIEND, function (err, transactions) {
-
-            if (prevNetworkTransCount < transactions.length) {
-
-                prevNetworkTransCount = transactions.length;
-
-                var template = '';
-
-                for (var i = 0; i < transactions.length; i++) {
-
-                    var amountLabel = "";
-                    var friendLabel = "";
-
-                    if (transactions[i].TransType == 'S') {
-                        amountLabel = "sent " + formatCoinAmount(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + " " + _.escape(COINUNIT);
-                        friendLabel = "to " + _.escape(transactions[i].UserName);
-                    }
-
-                    if (transactions[i].TransType == 'R') {
-                        amountLabel = "received " + formatCoinAmount(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + " " + _.escape(COINUNIT);
-                        friendLabel = "from " + _.escape(transactions[i].UserName);
-                    }
 
 
-                    var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
-                    var timeLabel = prettydate.format(trdate);
+    function displayTransactions(transactions, repopulate, total) {
 
-                    template += '<a style=\"border-top-left-radius: 0px;border-top-right-radius: 0px\" href="#" class="list-group-item clearfix" id="ntran' + i + '">';
-                    template += '<span class="clear">';
 
-                    template += '<span>';
-                    template += amountLabel;
-                    template += '</span>';
+        if (transactions.length == 0 && lastNoOfTrans == 0) {
+            $('#welcometran').show();
+            $('#nowelcome').hide();
 
-                    template += '<span class="pull-right">';
-                    template += '<div class="trntime">';
-                    template += timeLabel;
-                    template += '</div>';
-                    template += '</span>';
+        } else {
+            $('#welcometran').hide();
+            $('#nowelcome').show();
+        }
 
-                    template += '<span class="clear">';
-                    template += '<span><div class="conf">';
-                    if (transactions[i].Confirmations < 6) {
-                        template += '<span class="badge bg-warning pull-right">';
-                        template += _.escape(transactions[i].Confirmations);
-                        template += '</span>';
-                    }
-                    template += '</div>';
-                    template += '<small class="text-muted clear text-ellipsis">';
-                    template += friendLabel;
-                    template += '</small>';
-                    template += '</span>';
-                    template += '</a>';
+        if (repopulate) {
 
+            $('#transfeed').empty();
+
+            var template = '';
+
+            for (var i = 0; i < transactions.length; i++) {
+
+                var length = transactions[i].UserName.length;
+                if (length > 20) {
+                    length = 20;
                 }
 
-                $('#netpayfeed').html(template);
+                var imageSrcSmall = "images/avatar/64px/Avatar-" + pad(length) + ".png";
 
-
-                for (var i = 0; i < transactions.length && i < 51; i++) {
-
-
-                    $('#ntran' + i).hammer(null).bind("tap", {
-                        index: i
-                    }, function (event) {
-
-                        if (!scrollingnettran) {
-
-                            displayTransactionDetails(transactions[event.data.index], "network");
-
+                if (transactions[i].UserName != 'External') {
+                    if (transactions[i].UserNameImage) {
+                        if (transactions[i].UserNameImage != '') {
+                            imageSrcSmall = "https://ninkip2p.imgix.net/" + _.escape(transactions[i].UserNameImage) + "?crop=faces&fit=crop&h=128&w=128&mask=ellipse&border=1,d0d0d0";
                         }
-
-                    });
+                    }
                 }
 
-            } else {
+                var amountLabel = "";
+                var friendLabel = "";
+
+                if (transactions[i].TransType == 'S') {
+                    amountLabel = "sent " + formatCoinAmount(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + " " + _.escape(COINUNIT);
+                    friendLabel = "to " + _.escape(transactions[i].UserName);
+                }
+
+                if (transactions[i].TransType == 'R') {
+                    amountLabel = "received " + formatCoinAmount(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + " " + _.escape(COINUNIT);
+                    friendLabel = "from " + _.escape(transactions[i].UserName);
+                }
 
 
-                $('#netpayfeed .conf').each(function (index, elem) {
+                var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
+                var timeLabel = prettydate.format(trdate);
 
+                template += '<a href="#" style="border-radius: 0px;" class="list-group-item clearfix" id="dtran' + i + '">';
+                template += '<span class="pull-left thumb-sm avatar m-r">';
+                template += '<img src="';
+                template += imageSrcSmall;
+                template += '" alt="...">';
+
+                template += '</span>';
+                template += '<span class="clear">';
+                template += '<span>';
+                template += amountLabel;
+                template += '</span>';
+
+                template += '<span class="pull-right">';
+                template += '<div class="trntime">';
+                template += timeLabel;
+                template += '</div>';
+                template += '</span>';
+
+                template += '<span class="clear">';
+                template += '<span><div class="conf">';
+                if (transactions[i].Confirmations < 6) {
+                    template += '<span class="badge bg-warning pull-right">';
+                    template += _.escape(transactions[i].Confirmations);
+                    template += '</span>';
+                }
+                template += '</div>';
+                template += '<small class="text-muted clear text-ellipsis">';
+                template += friendLabel;
+                template += '</small>';
+                template += '</span>';
+                template += '</a>';
+
+            }
+
+            $('#transfeed').html(template);
+
+            for (var i = 0; i < transactions.length; i++) {
+
+
+                $('#dtran' + i).hammer(null).bind("tap", {
+                    index: i
+                }, function (event) {
+
+                    if (!scrolling) {
+
+                        displayTransactionDetails(transactions[event.data.index], "dashboard");
+
+
+                    }
+
+                });
+            }
+
+        } else {
+
+            //optimise
+
+            $('#transfeed .conf').each(function (index, elem) {
+
+                if (transactions[index]) {
                     var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
 
                     var template = '';
@@ -6140,13 +6569,14 @@ function UI() {
                     }
 
                     $(elem).html(template);
+                }
 
-                    //console.log('updating 1');
+            });
 
-                });
+            $('#transfeed .trntime').each(function (index, elem) {
 
-                $('#netpayfeed .trntime').each(function (index, elem) {
 
+                if (transactions[index]) {
                     var tran = allTransactions[transactionIndex[transactions[index].TransactionId]];
 
                     var trdate = new Date(tran.TransDateTime.match(/\d+/)[0] * 1);
@@ -6154,16 +6584,189 @@ function UI() {
                     var timeLabel = prettydate.format(trdate);
 
                     $(elem).html(timeLabel);
+                }
 
-                    //console.log('updating 2');
+            });
 
-                });
-
-            }
-
-        });
+        }
 
     }
+
+
+
+
+    var prevnettrans = -1;
+    var nettransCache = [];
+    var allNettrans = [];
+
+    var nettransPerPage = 10;
+
+    var lastNoOfNettrans = 0;
+    var lastNettransTimestamp = 0;
+    var lastNettransLKey = 0;
+    var nettransPageFrom = 0;
+    var nettransPageTo = nettransPageFrom + nettransPerPage;
+    var totalNettrans = 0;
+    var selectedNettrans = '';
+
+
+
+    var ispagingtransnet = false;
+    function pageTransactionNetwork() {
+
+        if (!ispagingtransnet) {
+            ispagingtransnet = true;
+            lastNettransTimestamp = 0
+            nettransPageTo = nettransPageTo + nettransPerPage;
+            //loading
+            var loading = '<a href="#" style="border-radius: 0px;" class="list-group-item clearfix">loading...</a>';
+            $('#netpayfeed').append(loading);
+
+            setTimeout(function () {
+
+                showTransactionNetwork(function () {
+
+                    //finshed loading
+                    ispagingtransnet = false;
+                });
+
+            }, 1000);
+        }
+    }
+
+
+    function showTransactionNetwork(callback) {
+
+        if (SELECTEDFRIEND) {
+
+            Engine.getTransactionsForNetwork(SELECTEDFRIEND, lastNettransTimestamp, lastNettransLKey, nettransPageFrom, nettransPageTo, function (err, nettrans) {
+
+                if (!err) {
+
+                    if (nettrans == -1) {
+
+                        //update time
+
+                        $('#netpayfeed .trntime').each(function (index, elem) {
+
+                            var timeLabel = prettydate.format(allNettrans[index].JsDate);
+                            $(elem).text(timeLabel);
+
+                        });
+
+                        if (callback) {
+                            callback();
+                        }
+
+                    } else {
+
+                        var total = nettrans.total;
+
+                        if (nettrans.timestamp) {
+                            lastNettransTimestamp = nettrans.timestamp;
+                        }
+
+                        nettrans = nettrans.data;
+
+                        //persist for refresh updates
+                        allNettrans = nettrans;
+
+                        var transactions = nettrans;
+
+                        for (var i = 0; i < allNettrans.length; i++) {
+                            var d1 = new Date(allNettrans[i].TransDateTime);
+                            allNettrans[i].JsDate = new Date(allNettrans[i].TransDateTime.match(/\d+/)[0] * 1);
+                        }
+
+                        var template = '';
+
+                        for (var i = 0; i < transactions.length; i++) {
+
+                            var amountLabel = "";
+                            var friendLabel = "";
+
+                            if (transactions[i].TransType == 'S') {
+                                amountLabel = "sent " + formatCoinAmount(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + " " + _.escape(COINUNIT);
+                                friendLabel = "to " + _.escape(transactions[i].UserName);
+                            }
+
+                            if (transactions[i].TransType == 'R') {
+                                amountLabel = "received " + formatCoinAmount(convertFromSatoshis(transactions[i].Amount, COINUNIT)) + " " + _.escape(COINUNIT);
+                                friendLabel = "from " + _.escape(transactions[i].UserName);
+                            }
+
+
+                            var trdate = new Date(transactions[i].TransDateTime.match(/\d+/)[0] * 1);
+                            var timeLabel = prettydate.format(trdate);
+
+                            template += '<a style=\"border-top-left-radius: 0px;border-top-right-radius: 0px\" href="#" class="list-group-item clearfix" id="ntran' + i + '">';
+                            template += '<span class="clear">';
+
+                            template += '<span>';
+                            template += amountLabel;
+                            template += '</span>';
+
+                            template += '<span class="pull-right">';
+                            template += '<div class="trntime">';
+                            template += timeLabel;
+                            template += '</div>';
+                            template += '</span>';
+
+                            template += '<span class="clear">';
+                            template += '<span><div class="conf">';
+                            if (transactions[i].Confirmations < 6) {
+                                template += '<span class="badge bg-warning pull-right">';
+                                template += _.escape(transactions[i].Confirmations);
+                                template += '</span>';
+                            }
+                            template += '</div>';
+                            template += '<small class="text-muted clear text-ellipsis">';
+                            template += friendLabel;
+                            template += '</small>';
+                            template += '</span>';
+                            template += '</a>';
+
+                        }
+
+                        $('#netpayfeed').html(template);
+
+                        for (var i = 0; i < transactions.length; i++) {
+
+                            $('#ntran' + i).hammer(null).bind("tap", {
+                                index: i
+                            }, function (event) {
+
+                                if (!scrollingnettran) {
+
+                                    displayTransactionDetails(transactions[event.data.index], "network");
+
+                                }
+
+                            });
+                        }
+
+                        if (callback) {
+                            callback();
+                        }
+
+                    }
+
+                } else {
+
+                    if (callback) {
+                        callback();
+                    }
+                }
+
+            });
+        }
+
+    }
+
+
+
+
+
 
 
     var transactionDetailMode = 'dashboard';
@@ -6182,6 +6785,7 @@ function UI() {
         $("#infotranaddress").text(_.escape(tran.Address));
         $("#infotranamount").text(_.escape(formatCoinAmount(convertFromSatoshis(tran.Amount, COINUNIT)) + ' ' + COINUNIT));
         $("#infotransent").text(_.escape(tran.TransType));
+        $("#infotransfee").text(_.escape(formatCoinAmount(convertFromSatoshis(tran.MinersFee, COINUNIT)) + ' ' + COINUNIT));
 
 
         $("#infofulltran").val(_.escape(tran.TransactionId));
@@ -6272,6 +6876,7 @@ function UI() {
 
                     $('.numdone').attr("style", "background-color:white");
                     $("#sendstdpin").val('');
+
                     pintaps = 0;
                     prevpin = '';
 
@@ -6281,6 +6886,10 @@ function UI() {
                     $('#sendstdprogstatus').width('10%');
                     $('#sendstdprognum').text('10%');
                     $('#sendstdprog').show();
+
+                    var minersFee = $('#hdfee').val();
+                    minersFee = minersFee * 1.0;
+                    //minersFee = convertToSatoshis(minersFee, COINUNIT);
 
                     setTimeout(function () {
 
@@ -6295,9 +6904,11 @@ function UI() {
 
                                 prevNetworkTransCount = -1;
                                 prevtransfeed = -1;
-
+                                lastNoOfTrans = 0;
+                                lastTransTimestamp = 0;
+                                lastNettransTimestamp = 0;
                                 showTransactionNetwork();
-                                showTransactionFeed();
+                                updateTransactions();
                                 updateBalance();
 
                                 sendAmount = '';
@@ -6341,7 +6952,7 @@ function UI() {
                                 $('#sendstdprognum').text(progress);
                             }
 
-                        });
+                        }, minersFee);
                     }, 50);
 
                 } else {
@@ -6411,6 +7022,9 @@ function UI() {
 
         var address = $('input#toAddress').val();
 
+        var minersFee = $('#hdfee').val();
+        minersFee = minersFee * 1.0;
+
         //$('#textMessageSendStd').removeClass('alert alert-danger');
         //check for valid bitcoin address
 
@@ -6448,7 +7062,10 @@ function UI() {
 
                                 prevtransfeed = -1;
 
-                                showTransactionFeed();
+                                lastTransTimestamp = 0;
+                                lastNoOfTrans = 0;
+
+                                updateTransactions();
                                 updateUI();
 
                                 sendAmount = '';
@@ -6497,7 +7114,7 @@ function UI() {
                                 $('#sendstdprognum').text(progress);
                             }
 
-                        });
+                        }, minersFee);
 
                     }, 50);
 
@@ -7523,7 +8140,7 @@ function UI() {
 
 
     //loginPIN
-    //this function takes the user's input PIN number 
+    //this function takes the user's input PIN number
     //and authenticates the user
     //if the user has not previosuly authenticated it downloads and decrypts
     //all the relevant wallet data
@@ -7611,6 +8228,7 @@ function UI() {
                             $("#isactive").val(1);
 
                             updateUI();
+                            updatePrice();
 
                             //refresh account settings in case they were updated
                             //in the chrome app
@@ -7707,13 +8325,13 @@ function UI() {
 
                                 updateUI();
 
-                            }, 10000);
+                            }, 5000);
 
                             window.updatePriceInterval = setInterval(function () {
 
                                 updatePrice();
 
-                            }, 10000);
+                            }, 30000);
 
 
 
@@ -8075,6 +8693,8 @@ function UI() {
 
     }
 
+
+
     var countdownId = null;
 
     function setCountdown(seconds) {
@@ -8268,6 +8888,12 @@ function UI() {
 
         //the user has chosen a PIN and can now register the deive with the server
 
+        if (deviceid == '') {
+
+            return;
+
+        }
+
         $("#pairspinner").show();
 
         var target = document.getElementById('pairspinner');
@@ -8278,13 +8904,6 @@ function UI() {
 
         if (!(typeof window.app === 'undefined')) {
             app.isScanning = true;
-        }
-
-        //hash the pin and device id
-        var deviceid = "DEVICE123456789";
-
-        if (window.cordova) {
-            deviceid = window.device.uuid;
         }
 
 
@@ -8511,6 +9130,13 @@ function UI() {
 
         //the user has chosen a PIN and can now register the deive with the server
 
+        if (deviceid == '') {
+
+            return;
+
+        }
+
+
         $("#pairspinner").show();
         var target = document.getElementById('pairspinner');
         var spinner = new Spinner(spinneropts).spin(target);
@@ -8523,11 +9149,6 @@ function UI() {
         }
 
         //hash the pin and device id
-        var deviceid = "DEVICE123456789";
-
-        if (window.cordova) {
-            deviceid = window.device.uuid;
-        }
 
 
         //hash the PIN with the device id
@@ -8646,6 +9267,7 @@ function UI() {
 
                                     //callback here before displaying
 
+
                                     initialiseDashboard(function () {
 
                                         Engine.m_appInitialised = true;
@@ -8683,6 +9305,25 @@ function UI() {
 
 
                                     });
+
+
+                                    if (isRestore) {
+
+                                        bootbox.dialog({ message: "The device has been restored. For security reasons the app will now reload and you will be asked to enter your PIN.",
+                                            title: "Success",
+                                            buttons: {
+                                                success: {
+                                                    label: "OK",
+                                                    className: "btn-success",
+                                                    callback: function () {
+                                                        location.reload();
+                                                    }
+                                                }
+                                            }
+                                        });
+
+                                    }
+
 
                                 } else {
 
@@ -8740,7 +9381,211 @@ function UI() {
 
     }
 
+    //restoreacc
+    $('#restoreacc').on("touchstart", function () {
 
+        $('#createWalletStart').hide();
+        $('#secrestore').show();
+
+    });
+
+
+
+    $("#btnOnlineKeyCancel").on('touchstart', function () {
+
+        isRestore = false;
+
+        $('#createWalletStart').show();
+        $('#secrestore').hide();
+
+    });
+
+    var isRestore = false;
+    $("#btnOnlineKey").on('touchstart', function () {
+
+
+        //enter online key
+        //enter recovery key
+        //can we split these from being in memory?
+
+
+        //get look up account
+        //authenticated with hotkey hash
+        //if fail then ask for password
+        //if password fail then fail
+
+        //if password pass then sign guid with cold key
+        //zero cold key
+
+        //get all account details
+
+        //segway into pair device process
+
+        if (Engine.Device.isiOS()) {
+            deviceName = "My iPhone";
+        } else {
+            deviceName = "My Android";
+        }
+
+        //hash the pin and device id
+
+        var devplatform = "platform";
+        var devmodel = "model";
+
+        if (window.cordova) {
+            devplatform = window.device.platform;
+            devmodel = window.device.model;
+        }
+
+
+        $("#btnOnlineKey").button('loading');
+
+        var phrase = $("#txtOnlineKeyPhrase").val();
+        var phraseRecover = $("#txtOfflineKeyPhrase").val();
+
+        phrase = phrase.trim();
+        phraseRecover = phraseRecover.trim();
+
+
+        var mpkh = '';
+
+        Engine.getGUIDByMPKH(phrase, function (err, lookupGUID) {
+
+            if (!err) {
+
+                Engine.m_oguid = lookupGUID;
+
+                //set the password as the sha256 of the seed
+                Engine.setPasswordApp(phrase);
+
+
+                //derive the online key and set Engine.m_onlineKey
+                var bip39 = new BIP39();
+
+                //convert to master key
+                var mkey = bip39.mnemonicToHex(phrase);
+
+                Engine.m_onlineKey = Bitcoin.convert.hexToBytes(mkey);
+
+                Engine.openWallet(lookupGUID, '', function (err, result) {
+
+
+                    if (!err) {
+
+                        //ok, now register the device as if pairing
+                        //however sign a challenge with the cold key to authorise
+
+                        //register device
+
+                        //1. we need to secret + sign a challenge to create the device in the db (create) and return the tokens
+
+                        //get a challenge
+                        Engine.getSigChallenge(function (err, challenge) {
+
+                            if (!err) {
+
+                                Engine.signMessage(phraseRecover, challenge, function (err, sig) {
+
+                                    if (!err) {
+
+                                        Engine.getDeviceTokenRestore(deviceName, Engine.m_secret, sig, function (err, result) {
+
+                                            if (!err) {
+
+                                                var response = JSON.parse(result);
+
+                                                secret = Engine.m_secret;
+                                                Engine.m_deviceKey = Bitcoin.convert.hexToBytes(response.DeviceKey);
+                                                Engine.m_deviceToken = Bitcoin.convert.hexToBytes(response.DeviceToken)
+                                                Engine.m_regToken = response.RegToken;
+
+                                                response = [];
+                                                Engine.Device.setStorageItem("guid", Engine.m_oguid);
+                                                Engine.Device.setStorageItem("ninki_reg", Engine.m_regToken);
+                                                Engine.Device.setSecureStorageObject("ninki_rem", Engine.m_deviceToken, Engine.m_deviceKey, Engine.encryptNp);
+                                                Engine.Device.setSecureStorageObject("ninki_h", Engine.m_onlineKey, Engine.m_deviceKey, Engine.encryptNp);
+
+                                                Engine.zeroOnlineKey();
+
+                                                isCreate = true;
+
+                                                $('#secrestore').hide();
+
+                                                isRestore = true;
+                                                showLoginPIN();
+
+                                                //$("#nonlogin").show();
+
+                                            } else {
+
+                                                $("#btnOnlineKey").button('reset');
+
+                                            }
+
+                                        });
+
+                                    } else {
+
+                                        var mess = '';
+                                        mess = "Invalid recovery phrase. Please double check the recovery phrase.";
+
+                                        bootbox.alert(mess, function () {
+
+
+                                        });
+
+                                        $("#btnOnlineKey").button('reset');
+                                    }
+
+                                });
+                            } else {
+
+                                $("#btnOnlineKey").button('reset');
+
+                            }
+
+                        });
+
+                    } else {
+
+                        var mess = '';
+                        mess = "Unable to restore account from phone.";
+
+                        bootbox.alert(mess, function () {
+
+
+                        });
+
+                    }
+
+                });
+
+            } else {
+
+                var mess = '';
+                if (lookupGUID == "InvalidPhrase") {
+                    mess = "Invalid online phrase. Please double check the online phrase.";
+                }
+
+                if (lookupGUID == "ErrFail") {
+                    mess = "Account not found";
+                }
+
+                bootbox.alert(mess, function () {
+
+
+                });
+
+                $("#btnOnlineKey").button('reset');
+                //$("#onlinekeyentererror").show();
+                //$("#onlinekeyentererrormessage").text(mess);
+                // $("#btnOnlineKey").button('reset');
+
+            }
+
+        });
+
+    });
 
 
     function closeSendNet() {
@@ -9026,8 +9871,8 @@ function UI() {
 
                 } else {
 
-                    $('#btnsendmoneystd').removeClass("disabled");
-                    $('#btnsendmoneystd').addClass("disabled");
+                    //$('#btnsendmoneystd').removeClass("disabled");
+                    //$('#btnsendmoneystd').addClass("disabled");
                 }
 
                 $('#amount').text(cprc);
@@ -9099,8 +9944,8 @@ function UI() {
 
                 } else {
 
-                    $('#btnsendmoneystd').removeClass("disabled");
-                    $('#btnsendmoneystd').addClass("disabled");
+                    //$('#btnsendmoneystd').removeClass("disabled");
+                    //$('#btnsendmoneystd').addClass("disabled");
                 }
 
 

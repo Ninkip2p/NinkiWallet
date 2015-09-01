@@ -115,7 +115,7 @@ function Engine() {
 
     this.setSecDeviceKey = setSecDeviceKey;
     function setSecDeviceKey() {
-        //set a secondary encryption key that does not 
+        //set a secondary encryption key that does not
         //require the PIN each time to retreive
         m_this.m_deviceSecKey = SHA256(m_this.m_deviceKey);
     }
@@ -920,7 +920,7 @@ function Engine() {
 
     //this means that the user does not have to write down the cold key immediately
 
-    //an attacker needs: 
+    //an attacker needs:
     //access to the device
     //access to hot key
     //access to Ninki server
@@ -2063,20 +2063,467 @@ function Engine() {
     }
 
 
+    this.replaceTransaction = replaceTransaction;
+    function replaceTransaction(transactionid, twoFactorCode, feebump, fss, callback, statuscallback) {
+
+        API.getTransactionTemplate(m_this.m_guid, m_this.m_sharedid, transactionid, function (err, res) {
+
+            if (!err) {
+
+                var outputs = res.SpentOutputs;
+                var targetOutputs = res.TargetOutputs;
+
+                var pdata = { guid: m_this.m_guid, sharedid: m_this.m_sharedid };
+
+                API.post("/api/1/u/getunspentoutputs", pdata, function (err, unspentoutputs) {
+
+
+                    if (!err) {
+
+
+
+                        var unspentoutputs = JSON.parse(unspentoutputs);
+
+                        //rebuild the transaction
+
+                        //res.SpentOutputs
+
+                        //res.TargetOutputs
+
+
+                        //verify there is enough value on the inputs to increase the fee
+                        //if there isn't we need to add another input and potentially an output
+                        //if the fee bump beings the value of the change output to < dust, then remove it (inform user...)
+
+                        //get the current change amount
+                        //can we decrease the change amount, leaving the current send amount the same and still match the inputs
+                        //if decreasing the change amount
+
+
+                        var currentInAmount = 0;
+                        for (var i = 0; i < outputs.length; i++) {
+                            currentInAmount += outputs[i].Amount;
+                        }
+
+                        var currentOutAmount = 0;
+                        for (var i = 0; i < targetOutputs.length; i++) {
+                            currentOutAmount += targetOutputs[i].Amount;
+                        }
+
+                        var addouputs = false;
+
+                        if (!fss) {
+
+                            var currentChangeAmount = targetOutputs[1].Amount;
+                            var newChangeAmount = currentChangeAmount - feebump;
+
+                            //allow for dust
+                            if (newChangeAmount > 0) {
+                                //adjust change output - full rbf
+                                targetOutputs[1].Amount = targetOutputs[1].Amount - feebump;
+                            }
+
+
+                            //allow for dust
+                            if (newChangeAmount == 0) {
+                                targetOutputs.splice(1, 1);
+                                //remove target output
+                            }
+
+                            if (newChangeAmount < 0) {
+
+                                addouputs = true;
+
+                            }
+                        }
+
+
+                        var dummyChange = 0;
+                        if (addouputs || fss) {
+
+                            dummyChange = 1;
+                        }
+
+                        //generate a change address incase needed
+                        createAddress('m/0/1', dummyChange, function (err, changeaddress) {
+
+
+                            if (!err) {
+
+                                if (fss || addouputs) {
+
+
+                                    //we need an additional unspent output to be able to do rbf-fss
+                                    //find the smallest one that isn't being spent in the transaction being replaced
+
+                                    //remove any utxos from unspentoutputs that exist in outputs
+
+                                    //removeutxo(unspentoutputs, outputs);
+
+                                    for (var k = 0; k < unspentoutputs.length; k++) {
+                                        for (var j = 0; j < outputs.length; j++) {
+                                            if (unspentoutputs.length > 0) {
+                                                if ((unspentoutputs[k].TransactionId == outputs[j].TransactionId &&
+                                             unspentoutputs[k].OutputIndex == outputs[j].OutputIndex) || unspentoutputs[k].IsPending == true) {
+
+                                                    unspentoutputs.splice(k, 1);
+
+                                                    k--;
+
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    if (unspentoutputs.length > 0) {
+
+                                        var pitem = unspentoutputs[0];
+                                        //allow for dust
+                                        if (pitem.Amount > feebump) {
+
+                                            outputs.push(pitem);
+
+                                            //add an additonal change ouput
+                                            var addChangeAmount = pitem.Amount - feebump;
+
+
+                                            if (targetOutputs.length > 1) {
+                                                //temp hack
+                                                //need to generate new change address here
+                                                var acOut = {
+                                                    Amount: addChangeAmount,
+                                                    Address: changeaddress
+                                                };
+
+                                                targetOutputs.push(acOut);
+                                            }
+
+                                        }
+
+                                    } else {
+
+                                        return callback(true, "Not enough outputs");
+
+                                    }
+
+                                }
+
+
+
+                                var debug = true;
+                                var debugtime = 5;
+                                var minersFee = 1000;
+
+                                //in the case of mobile the twoFactorCode is actually the device key
+                                //and will return a twofactor override code
+
+                                getHotHash(twoFactorCode, function (err, hothash, twoFactorOverride) {
+
+                                    if (twoFactorOverride) {
+                                        twoFactorCode = twoFactorOverride;
+                                    }
+
+
+                                    //initialise the hot private key space
+                                    var bipHot = new Bitcoin.HDWallet(m_this.m_onlineKey, m_this.m_network);
+
+                                    //zero out buffers
+                                    m_this.zeroOnlineKey();
+
+                                    //
+
+
+                                    var bipHotPub = Bitcoin.HDWallet.fromBase58(m_this.m_walletinfo.hotPub);
+                                    var bipCold = Bitcoin.HDWallet.fromBase58(m_this.m_walletinfo.coldPub);
+                                    var bipNinki = Bitcoin.HDWallet.fromBase58(m_this.m_walletinfo.ninkiPubKey);
+
+
+                                    var pdata = { guid: m_this.m_guid, sharedid: m_this.m_sharedid };
+
+                                    statuscallback('Preparing transaction...', '10%');
+
+
+
+                                    var outputsToSpend = [];
+                                    var amountsToSend = [];
+                                    var addressToSend = [];
+                                    var userHotPrivKeys = [];
+
+                                    var nodeLevels = [];
+                                    var publicKeys = [];
+                                    var packet = {
+                                        addressToSend: addressToSend,
+                                        amountsToSend: amountsToSend,
+                                        outputsToSpend: outputsToSpend,
+                                        userHotPrivKeys: userHotPrivKeys,
+                                        guid: m_this.m_guid,
+                                        paths: nodeLevels,
+                                        publicKeys: publicKeys
+                                    };
+
+                                    //get outputs to spend, calculate change amount minus miners fee
+
+                                    //iterate the unspent outputs and select the first n that equal the amount to spend
+                                    //TO DO: do this before doing any key derivation
+                                    var amountSoFar = 0;
+                                    for (var i = 0; i < outputs.length; i++) {
+
+                                        var pitem = outputs[i];
+                                        var pout = {
+                                            transactionId: pitem.TransactionId,
+                                            outputIndex: pitem.OutputIndex,
+                                            amount: pitem.Amount,
+                                            address: pitem.Address
+                                        };
+
+                                        nodeLevels.push(pitem.NodeLevel);
+
+                                        outputsToSpend.push(pout);
+
+                                        //derive the private key to use for signing
+
+                                        //derive the public keys to use for script generation
+                                        //this could be cached on the server as no privacy or hand-off issue that I can see
+
+                                        var dbipHotPub = "";
+                                        var dbipColdPub = "";
+                                        var dbipNinkiPub = "";
+
+
+                                        if (pitem.PK1.length > 0) {
+
+                                            if (debug) {
+                                                console.log('using cached public key ' + i);
+                                            }
+
+                                            dbipHotPub = Bitcoin.convert.hexToBytes(pitem.PK1);
+                                            dbipColdPub = Bitcoin.convert.hexToBytes(pitem.PK2);
+                                            dbipNinkiPub = Bitcoin.convert.hexToBytes(pitem.PK3);
+
+                                        } else {
+
+                                            if (debug) {
+                                                console.log('no cache - deriving ' + i);
+                                            }
+
+                                            dbipHotPub = deriveChild(pitem.NodeLevel, bipHotPub).pub.toBytes();
+                                            dbipColdPub = deriveChild(pitem.NodeLevel, bipCold).pub.toBytes();
+                                            dbipNinkiPub = deriveChild(pitem.NodeLevel, bipNinki).pub.toBytes();
+
+                                        }
+
+                                        publicKeys.push([dbipHotPub, dbipColdPub, dbipNinkiPub]);
+
+                                        //add the amount
+                                        amountSoFar += pitem.Amount;
+
+                                    }
+
+
+
+                                    for (var i = 0; i < targetOutputs.length; i++) {
+                                        addressToSend.push(targetOutputs[i].Address);
+                                        amountsToSend.push(targetOutputs[i].Amount);
+                                    }
+
+
+                                    //temp manually adust change
+                                    //********************************************
+                                    //amountsToSend[1] = amountsToSend[1] - feebump;
+                                    //********************************************
+
+                                    //create a new address for my change to be sent back to me
+                                    statuscallback('Preparing transaction...', '20%');
+                                    //if we are sending money to a contact or paying an invoice
+                                    //we need to derive addresses on their behalf
+
+                                    deriveKeys(bipHot, nodeLevels, function (ret) {
+
+                                        if (m_this.Device.isiOS()) {
+
+                                            for (var i = 0; i < ret.length; i++) {
+
+                                                var nkey = new Bitcoin.ECKey(ret[i]);
+
+                                                userHotPrivKeys.push(nkey);
+
+                                            }
+
+                                        } else {
+
+                                            packet.userHotPrivKeys = ret;
+                                        }
+
+                                        //zero out bipHot buffers
+                                        bipHot.priv = 0;
+
+                                        //now get the  transaction
+
+                                        statuscallback('Creating transaction...', '60%');
+                                        setTimeout(function () {
+
+                                            aGetTransactionData(packet, function (err, hashesForSigning, rawTransaction) {
+
+                                                if (!err) {
+
+                                                    statuscallback('Counter-signing transaction...', '80%');
+
+                                                    var jsonSend = {
+                                                        guid: m_this.m_guid,
+                                                        hashesForSigning: hashesForSigning,
+                                                        rawTransaction: rawTransaction,
+                                                        pathsToSignWith: nodeLevels
+                                                    };
+                                                    var jsonp1 = {
+                                                        guid: m_this.m_guid,
+                                                        jsonPacket: JSON.stringify(jsonSend),
+                                                        sharedid: m_this.m_sharedid,
+                                                        twoFactorCode: twoFactorCode,
+                                                        userName: ''
+                                                    };
+
+
+                                                    API.post("/api/1/u/sendtransaction", jsonp1, function (err, result) {
+
+                                                        bipHot.priv = 0;
+
+                                                        //statuscallback(null, '80%');
+
+                                                        if (!err) {
+
+                                                            statuscallback('Transaction broadcast', '100%');
+
+                                                            return callback(err, result);
+
+
+                                                        } else {
+
+                                                            if (result == 'ErrSingleTransactionLimit') {
+
+                                                                statuscallback('Transaction Failed: Single limit exceeded', '0%');
+
+                                                                return callback(err, result);
+
+                                                            }
+
+                                                            if (result == 'ErrDailyTransactionLimit') {
+
+                                                                statuscallback('Transaction Failed: Daily limit exceeded', '0%');
+
+                                                                return callback(err, result);
+                                                            }
+
+                                                            if (result == 'ErrTransactionsPerDayLimit') {
+
+                                                                statuscallback('Transaction Failed: Daily number limit exceeded', '0%');
+
+                                                                return callback(err, result);
+                                                            }
+
+                                                            if (result == 'ErrTransactionsPerHourLimit') {
+
+                                                                statuscallback('Transaction Failed: Hourly number limit exceeded', '0%');
+
+                                                                return callback(err, result);
+                                                            }
+
+                                                            if (result == 'ErrInvalidRequest') {
+
+                                                                statuscallback('Transaction Failed: Invalid request', '0%');
+
+                                                                return callback(err, result);
+                                                            }
+
+
+                                                            if (result == 'ErrBroadcastFailed') {
+
+                                                                statuscallback('Transaction Failed: Not accepted', '0%');
+
+                                                                return callback(err, result);
+                                                            }
+
+                                                            if (result == "Invalid two factor code") {
+
+                                                                statuscallback("Invalid two factor code", '0%');
+
+                                                                return callback(err, result);
+                                                            }
+
+                                                            if (result == "ErrInsufficientFunds") {
+
+                                                                statuscallback("Transaction Failed: Insufficient funds", '0%');
+
+                                                                return callback(err, result);
+                                                            }
+
+                                                            statuscallback('Transaction Failed:' + result, '0%');
+
+                                                            return callback(err, result);
+
+                                                        }
+                                                    });
+
+                                                } else {
+
+                                                    statuscallback('error creating transaction', '0%');
+
+                                                    return callback(err, 'error creating transaction');
+
+                                                }
+
+                                            });
+                                        }, 50);
+
+
+                                    });
+
+                                });
+
+                            }
+
+                        });
+                    }
+                });
+
+            }
+
+        });
+
+
+
+    }
+
+
+
+
     this.sendTransaction = sendTransaction;
-    function sendTransaction(sendType, friendUserName, addressTo, amount, twoFactorCode, callback, statuscallback) {
+    function sendTransaction(sendType, friendUserName, addressTo, amount, twoFactorCode, callback, statuscallback, minersFee) {
 
         var debug = true;
         var debugtime = 5;
         corNodesDone = 0;
         corNodesToProcess = 0;
-        var minersFee = 10000;
+
+        if (minersFee.length == 0) {
+
+            minersFee = 10000;
+
+            if (m_this.m_settings.MinersFee) {
+                minersFee = m_this.m_settings.MinersFee;
+            }
+
+        }
+
+        if (minersFee < 1000) {
+
+            minersFee = 1000;
+
+        }
+
 
         amount = Math.round(amount);
 
-        if (m_this.m_settings.MinersFee) {
-            minersFee = m_this.m_settings.MinersFee;
-        }
 
 
         //in the case of mobile the twoFactorCode is actually the device key
@@ -3052,25 +3499,24 @@ function Engine() {
 
 
     this.signMessage = signMessage;
-    function signMessage(key, guid, callback) {
+    function signMessage(key, message, callback) {
 
         if (key.length > 0) {
+
             var bip39 = new BIP39();
 
             var mkey = bip39.mnemonicToHex(key);
-            var bytes = [];
-            for (var i = 0; i < guid.length; ++i) {
-                bytes.push(guid.charCodeAt(i));
-            }
 
-            var message = Bitcoin.Crypto.SHA256(Bitcoin.convert.bytesToWordArray(bytes)).toString();
             var skey = Bitcoin.HDWallet.fromSeedHex(mkey, m_this.m_network);
 
             var sig = Bitcoin.convert.bytesToHex(skey.priv.sign(Bitcoin.convert.hexToBytes(message)));
 
             callback(false, sig);
+
         } else {
+
             callback(false, '');
+
         }
 
     }
@@ -3112,9 +3558,9 @@ function Engine() {
     //pull back validated proprty from database
     //only do this part on friend selection
     this.getUserNetwork = getUserNetwork;
-    function getUserNetwork(callback) {
-        var postData = { guid: m_this.m_guid, sharedid: m_this.m_sharedid };
-        API.post("/api/1/u/getusernetwork", postData, function (err, data) {
+    function getUserNetwork(timestamp, lkey, pageFrom, pageTo, callback) {
+        var postData = { guid: m_this.m_guid, sharedid: m_this.m_sharedid, timestamp: timestamp, lkey: lkey, pageFrom: pageFrom, pageTo: pageTo };
+        API.post("/api/2/u/getusernetwork", postData, function (err, data) {
             if (!err) {
                 var friends = JSON.parse(data);
                 return callback(err, friends);
@@ -3564,6 +4010,64 @@ function Engine() {
 
     }
 
+
+    this.createMessage = createMessage;
+    function createMessage(username, message, transactionid, messageId, callback) {
+
+        var packetForMe = "";
+        var packetForThem = "";
+
+        var jsonMessage = JSON.stringify(message);
+
+        //get the contacts RSA key
+
+        //encrypt the packet for me with my public rsa key and sign with my private key
+
+        var rsaKey = '';
+        var postRSAData = { guid: m_this.m_guid, sharedid: m_this.m_sharedid, username: username };
+        API.post("/api/1/u/getrsakey", postRSAData, function (err, rsaKey) {
+
+            var publicKeys = openpgp.key.readArmored(rsaKey);
+
+
+            var pubKey = publicKeys.keys[0];
+
+            //here we need to persist the public key used to
+            //encrypt the data
+
+            //get the RSA private key from the encrypted payload
+
+            //generate a hash from the RSA key and public keys for verification
+            var message = jsonMessage;
+
+            var encrypted = openpgp.signAndEncryptMessage([pubKey], m_this.m_privKey, message);
+
+            //encrypt with my public key and sin with my priv key
+            var packetForMe = openpgp.signAndEncryptMessage([m_this.m_pubKey], m_this.m_privKey, message);
+
+
+            var result = "";
+
+            var pdata = {
+                guid: m_this.m_guid,
+                sharedid: m_this.m_sharedid,
+                userName: username,
+                packetForMe: packetForMe,
+                packetForThem: encrypted,
+                transactionId: transactionid,
+                messageId: messageId
+            };
+            API.post("/api/1/u/createmessage", pdata, function (err, invoiceid) {
+
+                return callback(err, invoiceid);
+
+            });
+
+        });
+
+    }
+
+
     this.UnpackInvoiceByMe = UnpackInvoiceByMe;
     function UnpackInvoiceByMe(invoice, username, callback) {
 
@@ -3622,6 +4126,73 @@ function Engine() {
 
 
     }
+
+
+
+    this.UnpackMessages = UnpackMessages;
+    function UnpackMessages(messages, username, callback) {
+
+        //here decrypt the invoice with my private key
+
+        var rsaKey = '';
+        var postRSAData = { guid: m_this.m_guid, sharedid: m_this.m_sharedid, username: username };
+        API.post("/api/1/u/getrsakey", postRSAData, function (err, rsaKey) {
+
+            //friends public key
+
+            //we need to get friends public key here to verify the signature on the packet
+            //then out of band if they verify the signature belongs to them- they are good
+            var friendspubkey = null;
+
+            var publicKeys = openpgp.key.readArmored(rsaKey);
+            friendspubkey = publicKeys.keys[0];
+
+
+            for (var i = 0; i < messages.length; i++) {
+
+                var pubKey = null;
+                var packet = null;
+                if (messages[i].UserName == m_this.m_nickname) {
+
+                    pubKey = friendspubkey;
+
+                    packet = messages[i].PacketForThem;
+
+                } else {
+
+                    pubKey = m_this.m_pubKey;
+
+                    packet = messages[i].PacketForMe;
+                }
+
+                var msg = openpgp.message.readArmored(packet);
+                var decrypted = openpgp.decryptAndVerifyMessage(m_this.m_privKey, [pubKey], msg);
+
+                var isValid = decrypted.signatures[0].valid;
+                if (isValid) {
+
+                    try {
+                        var json = JSON.parse(sanitizer.sanitize(decrypted.text));
+
+                        messages[i].message = json;
+
+                    } catch (e) {
+
+                        messages[i].message = '';
+
+                    }
+                }
+
+            }
+
+            callback(false, messages);
+
+
+        });
+
+
+    }
+
 
 
     //security
@@ -4322,7 +4893,7 @@ function Engine() {
 
 
 
-        //only request a new token 
+        //only request a new token
 
 
         var postdata = {
@@ -4651,6 +5222,12 @@ function Engine() {
         API.getUnspentOutputs(m_this.m_guid, m_this.m_sharedid, callback);
     }
 
+    this.getTransactionTemplate = getTransactionTemplate;
+    function getTransactionTemplate(transactionid, callback) {
+        API.getTransactionTemplate(m_this.m_guid, m_this.m_sharedid, transactionid, callback);
+    }
+
+
     this.getPendingUserRequests = getPendingUserRequests;
     function getPendingUserRequests(callback) {
         API.getPendingUserRequests(m_this.m_guid, m_this.m_sharedid, callback);
@@ -4682,39 +5259,44 @@ function Engine() {
     }
 
     this.getTransactionFeed = getTransactionFeed;
-    function getTransactionFeed(callback) {
-        API.getTransactionFeed(m_this.m_guid, m_this.m_sharedid, callback);
+    function getTransactionFeed(timestamp, lkey, tranPageFrom, tranPageTo, callback) {
+        API.getTransactionFeed(m_this.m_guid, m_this.m_sharedid, timestamp, lkey, tranPageFrom, tranPageTo, callback);
     }
 
     this.getTransactionsForNetwork = getTransactionsForNetwork;
-    function getTransactionsForNetwork(username, callback) {
-        API.getTransactionsForNetwork(m_this.m_guid, m_this.m_sharedid, username, callback);
+    function getTransactionsForNetwork(username, timestamp, lkey, tranPageFrom, tranPageTo, callback) {
+        API.getTransactionsForNetwork(m_this.m_guid, m_this.m_sharedid, username, timestamp, lkey, tranPageFrom, tranPageTo, callback);
     }
 
     this.getTimeline = getTimeline;
-    function getTimeline(callback) {
-        API.getTimeline(m_this.m_guid, m_this.m_sharedid, callback);
+    function getTimeline(timestamp, lkey, tranPageFrom, tranPageTo, callback) {
+        API.getTimeline(m_this.m_guid, m_this.m_sharedid, timestamp, lkey, tranPageFrom, tranPageTo, callback);
     }
 
     this.getInvoiceList = getInvoiceList;
-    function getInvoiceList(callback) {
-        API.getInvoiceList(m_this.m_guid, m_this.m_sharedid, callback);
+    function getInvoiceList(timestamp, lkey, pageFrom, pageTo, callback) {
+        API.getInvoiceList(m_this.m_guid, m_this.m_sharedid, timestamp, lkey, pageFrom, pageTo, callback);
     }
 
     this.getInvoiceByUserList = getInvoiceByUserList;
-    function getInvoiceByUserList(callback) {
-        API.getInvoiceByUserList(m_this.m_guid, m_this.m_sharedid, callback);
+    function getInvoiceByUserList(timestamp, lkey, pageFrom, pageTo, callback) {
+        API.getInvoiceByUserList(m_this.m_guid, m_this.m_sharedid, timestamp, lkey, pageFrom, pageTo, callback);
     }
 
 
     this.getInvoicesToPayNetwork = getInvoicesToPayNetwork;
-    function getInvoicesToPayNetwork(username, callback) {
-        API.getInvoicesToPayNetwork(m_this.m_guid, m_this.m_sharedid, username, callback);
+    function getInvoicesToPayNetwork(username, timestamp, lkey, pageFrom, pageTo, callback) {
+        API.getInvoicesToPayNetwork(m_this.m_guid, m_this.m_sharedid, username, timestamp, lkey, pageFrom, pageTo, callback);
     }
 
     this.getInvoicesByUserNetwork = getInvoicesByUserNetwork;
-    function getInvoicesByUserNetwork(username, callback) {
-        API.getInvoicesByUserNetwork(m_this.m_guid, m_this.m_sharedid, username, callback);
+    function getInvoicesByUserNetwork(username, timestamp, lkey, pageFrom, pageTo, callback) {
+        API.getInvoicesByUserNetwork(m_this.m_guid, m_this.m_sharedid, username, timestamp, lkey, pageFrom, pageTo, callback);
+    }
+
+    this.getMessagesByUserNetwork = getMessagesByUserNetwork;
+    function getMessagesByUserNetwork(username, timestamp, lkey, pageFrom, pageTo, callback) {
+        API.getMessagesByUserNetwork(m_this.m_guid, m_this.m_sharedid, username, timestamp, lkey, pageFrom, pageTo, callback);
     }
 
 
@@ -4750,47 +5332,48 @@ function Engine() {
     this.getDeviceKey = getDeviceKey;
     function getDeviceKey(devicePIN, callback) {
 
-        var deviceid = "DEVICE123456789";
-        if (m_this.Device.isCordova()) {
-            deviceid = window.device.uuid;
-        }
+        m_this.Device.getDeviceId(function (res) {
 
-        //hash the pin and device id
-        var pinhash = deviceid + devicePIN;
-        var bytes = [];
-        for (var i = 0; i < pinhash.length; ++i) {
-            bytes.push(pinhash.charCodeAt(i));
-        }
+            deviceid = res;
 
-        pinhash = Bitcoin.Crypto.SHA256(Bitcoin.convert.bytesToWordArray(bytes)).toString();
+            //hash the pin and device id
+            var pinhash = deviceid + devicePIN;
+            var bytes = [];
+            for (var i = 0; i < pinhash.length; ++i) {
+                bytes.push(pinhash.charCodeAt(i));
+            }
 
-        m_this.Device.getStorageItem("ninki_reg", function (regToken) {
+            pinhash = Bitcoin.Crypto.SHA256(Bitcoin.convert.bytesToWordArray(bytes)).toString();
 
-            API.getDeviceKey(m_this.m_guid, pinhash, regToken, function (err, ekey) {
+            m_this.Device.getStorageItem("ninki_reg", function (regToken) {
 
-                if (!err) {
+                API.getDeviceKey(m_this.m_guid, pinhash, regToken, function (err, ekey) {
 
-                    var jekey = JSON.parse(ekey);
+                    if (!err) {
 
-                    if (jekey.DeviceKey.length > 0) {
+                        var jekey = JSON.parse(ekey);
 
-                        m_this.m_deviceKey = Bitcoin.convert.hexToBytes(jekey.DeviceKey);
+                        if (jekey.DeviceKey.length > 0) {
 
-                        if (jekey.SessionToken) {
-                            API.registerToken(jekey.SessionToken);
-                            m_this.m_APIToken = jekey.SessionToken;
+                            m_this.m_deviceKey = Bitcoin.convert.hexToBytes(jekey.DeviceKey);
+
+                            if (jekey.SessionToken) {
+                                API.registerToken(jekey.SessionToken);
+                                m_this.m_APIToken = jekey.SessionToken;
+                                callback(err, "");
+                            }
+
+                            jekey.DeviceKey = [];
+
+                        } else {
+
                             callback(err, "");
                         }
-
-                        jekey.DeviceKey = [];
-
                     } else {
-
-                        callback(err, "");
+                        callback(true, ekey);
                     }
-                } else {
-                    callback(true, ekey);
-                }
+
+                });
 
             });
 
@@ -4826,7 +5409,6 @@ function Engine() {
 
     }
 
-
     this.createDevice = createDevice;
     function createDevice(deviceName, callback) {
         API.createDevice(m_this.m_guid, m_this.m_sharedid, deviceName, callback);
@@ -4840,6 +5422,11 @@ function Engine() {
     this.getDeviceToken = getDeviceToken;
     function getDeviceToken(deviceName, twoFactorCode, callback) {
         API.getDeviceToken(m_this.m_guid, m_this.m_sharedid, deviceName, twoFactorCode, callback);
+    }
+
+    this.getDeviceTokenRestore = getDeviceTokenRestore;
+    function getDeviceTokenRestore(deviceName, secret, signaturecold, callback) {
+        API.getDeviceTokenRestore(m_this.m_guid, deviceName, secret, signaturecold, callback);
     }
 
     this.getDeviceTokenForApp = getDeviceTokenForApp;
@@ -4861,6 +5448,22 @@ function Engine() {
 
         });
     }
+
+    this.prepareTransaction = prepareTransaction;
+    function prepareTransaction(amount, callback) {
+        API.prepareTransaction(m_this.m_guid, m_this.m_sharedid, amount, function (err, res) {
+
+            if (!err) {
+                var jlimits = JSON.parse(res);
+                return callback(err, jlimits);
+
+            } else {
+                return callback(err, res);
+            }
+
+        });
+    }
+
 
 
     this.createBackupCodes = createBackupCodes;
@@ -4887,6 +5490,22 @@ function Engine() {
 
         });
     }
+
+    this.resetTwoFactorAccount = resetTwoFactorAccount;
+    function resetTwoFactorAccount(signaturecold, callback) {
+        API.resetTwoFactorAccount(m_this.m_guid, signaturecold, m_this.m_secret, function (err, res) {
+            return callback(err, res);
+        });
+    }
+
+    this.getSigChallenge = getSigChallenge;
+    function getSigChallenge(callback) {
+        API.getSigChallenge(m_this.m_guid, m_this.m_secret, function (err, res) {
+            return callback(err, res);
+        });
+    }
+
+
 
 
     this.get2faOverride = get2faOverride;
@@ -4999,8 +5618,35 @@ function Engine() {
         });
     }
 
+    this.estimateTranBytes = estimateTranBytes;
+    function estimateTranBytes(noOfIns, noOfOuts, amount) {
+
+        var estInpSize = 300;
+        var estOutSize = 34;
+        var estGenSize = 30;
+
+        return ((estInpSize * noOfIns) + (estOutSize * noOfOuts) + estGenSize);
+
+    }
+
+    this.calcMinerFee = calcMinerFee;
+    function calcMinerFee(noOfBytes,satsperbyte) {
+
+        var f = satsperbyte * noOfBytes;
+
+        f = Math.round(f / 10000) * 10000;
+
+        if (f < 10000) {
+            return 10000;
+        } else {
+            return f;
+
+        }
+
+    }
+
+
 
 }
 
 module.exports = Engine;
-

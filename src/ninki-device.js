@@ -95,7 +95,7 @@ function Device() {
 
             if (typeof window.cordova === 'undefined') {
 
-                //switch to false for mob 
+                //switch to false for mob
                 return true;
 
             } else {
@@ -106,6 +106,33 @@ function Device() {
         }
 
     }
+
+    this.getDeviceId = getDeviceId;
+    function getDeviceId(callback) {
+
+        getStorageItem("deviceid", function (res) {
+
+            if (res == "") {
+                var deviceid = "DEVICE123456789";
+
+                if (window.cordova) {
+                    deviceid = window.device.uuid;
+                }
+
+                setStorageItem("deviceid", deviceid);
+
+                return callback(deviceid);
+
+            } else {
+                return callback(res);
+            }
+
+        });
+
+    }
+
+
+
 
     this.getStorageItem = getStorageItem;
     function getStorageItem(cname, callback) {
@@ -302,7 +329,7 @@ function Device() {
                         } else {
                             datac = decryptor(enc.ct, key, enc.iv, asbytes);
                         }
-                      
+
                     } catch (error) {
                         decryptok = false;
                     }
